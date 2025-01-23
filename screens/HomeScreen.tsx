@@ -1,38 +1,65 @@
-import { View, Text, TouchableOpacity, Pressable } from "react-native";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
+import { View, TouchableOpacity, Pressable } from "react-native";
 import FFSafeAreaView from "@/src/components/FFSafeAreaView";
 import FFText from "@/src/components/FFText";
 import FFSidebar from "@/src/components/FFSidebar";
 import FFAvatar from "@/src/components/FFAvatar";
 import FFBadge from "@/src/components/FFBadge";
 import FFView from "@/src/components/FFView";
-import { data_card_items_Homescreen_Today_metric } from "@/src/data/screens/data_home";
-import FFButton from "@/src/components/FFButton";
 import FFSwipe from "@/src/components/FFSwipe";
+import { useDispatch, useSelector } from "@/src/store/types";
+import { AppDispatch, RootState } from "@/src/store/store";
+import axiosInstance from "@/src/utils/axiosConfig";
+import {
+  saveTokenToAsyncStorage,
+  setAuthState,
+  loadTokenFromAsyncStorage,
+} from "@/src/store/authSlice"; // Assuming loadTokenFromAsyncStorage exists
+import { toggleAvailability } from "@/src/store/availabilitySlice";
 
 const HomeScreen = () => {
   const [isShowSidebar, setIsShowSidebar] = useState(false);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true); // Loading state
 
-  const toggleAvailability = () => {
-    console.log("check");
-  };
+  // Get token and other data from Redux
+  const { available_for_work } = useSelector((state: RootState) => state.auth);
+
+  const dispatch = useDispatch();
+
+  useEffect(() => {
+    const loadToken = async () => {
+      await dispatch(loadTokenFromAsyncStorage()); // Load token from AsyncStorage
+      setLoading(false); // Set loading to false after token is loaded
+    };
+    loadToken();
+  }, [dispatch]);
+
+
 
   return (
     <FFSafeAreaView>
       <FFView style={{ flex: 1, padding: 8 }}>
-        {/* top section */}
-        <View className="justify-center relative flex-row p-8">
-          <FFBadge backgroundColor="#E02D3C" title="Offline" textColor="#fff" />
-          <TouchableOpacity
-            className="absolute top-2 right-2"
-            onPress={() => {console.log('check'), setIsShowSidebar(true)}}
-          >
-            <FFAvatar />
-          </TouchableOpacity>
+        {/* Top section */}
+        <View className="justify-center relative flex-row p-4">
+          <FFBadge
+            backgroundColor={available_for_work ? "#0EB228" : "#E02D3C"}
+            title={available_for_work ? "Online" : "Offline"}
+            textColor="#fff"
+          />
+
+          <FFAvatar
+            onPress={() => setIsShowSidebar(true)}
+            style={{
+              position: "absolute",
+              top: 0,
+              right: 0,
+              padding: 10,
+              justifyContent: "center",
+              alignItems: "center",
+            }}
+          />
         </View>
-        <View
-          style={{ flex: 1, backgroundColor: "#ccc", marginHorizontal: -10 }}
-        ></View>
 
         <View
           style={{
@@ -50,19 +77,28 @@ const HomeScreen = () => {
           <View className="border-b-2 border-gray-300 flex-row items-center justify-between p-4 px-6">
             <FFAvatar />
             <FFText style={{ textAlign: "center", margin: 10 }}>
-              You're Offline
+              You're {available_for_work ? "Online" : "Offline"}
             </FFText>
             <FFAvatar />
           </View>
-      <View className="overflow-hidden mx-6 my-4  rounded-lg bg-[#0EB228]">
-          <FFSwipe onSwipe={toggleAvailability} direction="right" />
-      </View>
+
+          <View className="overflow-hidden mx-6 my-4 rounded-lg bg-[#0EB228]">
+            <FFSwipe
+              onSwipe={() => {
+                if (!loading) {
+                  dispatch(toggleAvailability()); // Call the function properly via dispatch
+                }
+              }}
+              direction="right"
+            />
+          </View>
         </View>
       </FFView>
-        <FFSidebar
-          visible={isShowSidebar}
-          onClose={() => setIsShowSidebar(false)}
-        />
+
+      <FFSidebar
+        visible={isShowSidebar}
+        onClose={() => setIsShowSidebar(false)}
+      />
     </FFSafeAreaView>
   );
 };

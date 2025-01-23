@@ -4,7 +4,7 @@ import { useNavigation } from "@react-navigation/native";
 import FFAuthForm from "./FFAuthForm";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { LinearGradient } from "expo-linear-gradient";
-import { RootStackParamList } from "@/src/navigation/AppNavigator";
+import { AuthStackParamList, RootStackParamList } from "@/src/navigation/AppNavigator";
 import axiosInstance from "@/src/utils/axiosConfig";
 import { useDispatch } from "@/src/store/types";
 import { setAuthState } from "@/src/store/authSlice";
@@ -17,7 +17,7 @@ import FFButton from "@/src/components/FFButton";
 import Spinner from "@/src/components/FFSpinner";
 
 type SignupScreenNavigationProp = StackNavigationProp<
-  RootStackParamList,
+  AuthStackParamList,
   "Signup"
 >;
 
@@ -46,7 +46,7 @@ const Signup = () => {
 
     // Make the POST request
     axiosInstance
-      .post("/auth/register-fwallet", requestBody, {
+      .post("/auth/register-driver", requestBody, {
         validateStatus: () => true, // Always return true so axios doesn't throw on errors
       })
       .then((response) => {

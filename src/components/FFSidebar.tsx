@@ -14,7 +14,14 @@ import FFText from "./FFText";
 import FFBadge from "./FFBadge";
 import { data_sidebar } from "../data/components/data_sidebar";
 import { useNavigation } from "@react-navigation/native";
-import { NavigationProp, RootStackParamList, ScreenNames } from "../navigation/AppNavigator";
+import { ScreenNames } from "../navigation/AppNavigator";
+import { StackNavigationProp } from "@react-navigation/stack";
+// import {  RootStackParamList,  } from "../navigation/AppNavigator";
+
+type NavigationProp = StackNavigationProp<
+  any,
+  "Main"
+>;
 
 // Receive navigation prop
 const FFSidebar = ({

@@ -1,11 +1,18 @@
-import { View, Image, StyleSheet, Pressable } from "react-native";
+import { View, Image, StyleSheet, Pressable, StyleProp, ViewStyle } from "react-native";
 import React from "react";
 import FFText from "./FFText";
 
-const FFAvatar = ({ size = 60, avatar, onPress=() => {} }: { size?: number, avatar?: string, onPress?: () => void }) => {
+type FFAvatarProps = {
+  size?: number;
+  avatar?: string;
+  onPress?: () => void;
+  style?: StyleProp<ViewStyle>; // Accepting the style prop
+};
+
+const FFAvatar = ({ size = 60, avatar, onPress = () => {}, style }: FFAvatarProps) => {
   return (
     <Pressable
-    onPress={onPress}
+      onPress={onPress}
       style={[
         {
           width: size,
@@ -13,7 +20,8 @@ const FFAvatar = ({ size = 60, avatar, onPress=() => {} }: { size?: number, avat
           borderRadius: 9999, // Makes it a circle
           overflow: 'hidden', // Ensures the image is clipped to the circle
         },
-        !avatar ? { backgroundColor: '#efcb13' } : {} // Use conditional styling
+        !avatar ? { backgroundColor: '#efcb13' } : {}, // Use conditional styling
+        style, // Apply the custom style passed as a prop
       ]}
     >
       {avatar ? (
