@@ -59,7 +59,9 @@ const Login = () => {
           contact_email,
           contact_phone,
           fWallet_balance,
-          driver_id, user_id
+          driver_id,
+          user_id,
+          avatar,
         } = decoded;
 
         // Save all the relevant data to Redux and AsyncStorage
@@ -73,7 +75,10 @@ const Login = () => {
             contact_email: contact_email || [],
             contact_phone: contact_phone || [],
             balance: fWallet_balance, // Store the balance as well,
-            userId: user_id, driverId: driver_id, email: email
+            userId: user_id,
+            driverId: driver_id,
+            email: email,
+            avatar: avatar,
           })
         );
 

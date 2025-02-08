@@ -17,10 +17,14 @@ import ProfileScreen from "@/screens/ProfileScreen";
 import MyWalletScreen from "@/screens/MyWalletScreen";
 import SupportCenterScreen from "@/screens/SupportCenterScreen";
 import SettingsScreen from "@/screens/SettingsScreen";
+
+// Sidebar component (it will be part of the main content, not as a separate screen)
+
 import { useDispatch, useSelector } from "../store/types";
 
 const Stack = createStackNavigator();
 
+// Define types for navigation
 export type RootStackParamList = {
   Main: undefined;
   Auth: undefined;
@@ -30,36 +34,100 @@ export type AuthStackParamList = {
   Signup: undefined;
 };
 
-export type ScreenNames = "Home"|
-"MyTasks"|
-"TrackHistory"|
-"Statistics"|
-"Notifications"|
-"Profile"|
-"MyWallet"|
-"SupportCenter"|
-"Settings"
+export type SidebarStackParamList = {
+  Home: undefined;
+  MyTasks: undefined;
+  TrackHistory: undefined;
+  Statistics: undefined;
+  Notifications: undefined;
+  Profile: undefined;
+  MyWallet: undefined;
+  SupportCenter: undefined;
+  Settings: undefined;
+};
+
+export type ScreenNames =
+  | "Home"
+  | "MyTasks"
+  | "TrackHistory"
+  | "Statistics"
+  | "Notifications"
+  | "Profile"
+  | "MyWallet"
+  | "SupportCenter"
+  | "Settings";
 
 // Main App Navigator (Authenticated)
-const MainNavigator = () => (
-  <Stack.Navigator initialRouteName="Home">
-    <Stack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
-    <Stack.Screen name="MyTasks" component={MyTasksScreen} />
-    <Stack.Screen name="TrackHistory" component={TrackHistoryScreen} />
-    <Stack.Screen name="Statistics" component={StatisticsScreen} />
-    <Stack.Screen name="Notifications" component={NotificationsScreen} />
-    <Stack.Screen name="Profile" component={ProfileScreen} />
-    <Stack.Screen name="MyWallet" component={MyWalletScreen} />
-    <Stack.Screen name="SupportCenter" component={SupportCenterScreen} />
-    <Stack.Screen name="Settings" component={SettingsScreen} />
-  </Stack.Navigator>
-);
+const MainNavigator = () => {
+  // Sidebar toggle functionality, can be shown as a component overlay or slide-in from left
+  const [showSidebar, setShowSidebar] = useState(false);
+
+  return (
+    <>
+      <Stack.Navigator initialRouteName="Home">
+        <Stack.Screen
+          name="Home"
+          component={HomeScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          options={{ headerShown: false }}
+          name="MyTasks"
+          component={MyTasksScreen}
+        />
+        <Stack.Screen
+          options={{ headerShown: false }}
+          name="TrackHistory"
+          component={TrackHistoryScreen}
+        />
+        <Stack.Screen
+          options={{ headerShown: false }}
+          name="Statistics"
+          component={StatisticsScreen}
+        />
+        <Stack.Screen
+          options={{ headerShown: false }}
+          name="Notifications"
+          component={NotificationsScreen}
+        />
+        <Stack.Screen
+          options={{ headerShown: false }}
+          name="Profile"
+          component={ProfileScreen}
+        />
+        <Stack.Screen
+          options={{ headerShown: false }}
+          name="MyWallet"
+          component={MyWalletScreen}
+        />
+        <Stack.Screen
+          options={{ headerShown: false }}
+          name="SupportCenter"
+          component={SupportCenterScreen}
+        />
+        <Stack.Screen
+          options={{ headerShown: false }}
+          name="Settings"
+          component={SettingsScreen}
+        />
+      </Stack.Navigator>
+    </>
+  );
+};
 
 // Auth Navigator (Login/Signup)
 const AuthNavigator = () => (
   <Stack.Navigator initialRouteName="Login">
-    <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
-    <Stack.Screen name="Signup" component={SignupScreen} options={{ headerShown: false }} />
+    <Stack.Screen
+      name="Login"
+      component={LoginScreen}
+      options={{ headerShown: false }}
+    />
+    <Stack.Screen
+      name="Signup"
+      component={SignupScreen}
+      options={{ headerShown: false }}
+    />
   </Stack.Navigator>
 );
 
@@ -87,10 +155,7 @@ const App = () => {
         name="Main"
         component={isAuthenticated ? MainNavigator : AuthNavigator}
       />
-      <Stack.Screen
-        name="Auth"
-        component={AuthNavigator}
-      />
+      <Stack.Screen name="Auth" component={AuthNavigator} />
     </Stack.Navigator>
   );
 };

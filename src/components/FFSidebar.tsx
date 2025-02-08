@@ -16,12 +16,14 @@ import { data_sidebar } from "../data/components/data_sidebar";
 import { useNavigation } from "@react-navigation/native";
 import { ScreenNames } from "../navigation/AppNavigator";
 import { StackNavigationProp } from "@react-navigation/stack";
+import { useDispatch, useSelector } from "../store/types";
+import { RootState } from "../store/store";
+import FFToggle from "./FFToggle";
+import { loadTokenFromAsyncStorage } from "../store/authSlice";
+import { toggleAvailability } from "../store/availabilitySlice";
 // import {  RootStackParamList,  } from "../navigation/AppNavigator";
 
-type NavigationProp = StackNavigationProp<
-  any,
-  "Main"
->;
+type NavigationProp = StackNavigationProp<any, "Main">;
 
 // Receive navigation prop
 const FFSidebar = ({
@@ -33,11 +35,15 @@ const FFSidebar = ({
 }) => {
   const [isvisible, setIsVisible] = useState(visible); // Controls the visibility of the sidebar and overlay
   const { theme } = useTheme();
+  const [loading, setLoading] = useState(true); // Loading state
 
+  const dispatch = useDispatch();
   useEffect(() => {
     setIsVisible(visible);
   }, [visible]);
-
+  const { available_for_work, avatar } = useSelector(
+    (state: RootState) => state.auth
+  );
   // Set the initial position of the sidebar off-screen to the right
   const translateX = new Animated.Value(0); // Start in view
 
@@ -76,10 +82,18 @@ const FFSidebar = ({
     });
   };
 
+  useEffect(() => {
+    const loadToken = async () => {
+      await dispatch(loadTokenFromAsyncStorage()); // Load token from AsyncStorage
+      setLoading(false); // Set loading to false after token is loaded
+    };
+    loadToken();
+  }, [dispatch]);
+
   // Slide the sidebar out when the visibility changes
   const sidebarTranslate = isvisible ? translateX : new Animated.Value(300); // Sidebar hidden when not visible
 
-    const navigation = useNavigation<NavigationProp>()
+  const navigation = useNavigation<NavigationProp>();
 
   return (
     <TouchableWithoutFeedback onPress={closeSidebar}>
@@ -97,20 +111,33 @@ const FFSidebar = ({
               },
             ]}
           >
-            <FFAvatar onPress={() => navigation.navigate('Profile')} size={80} />
+            <FFAvatar
+              avatar={avatar?.url}
+              onPress={() => navigation.navigate("Profile")}
+              size={80}
+            />
             <View>
               <FFText style={{ fontSize: 18 }}>Tommy Teo</FFText>
               <FFText style={{ color: "#ccc", fontSize: 14 }}>
                 +84 707171164
               </FFText>
             </View>
-            <View style={{ width: "100%", alignItems: "center" }}>
+            <View style={{ width: "100%", alignItems: "center", gap: 20 }}>
               <FFBadge
                 title="Edit Profile"
                 backgroundColor="#63c550"
                 textColor="#fff"
                 rounded={"sm"}
-                 onPress={() => navigation.navigate('Profile')}
+                onPress={() => navigation.navigate("Profile")}
+              />
+              <FFToggle
+                initialChecked={available_for_work ?? false}
+                onChange={() => {
+                  if (!loading) {
+                    dispatch(toggleAvailability()); // Call the function properly via dispatch
+                  }
+                }}
+                label="Online Status"
               />
             </View>
             <View
@@ -125,15 +152,22 @@ const FFSidebar = ({
               }}
             >
               {data_sidebar.map((item) => (
-        <TouchableOpacity
-          key={item.title}
-          style={{ paddingVertical: 14, flexDirection: 'row', alignItems: 'center', gap: 8 }}
-          onPress={() => navigation.navigate(item.screen as ScreenNames)}  // Call navigation.navigate() directly
-        >
-          {item.icon}
-          <Text style={{ fontSize: 16 }}>{item.title}</Text>
-        </TouchableOpacity>
-      ))}
+                <TouchableOpacity
+                  key={item.title}
+                  style={{
+                    paddingVertical: 14,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 8,
+                  }}
+                  onPress={() =>
+                    navigation.navigate(item.screen as ScreenNames)
+                  } // Call navigation.navigate() directly
+                >
+                  {item.icon}
+                  <FFText style={{ fontSize: 16 }}>{item.title}</FFText>
+                </TouchableOpacity>
+              ))}
             </View>
           </Animated.View>
         </TouchableWithoutFeedback>

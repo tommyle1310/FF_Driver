@@ -23,7 +23,9 @@ const HomeScreen = () => {
   const [loading, setLoading] = useState(true); // Loading state
 
   // Get token and other data from Redux
-  const { available_for_work } = useSelector((state: RootState) => state.auth);
+  const { available_for_work, avatar } = useSelector(
+    (state: RootState) => state.auth
+  );
 
   const dispatch = useDispatch();
 
@@ -34,8 +36,6 @@ const HomeScreen = () => {
     };
     loadToken();
   }, [dispatch]);
-
-
 
   return (
     <FFSafeAreaView>
@@ -49,12 +49,12 @@ const HomeScreen = () => {
           />
 
           <FFAvatar
+            avatar={avatar?.url}
             onPress={() => setIsShowSidebar(true)}
             style={{
               position: "absolute",
               top: 0,
               right: 0,
-              padding: 10,
               justifyContent: "center",
               alignItems: "center",
             }}
