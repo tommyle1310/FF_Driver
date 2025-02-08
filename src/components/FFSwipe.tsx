@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { View, Text, StyleSheet, Dimensions, Animated } from "react-native";
 import { PanGestureHandler } from "react-native-gesture-handler";
 import IconFeather from "react-native-vector-icons/Feather";
+import FFText from "./FFText";
 
 const SWIPER_WIDTH = 60;
 
