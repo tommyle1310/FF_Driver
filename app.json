@@ -1,8 +1,12 @@
 {
   "expo": {
-    "name": "FF_Customer",
-    "slug": "FF_Customer",
+    "name": "YourAppName",
+    "slug": "your-app-slug",
     "version": "1.0.0",
+    "platforms": [
+      "ios",
+      "android"
+    ],
     "orientation": "portrait",
     "scheme": "myapp",
     "userInterfaceStyle": "automatic",
@@ -12,15 +16,17 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#ffffff"
-      }
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#FFFFFF"
+      },
+      "package": "com.tommyle1310.FF_Driver"
     },
     "web": {
       "bundler": "metro",
       "output": "static"
     },
     "plugins": [
-      "expo-router",
+      "expo-dev-client",
       [
         "expo-splash-screen",
         {
@@ -35,7 +41,7 @@
     }
   },
   "updates": {
-  "enabled": true,
-  "checkAutomatically": "ON_LOAD"
-}
+    "enabled": true,
+    "checkAutomatically": "ON_LOAD"
+  }
 }

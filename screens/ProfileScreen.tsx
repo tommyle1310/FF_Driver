@@ -23,7 +23,9 @@ interface Props_ProfileData {
   address: string[];
   first_name: string;
   last_name: string;
-  user: {
+  contact_phone: { number: string; title: string; is_default: boolean }[];
+  contact_email: { email: string; title: string; is_default: boolean }[];
+  user?: {
     _id: string;
     first_name: string;
     last_name: string;
@@ -42,55 +44,60 @@ const ProfileScreen = () => {
   const [lastName, setLastName] = useState<string>("");
   const [email, setEmail] = useState<string>("");
   const [phone, setPhone] = useState<string>("");
-  const { driverId } = useSelector((state: RootState) => state.auth);
-  const [profileData, setProfileData] = useState<Props_ProfileData>({
-    _id: "",
-    user_Id: "",
-    avatar: { url: "", key: "" },
-    address: [""],
-    first_name: "",
-    last_name: "",
-    user: {
-      _id: "",
-      first_name: "",
-      last_name: "",
-      email: "",
-      phone: "",
-      is_verified: false,
-    },
-  });
+  const { driverId, email: emailRedux } = useSelector(
+    (state: RootState) => state.auth
+  );
+  const [profileData, setProfileData] = useState<Props_ProfileData | null>(
+    null
+  );
+
   useEffect(() => {
     const fetchProfileData = async () => {
-      const response = await axiosInstance.get(`/customers/${driverId}`);
-      const { EC, EM, data } = response.data;
-      if (EC === 0) {
-        setProfileData(data);
+      try {
+        const response = await axiosInstance.get(`/drivers/${driverId}`);
+        const { EC, EM, data } = response.data;
+        if (EC === 0) {
+          setProfileData(data);
+        } else {
+          console.error("Error fetching profile data:", EM);
+        }
+      } catch (error) {
+        console.error("Error fetching profile data:", error);
       }
     };
     fetchProfileData();
   }, [driverId]);
+
   useEffect(() => {
-    const { _id, address, avatar, first_name, last_name, user, user_Id } =
-      profileData;
-    let firstNameState;
-    let lastNameState;
-    if (first_name) {
-      firstNameState = first_name;
-    } else {
-      firstNameState = user.first_name ? user.first_name : "";
-    }
-    if (last_name) {
-      lastNameState = last_name;
-    } else {
-      lastNameState = user.last_name ? user.last_name : "";
-    }
     if (profileData) {
-      setEmail(profileData.user.email);
-      setPhone(profileData.user.phone);
+      console.log("Profile data is defined");
+
+      const { first_name, last_name, user, contact_email, contact_phone } =
+        profileData;
+      let firstNameState = first_name || (user && user.first_name) || "";
+      let lastNameState = last_name || (user && user.last_name) || "";
+      let emailState = user
+        ? user.email
+        : contact_email.find((item) => item.is_default)?.email ||
+          emailRedux ||
+          "";
+      let phoneState = user
+        ? user.phone
+        : contact_phone.find((item) => item.is_default)?.number || "";
+
+      console.log(
+        "check here",
+        contact_email.find((item) => item.is_default)?.email
+      );
+
+      setEmail(emailState);
+      setPhone(phoneState);
       setFirstName(firstNameState);
       setLastName(lastNameState);
     }
   }, [profileData]);
+
+  console.log("Check profile data", email, phone);
 
   return (
     <FFSafeAreaView>
@@ -98,6 +105,8 @@ const ProfileScreen = () => {
       <View className="p-4">
         {screenStatus === "READONLY" ? (
           <ReadonlyProfileComponents
+            email={email}
+            phone={phone}
             toggleStatus={() => setScreenStatus("EDIT_PROFILE")}
           />
         ) : (

@@ -8,6 +8,10 @@ import { RootState } from "@/src/store/store";
 import * as ImagePicker from "expo-image-picker";
 import useUploadImage from "@/src/hooks/useUploadImage";
 import { setAvatar, setAvatarInAsyncStorage } from "@/src/store/authSlice";
+import Spinner from "../../FFSpinner";
+import FFModal from "../../FFModal";
+import FFText from "../../FFText";
+import FFButton from "../../FFButton";
 
 const EditProfileComponent = ({
   firstName,
@@ -32,8 +36,15 @@ const EditProfileComponent = ({
     (state: RootState) => state.auth
   );
   const dispatch = useDispatch();
+  const [isShowModalStatus, setIsShowModalStatus] = useState<boolean>(false);
 
-  const { imageUri, setImageUri, uploadImage, responseData } = useUploadImage(
+  const {
+    imageUri,
+    setImageUri,
+    uploadImage,
+    responseData,
+    loading: isUploadingImage,
+  } = useUploadImage(
     "DRIVER",
     driverId || "CUS_ee0966ee-d3dd-49e6-bc20-73e2dab6a593"
   );
@@ -57,9 +68,14 @@ const EditProfileComponent = ({
     if (responseData?.EC === 0) {
       dispatch(setAvatar(responseData.data.avatar)); // This updates Redux state
       dispatch(setAvatarInAsyncStorage(responseData.data.avatar)); // This updates AsyncStorage
+      setIsShowModalStatus(true);
     }
   }, [responseData]);
 
+  console.log("cehck data", email, firstName);
+
+  if (isUploadingImage)
+    return <Spinner isVisible={isUploadingImage} isOverlay />;
   return (
     <View
       style={{
@@ -69,6 +85,7 @@ const EditProfileComponent = ({
         borderColor: "#e5e5e5",
         padding: 16,
         gap: 16,
+        elevation: 4,
       }}
     >
       <View style={{ alignItems: "center" }}>
@@ -110,6 +127,16 @@ const EditProfileComponent = ({
         placeholder="(+84) 707171164"
         error=""
       />
+      <FFButton onPress={() => {}} className="w-full mt-4">
+        Confirm Changes
+      </FFButton>
+
+      <FFModal
+        visible={isShowModalStatus}
+        onClose={() => setIsShowModalStatus(false)}
+      >
+        <FFText>Congrats, your avatar has just been updated.🥳</FFText>
+      </FFModal>
     </View>
   );
 };

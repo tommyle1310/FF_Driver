@@ -1,5 +1,12 @@
 import React from "react";
-import { View, Modal, Text, TouchableOpacity, StyleSheet, ScrollView } from "react-native";
+import {
+  View,
+  Modal,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  ScrollView,
+} from "react-native";
 import { useTheme } from "@/src/hooks/useTheme"; // Import the custom useTheme hook
 import FFText from "./FFText";
 import IconIonicon from "react-native-vector-icons/Ionicons";
@@ -8,10 +15,15 @@ interface FFModalProps {
   visible: boolean;
   onClose: () => void;
   children?: React.ReactNode; // Only the children prop is needed
-  disabledClose?: boolean
+  disabledClose?: boolean;
 }
 
-const FFModal: React.FC<FFModalProps> = ({ visible, onClose, children, disabledClose }) => {
+const FFModal: React.FC<FFModalProps> = ({
+  visible,
+  onClose,
+  children,
+  disabledClose,
+}) => {
   const { theme } = useTheme(); // Get the theme for dynamic styling
 
   return (
@@ -22,12 +34,19 @@ const FFModal: React.FC<FFModalProps> = ({ visible, onClose, children, disabledC
       onRequestClose={onClose} // Handle the request to close the modal
     >
       <View
-        style={[styles.overlay, {
-          backgroundColor: theme === "light" ? "rgba(0,0,0,0.5)" : "rgba(255,255,255,0.5)"
-        }]}
+        style={[
+          styles.overlay,
+          {
+            backgroundColor:
+              theme === "light" ? "rgba(0,0,0,0.5)" : "rgba(255,255,255,0.5)",
+          },
+        ]}
       >
         <View
-          style={[styles.modalContainer, { backgroundColor: theme === "light" ? "#fff" : "#333" }]}
+          style={[
+            styles.modalContainer,
+            { backgroundColor: theme === "light" ? "#fff" : "#333" },
+          ]}
         >
           {/* Make the modal content scrollable if needed */}
           <ScrollView contentContainerStyle={styles.scrollContainer}>
@@ -35,11 +54,11 @@ const FFModal: React.FC<FFModalProps> = ({ visible, onClose, children, disabledC
           </ScrollView>
 
           {/* Button to close the modal */}
-          {!disabledClose &&
-          <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-            <IconIonicon name='close' style={{ color: 'white' }} />
-          </TouchableOpacity>
-          }
+          {!disabledClose && (
+            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+              <IconIonicon name="close" style={{ color: "white" }} />
+            </TouchableOpacity>
+          )}
         </View>
       </View>
     </Modal>
@@ -59,12 +78,12 @@ const styles = StyleSheet.create({
     zIndex: 1, // Ensure it's below the SlideUpModal
   },
   modalContainer: {
-    width: '90%', // Fixed width for the modal content
-    maxHeight: '80%', // Prevent modal from being too tall
+    width: "90%", // Fixed width for the modal content
+    maxHeight: "80%", // Prevent modal from being too tall
     padding: 20,
     borderRadius: 10,
-    position: 'relative',
-    flexDirection: 'column', // Ensure content is stacked vertically
+    position: "relative",
+    flexDirection: "column", // Ensure content is stacked vertically
     justifyContent: "center",
     elevation: 10, // Add shadow for iOS and Android elevation
     margin: 20, // Optional margin to add space around modal
@@ -77,7 +96,7 @@ const styles = StyleSheet.create({
     top: 4,
     right: 4,
     padding: 4,
-    position: 'absolute',
+    position: "absolute",
     backgroundColor: "#E74C3C",
     borderRadius: 9999,
   },

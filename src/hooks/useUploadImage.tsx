@@ -15,9 +15,11 @@ const useUploadImage = (
 ) => {
   const [imageUri, setImageUri] = useState<string | null | undefined>(null);
   const [responseData, setResponseData] = useState<any>(null); // State to store response data
+  const [loading, setLoading] = useState<boolean>(false); // State to store loading status
 
   const uploadImage = async (uri: string | null) => {
     if (uri) {
+      setLoading(true); // Set loading to true when upload starts
       try {
         const formData = new FormData();
         formData.append("file", {
@@ -39,7 +41,6 @@ const useUploadImage = (
         const { EC, EM, data } = response.data;
 
         if (EC === 0) {
-          Alert.alert("Success", "Image uploaded successfully");
           setResponseData(data); // Store the response data
         } else {
           Alert.alert("Error", EM || "Failed to upload image");
@@ -47,6 +48,8 @@ const useUploadImage = (
       } catch (error) {
         console.error(error);
         Alert.alert("Error", "An error occurred while uploading the image");
+      } finally {
+        setLoading(false); // Set loading to false when upload ends
       }
     }
   };
@@ -56,6 +59,7 @@ const useUploadImage = (
     setImageUri,
     uploadImage,
     responseData, // Return responseData along with other state and functions
+    loading, // Return loading state
   };
 };
 

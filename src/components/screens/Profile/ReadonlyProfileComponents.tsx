@@ -7,8 +7,12 @@ import { useSelector } from "@/src/store/types";
 import { RootState } from "@/src/store/store";
 
 const ReadonlyProfileComponents = ({
+  email,
+  phone,
   toggleStatus,
 }: {
+  email: string;
+  phone: string;
   toggleStatus: () => void;
 }) => {
   const { avatar } = useSelector((state: RootState) => state.auth);
@@ -22,6 +26,7 @@ const ReadonlyProfileComponents = ({
         borderColor: "#e5e5e5",
         padding: 16,
         gap: 8,
+        elevation: 4,
       }}
     >
       <View
@@ -34,9 +39,7 @@ const ReadonlyProfileComponents = ({
         <FFAvatar avatar={avatar?.url} />
         <View style={{ flex: 1 }}>
           <FFText fontSize="lg">Tommy Teo</FFText>
-          <FFText style={{ fontWeight: "400", color: "#aaa" }}>
-            abc@gmail.com
-          </FFText>
+          <FFText style={{ fontWeight: "400", color: "#aaa" }}>{email}</FFText>
         </View>
         <TouchableOpacity
           onPress={toggleStatus}
@@ -57,7 +60,7 @@ const ReadonlyProfileComponents = ({
         <FFText style={{ color: "#aaa" }} fontWeight="400">
           Phone Number:
         </FFText>
-        <FFText fontWeight="400">(+84) 707171164</FFText>
+        <FFText fontWeight="400">{phone}</FFText>
       </View>
       <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
         <FFText style={{ color: "#aaa" }} fontWeight="400">
