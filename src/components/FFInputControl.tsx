@@ -8,6 +8,7 @@ import {
 } from "react-native";
 import React, { useState, useRef } from "react";
 import IconIonicons from "react-native-vector-icons/Ionicons";
+import FFText from "./FFText";
 
 interface FFInputControlProps {
   value: string;
@@ -45,7 +46,7 @@ const FFInputControl = ({
 
   return (
     <Pressable onPress={handleInputContainerPress}>
-      <Text style={styles.inputLabel}>{label}</Text>
+      <FFText style={styles.inputLabel}>{label}</FFText>
       <View
         style={{
           ...styles.inputFieldContainer,

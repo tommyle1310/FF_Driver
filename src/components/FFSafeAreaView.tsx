@@ -1,44 +1,44 @@
-import { View, Text, StatusBar } from "react-native";
+import { View, StatusBar } from "react-native";
 import React, { useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useTheme } from "@/src/hooks/useTheme";
 import { LinearGradient } from "expo-linear-gradient";
 
-const FFSafeAreaView: React.FC<{
+interface FFSafeAreaViewProps {
   children: React.ReactNode;
   className?: string;
-}> = ({ children, className }) => {
-  const { theme } = useTheme();
+  style?: object; // Added style prop
+}
 
-  // State to handle the press effect
+const FFSafeAreaView: React.FC<FFSafeAreaViewProps> = ({
+  children,
+  className = "",
+  style = {},
+}) => {
+  const { theme } = useTheme();
   const [pressed, setPressed] = useState(false);
 
   // Define gradient colors for the light and dark theme
   const gradientColors: readonly [string, string] =
-    theme === "light"
-      ? ["#eee", "#eee"] // Light theme gradient
-      : ["#1e1e1e", "#1e1e1e"]; // Dark theme gradient
+    theme === "light" ? ["#eee", "#eee"] : ["#1e1e1e", "#1e1e1e"];
 
-  // Darker color versions for the pressed effect (optional)
+  // Darker colors for pressed effect
   const darkenedGradientColors: readonly [string, string] =
-    theme === "light"
-      ? ["#e56c4a", "#d68f56"] // Darkened light theme gradient
-      : ["#4c0f91", "#1e59a3"]; // Darkened dark theme gradient
+    theme === "light" ? ["#e56c4a", "#d68f56"] : ["#4c0f91", "#1e59a3"];
 
   return (
-    <>
-      <SafeAreaView className="flex-1">
-        <LinearGradient
-          colors={pressed ? darkenedGradientColors : gradientColors} // Switch colors when pressed
-          start={[0, 0]}
-          end={[1, 0]}
-          className={className ? "flex-1 " : "flex-1 " + className}
-        >
-          {children}
-        </LinearGradient>
-        <StatusBar barStyle={"dark-content"} className="text-black" />
-      </SafeAreaView>
-    </>
+    <SafeAreaView style={{ flex: 1 }}>
+      <LinearGradient
+        colors={pressed ? darkenedGradientColors : gradientColors}
+        start={[0, 0]}
+        end={[1, 0]}
+        style={[{ flex: 1 }, style]} // Applied style here
+        className={`flex-1 ${className}`} // Ensure proper className usage
+      >
+        {children}
+      </LinearGradient>
+      <StatusBar barStyle={theme === "light" ? "dark-content" : "light-content"} />
+    </SafeAreaView>
   );
 };
 

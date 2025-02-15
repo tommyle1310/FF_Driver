@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "285449486712",
+    "project_id": "expopushnotification-533a3",
+    "storage_bucket": "expopushnotification-533a3.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:285449486712:android:e821135c93f618c055488d",
+        "android_client_info": {
+          "package_name": "com.tommyle1310.ff_restaurant_mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC5JS39DyR8-gisf2_cIixLk91PcPsv8ZY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

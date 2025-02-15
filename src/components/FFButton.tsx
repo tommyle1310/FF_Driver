@@ -1,7 +1,7 @@
 import { useTheme } from "@/src/hooks/useTheme";
 import { LinearGradient } from "expo-linear-gradient";
 import { useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Pressable, Text, View, ViewStyle, TextStyle } from "react-native";
 
 const FFButton: React.FC<{
   children: React.ReactNode;
@@ -10,6 +10,7 @@ const FFButton: React.FC<{
   textClassName?: string;
   onPress?: () => void;
   variant?: "primary" | "secondary" | "outline" | "danger"; // Added variant prop
+  style?: ViewStyle; // Optional style prop for custom styles
 }> = ({
   children,
   className,
@@ -17,6 +18,7 @@ const FFButton: React.FC<{
   textClassName,
   onPress = () => {},
   variant = "primary", // Default to "primary" variant
+  style, // Optional style prop for custom styles
 }) => {
   const { theme } = useTheme();
 
@@ -65,7 +67,12 @@ const FFButton: React.FC<{
     // Check if children is a string, if so, wrap it with a Text component
     if (typeof children === "string") {
       return (
-        <Text style={{ color: textColor, fontSize: 16, fontWeight: "600" }}>
+        <Text
+          style={[
+            { color: textColor, fontSize: 16, fontWeight: "600" },
+            textClassName as any, // NativeWind will handle the className for styles
+          ]}
+        >
           {children}
         </Text>
       );
@@ -82,11 +89,14 @@ const FFButton: React.FC<{
         setPressed(false);
         onPress();
       }} // When press ends
-      style={{
-        transform: [{ scale: pressed ? 0.95 : 1 }], // Apply scaling when pressed
-        justifyContent: "center",
-        alignItems: "center",
-      }}
+      style={[
+        {
+          transform: [{ scale: pressed ? 0.95 : 1 }], // Apply scaling when pressed
+          justifyContent: "center",
+          alignItems: "center",
+        },
+        style, // Merge any custom style provided
+      ]}
     >
       <LinearGradient
         colors={[gradientStart, gradientEnd]} // Always use a gradient
@@ -104,7 +114,7 @@ const FFButton: React.FC<{
           shadowRadius: 3,
           elevation: 5,
         }}
-        className={className}
+        className={className} // Preserve the className prop for tailwind-like classes
       >
         {renderChildren()}
       </LinearGradient>

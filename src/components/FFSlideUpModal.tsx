@@ -17,7 +17,6 @@ import { useTheme } from "@/src/hooks/useTheme";
 import FFText from "./FFText";
 import IconIonicon from "react-native-vector-icons/Ionicons";
 
-
 interface SlideUpModalProps {
   isVisible: boolean;
   onClose: () => void;
@@ -97,14 +96,11 @@ const SlideUpModal: React.FC<SlideUpModalProps> = ({
       <Animated.View
         style={[
           styles.overlay,
-          
           {
             backgroundColor:
               theme === "light"
                 ? "rgba(255, 255, 255, 0.8)"
-                : "rgba(51, 51, 51, 0.8)", 
-                width: Dimensions.get("window").width,
-                marginLeft: -25
+                : "rgba(51, 51, 51, 0.8)", // Adjust the 0.5 for the level of transparency
           },
         ]}
         onTouchStart={handleOverlayPress} // Block interaction with the background
@@ -113,7 +109,7 @@ const SlideUpModal: React.FC<SlideUpModalProps> = ({
           style={[
             styles.modalContainer,
             animatedModalStyle,
-            { backgroundColor: theme === "light" ? "#fff" : "#333" , width: Dimensions.get("window").width},
+            { backgroundColor: theme === "light" ? "#fff" : "#333" },
           ]}
         >
           <PanGestureHandler
@@ -121,9 +117,13 @@ const SlideUpModal: React.FC<SlideUpModalProps> = ({
             onHandlerStateChange={gestureHandler}
           >
             <Animated.View style={styles.modalContent}>
-                    <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-                            <IconIonicon name='close' style={{ color: 'white' }} size={16}/>
-                          </TouchableOpacity>
+              <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+                <IconIonicon
+                  name="close"
+                  style={{ color: "white" }}
+                  size={16}
+                />
+              </TouchableOpacity>
               <View style={styles.content}>{children}</View>
             </Animated.View>
           </PanGestureHandler>
@@ -147,6 +147,8 @@ const styles = StyleSheet.create({
   },
   modalContainer: {
     position: "absolute",
+    left: 0,
+    right: 0,
     bottom: 0, // Modal starts from the bottom
     height: "80%", // Modal height is now 80% of the screen height
     backgroundColor: "white",
@@ -155,8 +157,7 @@ const styles = StyleSheet.create({
     paddingTop: 20,
     zIndex: 9999, // Ensure it's on top of overlay
     paddingHorizontal: 20,
-    borderColor: '#eee',
-    borderWidth: 2,
+
     // Shadow properties for iOS with green color
     shadowColor: "rgba(0, 255, 0, 0.25)", // Green color with 25% opacity
     shadowOffset: { width: 0, height: -5 }, // Shadow position

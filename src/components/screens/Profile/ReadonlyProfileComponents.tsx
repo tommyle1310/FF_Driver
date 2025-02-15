@@ -7,62 +7,47 @@ import { useSelector } from "@/src/store/types";
 import { RootState } from "@/src/store/store";
 
 const ReadonlyProfileComponents = ({
-  email,
-  phone,
   toggleStatus,
 }: {
-  email: string;
-  phone: string;
   toggleStatus: () => void;
 }) => {
-  const { avatar } = useSelector((state: RootState) => state.auth);
+  const { user_id, avatar } = useSelector((state: RootState) => state.auth);
 
   return (
     <View
-      style={{
-        backgroundColor: "white",
-        borderRadius: 12,
-        borderWidth: 1,
-        borderColor: "#e5e5e5",
-        padding: 16,
-        gap: 8,
-        elevation: 4,
-      }}
+      style={{ elevation: 10 }}
+      className="bg-white rounded-xl border gap-2 border-gray-200 p-4"
     >
-      <View
-        style={{
-          flexDirection: "row",
-          justifyContent: "space-between",
-          gap: 16,
-        }}
-      >
+      <View className="flex-row justify-between gap-4">
         <FFAvatar avatar={avatar?.url} />
-        <View style={{ flex: 1 }}>
+        <View className="flex-1">
           <FFText fontSize="lg">Tommy Teo</FFText>
-          <FFText style={{ fontWeight: "400", color: "#aaa" }}>{email}</FFText>
+          <FFText fontWeight="400" style={{ color: "#aaa" }}>
+            abc@gmail.com
+          </FFText>
         </View>
         <TouchableOpacity
           onPress={toggleStatus}
           style={{
             backgroundColor: "#63c550",
-            padding: 8,
-            borderRadius: 50,
-            alignSelf: "flex-start",
-            flexShrink: 0,
-            justifyContent: "center",
-            alignItems: "center",
+            padding: 8, // You can adjust the padding as needed
+            borderRadius: 50, // To make it round
+            alignSelf: "flex-start", // Align to the start of the container
+            flexShrink: 0, // Prevent it from shrinking
+            justifyContent: "center", // Vertically center the content
+            alignItems: "center", // Horizontally center the content
           }}
         >
           <IconFontAwesome5 name="user-edit" size={10} color="#eee" />
         </TouchableOpacity>
       </View>
-      <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
+      <View className="flex-row gap-2 items-center">
         <FFText style={{ color: "#aaa" }} fontWeight="400">
           Phone Number:
         </FFText>
-        <FFText fontWeight="400">{phone}</FFText>
+        <FFText fontWeight="400">(+84) 707171164</FFText>
       </View>
-      <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
+      <View className="flex-row gap-2 items-center">
         <FFText style={{ color: "#aaa" }} fontWeight="400">
           Date Joined:
         </FFText>

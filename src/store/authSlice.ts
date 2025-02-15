@@ -87,51 +87,29 @@ export const saveTokenToAsyncStorage = createAsyncThunk(
   }) => {
     // Save each value and log it
     await AsyncStorage.setItem("accessToken", data.accessToken);
-    console.log("Saved accessToken:", data.accessToken);
-
     await AsyncStorage.setItem(
       "app_preferences",
       JSON.stringify(data.app_preferences)
     );
-    console.log("Saved app_preferences:", data.app_preferences);
-
     await AsyncStorage.setItem("balance", data.balance.toString());
-    console.log("Saved balance:", data.balance);
-
     await AsyncStorage.setItem("email", data.email);
-    console.log("Saved email:", data.email);
-
     await AsyncStorage.setItem(
       "available_for_work",
       JSON.stringify(data.available_for_work)
     );
-    console.log("Saved available_for_work:", data.available_for_work);
-
     await AsyncStorage.setItem("fWalletId", data.fWalletId);
-    console.log("Saved fWalletId:", data.fWalletId);
-
     await AsyncStorage.setItem("userId", data.userId);
-    console.log("Saved userId:", data.userId);
-
     await AsyncStorage.setItem("driverId", data.driverId);
-    console.log("Saved driverId:", data.driverId);
-
     await AsyncStorage.setItem("user_type", JSON.stringify(data.user_type));
-    console.log("Saved user_type:", data.user_type);
-
     await AsyncStorage.setItem(
       "contact_email",
       JSON.stringify(data.contact_email)
     );
     await AsyncStorage.setItem("avatar", JSON.stringify(data.avatar));
-    console.log("Saved contact_email:", data.contact_email);
-
     await AsyncStorage.setItem(
       "contact_phone",
       JSON.stringify(data.contact_phone)
     );
-    console.log("Saved contact_phone:", data.contact_phone);
-
     return data;
   }
 );

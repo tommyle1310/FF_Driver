@@ -8,10 +8,6 @@ import { RootState } from "@/src/store/store";
 import * as ImagePicker from "expo-image-picker";
 import useUploadImage from "@/src/hooks/useUploadImage";
 import { setAvatar, setAvatarInAsyncStorage } from "@/src/store/authSlice";
-import Spinner from "../../FFSpinner";
-import FFModal from "../../FFModal";
-import FFText from "../../FFText";
-import FFButton from "../../FFButton";
 
 const EditProfileComponent = ({
   firstName,
@@ -32,21 +28,12 @@ const EditProfileComponent = ({
   setEmail: React.Dispatch<React.SetStateAction<string>>;
   setPhone: React.Dispatch<React.SetStateAction<string>>;
 }) => {
-  const { userId, driverId, avatar } = useSelector(
-    (state: RootState) => state.auth
-  );
+  const { user_id, avatar } = useSelector((state: RootState) => state.auth);
   const dispatch = useDispatch();
-  const [isShowModalStatus, setIsShowModalStatus] = useState<boolean>(false);
 
-  const {
-    imageUri,
-    setImageUri,
-    uploadImage,
-    responseData,
-    loading: isUploadingImage,
-  } = useUploadImage(
-    "DRIVER",
-    driverId || "CUS_ee0966ee-d3dd-49e6-bc20-73e2dab6a593"
+  const { imageUri, setImageUri, uploadImage, responseData } = useUploadImage(
+    "CUSTOMER",
+    user_id || "CUS_ee0966ee-d3dd-49e6-bc20-73e2dab6a593"
   );
 
   const selectImage = async () => {
@@ -63,32 +50,19 @@ const EditProfileComponent = ({
       uploadImage(asset.uri);
     }
   };
-
   useEffect(() => {
     if (responseData?.EC === 0) {
       dispatch(setAvatar(responseData.data.avatar)); // This updates Redux state
       dispatch(setAvatarInAsyncStorage(responseData.data.avatar)); // This updates AsyncStorage
-      setIsShowModalStatus(true);
     }
   }, [responseData]);
 
-  console.log("cehck data", email, firstName);
-
-  if (isUploadingImage)
-    return <Spinner isVisible={isUploadingImage} isOverlay />;
   return (
     <View
-      style={{
-        backgroundColor: "white",
-        borderRadius: 12,
-        borderWidth: 1,
-        borderColor: "#e5e5e5",
-        padding: 16,
-        gap: 16,
-        elevation: 4,
-      }}
+      style={{ elevation: 10 }}
+      className="bg-white rounded-xl border gap-4 border-gray-200 p-4"
     >
-      <View style={{ alignItems: "center" }}>
+      <View className="items-center">
         <TouchableOpacity onPress={selectImage}>
           {imageUri ? (
             <FFAvatar onPress={selectImage} size={80} avatar={imageUri} />
@@ -127,16 +101,6 @@ const EditProfileComponent = ({
         placeholder="(+84) 707171164"
         error=""
       />
-      <FFButton onPress={() => {}} className="w-full mt-4">
-        Confirm Changes
-      </FFButton>
-
-      <FFModal
-        visible={isShowModalStatus}
-        onClose={() => setIsShowModalStatus(false)}
-      >
-        <FFText>Congrats, your avatar has just been updated.🥳</FFText>
-      </FFModal>
     </View>
   );
 };

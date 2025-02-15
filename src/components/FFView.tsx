@@ -1,25 +1,32 @@
-import { View, ViewStyle } from "react-native";
+import { useTheme } from "@/src/hooks/useTheme";
 import React from "react";
-import { useTheme } from "../hooks/useTheme";
+import { View, ViewStyle } from "react-native";
 
 interface FFViewProps {
-  children?: React.ReactNode;
-  style?: ViewStyle;  // Only `style` prop to control the styles
+  children: React.ReactNode;
+  style?: ViewStyle; // Optional style prop for custom styles
+  colorDark?: string; // Optional background color for dark theme
+  colorLight?: string; // Optional background color for light theme
 }
 
-const FFView = ({ children, style }: FFViewProps) => {
+const FFView: React.FC<FFViewProps> = ({
+  children,
+  style,
+  colorDark = "#333", // Default dark background color
+  colorLight = "#fff", // Default light background color
+}) => {
   const { theme } = useTheme();
 
-  // Merge passed styles with the default styles
-  const containerStyle = {
-    backgroundColor: theme === "light" ? '#eee' : "#1e1e1e", // Background color based on the theme
-    borderColor: theme === "light" ? 'transparent' : '#ccc',  // Border color based on the theme
-    borderWidth: 1,  // Apply border width
-    flex: 1,  // Ensure the container takes up full available space
-    ...style,  // Custom styles passed via `style` prop will override defaults
+  // Define background color based on the theme
+  const backgroundColor = theme === "light" ? colorLight : colorDark;
+
+  // Combine styles with optional custom styles
+  const combinedStyle: ViewStyle = {
+    backgroundColor, // Apply theme-based or custom background color
+    ...style, // Merge custom style if provided
   };
 
-  return <View style={containerStyle}>{children}</View>;
+  return <View style={combinedStyle}>{children}</View>;
 };
 
 export default FFView;

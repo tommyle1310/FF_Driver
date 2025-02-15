@@ -1,36 +1,48 @@
-import { View, Text, Pressable } from "react-native";
+import { View, Text } from "react-native";
 import React from "react";
 
 type FFBadgeProps = {
-  title: string;
+  title?: string; // Make title optional
   backgroundColor?: string;
-  rounded?: 'sm' | 'md' | 'lg' | 'full';
+  rounded?: "sm" | "md" | "lg" | "full";
   textColor?: string;
-  onPress?: () => void
+  children?: React.ReactNode; // Add children prop
 };
 
-const FFBadge: React.FC<FFBadgeProps> = ({ title, backgroundColor = "blue", rounded = 'full', textColor='blue', onPress=()=>{} }) => {
+const FFBadge: React.FC<FFBadgeProps> = ({
+  title,
+  backgroundColor = "blue",
+  rounded = "full",
+  textColor = "blue",
+  children,
+}) => {
   // Map rounded value to proper radius values
   const roundedMap = {
     sm: 4,
     md: 8,
     lg: 12,
-    full: 9999,  // To create fully rounded badge
+    full: 9999, // To create fully rounded badge
   };
 
   return (
-    <Pressable 
+    <View
       style={{
-        backgroundColor, 
-        borderRadius: roundedMap[rounded], 
+        backgroundColor,
+        borderRadius: roundedMap[rounded],
         paddingHorizontal: 6,
         paddingVertical: 4,
-      }} 
-      // className="px-2 py-1 self-start"
-      onPress={onPress}
+      }}
+      className="px-2 py-1 self-start"
     >
-      <Text style={{color: textColor}} className=" font-bold">{title}</Text>
-    </Pressable>
+      {/* Render children if provided, otherwise render title */}
+      {children ? (
+        children
+      ) : (
+        <Text style={{ color: textColor }} className="font-bold">
+          {title}
+        </Text>
+      )}
+    </View>
   );
 };
 

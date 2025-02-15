@@ -128,7 +128,7 @@ const FFSidebar = ({
                 backgroundColor="#63c550"
                 textColor="#fff"
                 rounded={"sm"}
-                onPress={() => navigation.navigate("Profile")}
+                // onPress={() => navigation.navigate("Profile")}
               />
               <FFToggle
                 initialChecked={available_for_work ?? false}

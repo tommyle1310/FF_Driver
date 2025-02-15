@@ -86,7 +86,7 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace "com.ffcustomer"
+    namespace 'com.tommyle1310.FF_Driver'
     defaultConfig {
         applicationId 'com.tommyle1310.FF_Driver'
         minSdkVersion rootProject.ext.minSdkVersion
@@ -177,3 +177,5 @@ dependencies {
     // Ensure the BlurView dependency is removed
     // implementation 'com.github.Dimezis:BlurView:version-2.0.3'
 }
+
+apply plugin: 'com.google.gms.google-services'

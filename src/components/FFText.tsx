@@ -6,7 +6,7 @@ interface FFTextProps {
   children: React.ReactNode;
   className?: string; // Optional Tailwind-like classes
   style?: TextStyle; // Optional style prop for custom styles
-  fontSize?: "sm" | "md" | "lg"; // Optional font size prop
+  fontSize?: "sm" | "md" | "lg" | 'xl' | '2xl'; // Optional font size prop
   colorDark?: string; // Optional color for dark theme
   colorLight?: string; // Optional color for light theme
   fontWeight?:
@@ -39,6 +39,8 @@ const FFText: React.FC<FFTextProps> = ({
     sm: 12,
     md: 16,
     lg: 18,
+    xl: 22,
+    '2xl': 26,
   };
 
   const fontSizeValue = fontSizeMap[fontSize]; // Get font size from map

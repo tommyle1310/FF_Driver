@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "YourAppName",
+    "name": "FF_Driver",
     "slug": "your-app-slug",
     "version": "1.0.0",
     "platforms": [
@@ -16,10 +16,10 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#FFFFFF"
       },
-      "package": "com.tommyle1310.FF_Driver"
+      "package": "com.tommyle1310.FF_Driver",
+      "googleServicesFile": "./android/app/google-services.json"
     },
     "web": {
       "bundler": "metro",
@@ -38,6 +38,11 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "0d9aa928-a930-4f51-9e27-28eb26697bfe"
+      }
     }
   },
   "updates": {

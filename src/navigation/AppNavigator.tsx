@@ -21,8 +21,18 @@ import SettingsScreen from "@/screens/SettingsScreen";
 // Sidebar component (it will be part of the main content, not as a separate screen)
 
 import { useDispatch, useSelector } from "../store/types";
+import { usePushNotifications } from "../hooks/usePushNotifications";
+import { useSocket } from "../hooks/useSocket";
+import { sendPushNotification } from "../utils/functions/pushNotification";
+import { Type_PushNotification_Order } from "../types/pushNotification";
+import FFToast from "../components/FFToast";
+import FFText from "../components/FFText";
+import { View } from "react-native";
+import { Order } from "../types/Orders";
 
-const Stack = createStackNavigator();
+const SidebarStack = createStackNavigator<SidebarStackParamList>();
+const AuthStack = createStackNavigator<AuthStackParamList>();
+const RootStack = createStackNavigator<RootStackParamList>();
 
 // Define types for navigation
 export type RootStackParamList = {
@@ -59,81 +69,138 @@ export type ScreenNames =
 
 // Main App Navigator (Authenticated)
 const MainNavigator = () => {
-  // Sidebar toggle functionality, can be shown as a component overlay or slide-in from left
-  const [showSidebar, setShowSidebar] = useState(false);
+  const { driverId } = useSelector((state: RootState) => state.auth);
 
+  const [selectedLocation, setSelectedLocation] = useState({
+    lat: 10.826411,
+    lng: 106.617353,
+  });
+  const [latestOrder, setLatestOrder] = useState<Order | null>(null);
+  const handleAcceptOrder = async () => {
+    // console.log("check click latest ord");
+  };
+
+  const { expoPushToken } = usePushNotifications();
+  const [orders, setOrders] = useState<Type_PushNotification_Order[]>([]);
+
+  const [isShowIncomingOrderToast, setIsShowIncomingOrderToast] =
+    useState(false);
+  let pushToken = expoPushToken as unknown as { data: string };
+
+  useSocket(driverId || "", setOrders, () =>
+    sendPushNotification({
+      order: orders[orders.length - 1],
+      expoPushToken: pushToken,
+    })
+  );
+
+  useEffect(() => {
+    if (orders.length > 0 && orders[orders.length - 1]) {
+      setIsShowIncomingOrderToast(true);
+    }
+  }, [orders]);
   return (
     <>
-      <Stack.Navigator initialRouteName="Home">
-        <Stack.Screen
+      <SidebarStack.Navigator initialRouteName="Home">
+        <SidebarStack.Screen
           name="Home"
           component={HomeScreen}
           options={{ headerShown: false }}
         />
-        <Stack.Screen
+        <SidebarStack.Screen
           options={{ headerShown: false }}
           name="MyTasks"
           component={MyTasksScreen}
         />
-        <Stack.Screen
+        <SidebarStack.Screen
           options={{ headerShown: false }}
           name="TrackHistory"
           component={TrackHistoryScreen}
         />
-        <Stack.Screen
+        <SidebarStack.Screen
           options={{ headerShown: false }}
           name="Statistics"
           component={StatisticsScreen}
         />
-        <Stack.Screen
+        <SidebarStack.Screen
           options={{ headerShown: false }}
           name="Notifications"
           component={NotificationsScreen}
         />
-        <Stack.Screen
+        <SidebarStack.Screen
           options={{ headerShown: false }}
           name="Profile"
           component={ProfileScreen}
         />
-        <Stack.Screen
+        <SidebarStack.Screen
           options={{ headerShown: false }}
           name="MyWallet"
           component={MyWalletScreen}
         />
-        <Stack.Screen
+        <SidebarStack.Screen
           options={{ headerShown: false }}
           name="SupportCenter"
           component={SupportCenterScreen}
         />
-        <Stack.Screen
+        <SidebarStack.Screen
           options={{ headerShown: false }}
           name="Settings"
           component={SettingsScreen}
         />
-      </Stack.Navigator>
+      </SidebarStack.Navigator>
+      <FFToast
+        disabledClose
+        onAccept={handleAcceptOrder}
+        onReject={() => setIsShowIncomingOrderToast(false)}
+        onClose={() => setIsShowIncomingOrderToast(false)}
+        visible={isShowIncomingOrderToast}
+        isApprovalType
+      >
+        <FFText>Incoming Order</FFText>
+        <View className="flex-row items-center gap-4">
+          <View className="flex-row items-center gap-1">
+            <FFText fontSize="sm" fontWeight="500">
+              Total:
+            </FFText>
+            <FFText fontSize="sm" fontWeight="600" style={{ color: "#63c550" }}>
+              ${latestOrder?.total_amount}
+            </FFText>
+          </View>
+          <View className="flex-row items-center gap-1">
+            <FFText fontSize="sm" fontWeight="600">
+              {latestOrder?.order_items.length}
+            </FFText>
+            <FFText fontSize="sm" fontWeight="500" style={{ color: "#63c550" }}>
+              items
+            </FFText>
+          </View>
+        </View>
+      </FFToast>
     </>
   );
 };
 
 // Auth Navigator (Login/Signup)
 const AuthNavigator = () => (
-  <Stack.Navigator initialRouteName="Login">
-    <Stack.Screen
+  <AuthStack.Navigator initialRouteName="Login">
+    <AuthStack.Screen
       name="Login"
       component={LoginScreen}
       options={{ headerShown: false }}
     />
-    <Stack.Screen
+    <AuthStack.Screen
       name="Signup"
       component={SignupScreen}
       options={{ headerShown: false }}
     />
-  </Stack.Navigator>
+  </AuthStack.Navigator>
 );
 
 // Main entry point to decide which navigator to show
 const App = () => {
-  const { isAuthenticated } = useSelector((state: RootState) => state.auth);
+  const { isAuthenticated, accessToken } = useSelector(
+    (state: RootState) => state.auth
+  );
   const dispatch = useDispatch();
   const [loading, setLoading] = useState(true);
 
@@ -150,13 +217,13 @@ const App = () => {
   }
 
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen
-        name="Main"
-        component={isAuthenticated ? MainNavigator : AuthNavigator}
-      />
-      <Stack.Screen name="Auth" component={AuthNavigator} />
-    </Stack.Navigator>
+    <RootStack.Navigator
+      screenOptions={{ headerShown: false }}
+      initialRouteName={accessToken ? "Main" : "Auth"}
+    >
+      <RootStack.Screen name="Main" component={MainNavigator} />
+      <RootStack.Screen name="Auth" component={AuthNavigator} />
+    </RootStack.Navigator>
   );
 };
 
