@@ -12,7 +12,8 @@ interface Order {
 export const useSocket = (
   driverId: string,
   setOrders: React.Dispatch<React.SetStateAction<Order[]>>,
-  sendPushNotification: (order: Order) => void
+  sendPushNotification: (order: Order) => void,
+  setLatestOrder: React.Dispatch<React.SetStateAction<Order | null>>
 ) => {
   useEffect(() => {
     if (!driverId) {
@@ -24,7 +25,9 @@ export const useSocket = (
 
     // Listen for incoming orders
     socket.on("incomingOrderForDriver", (order: Order) => {
+      console.log("check oreder", order);
       setOrders((prevOrders) => [...prevOrders, order]);
+      setLatestOrder(order);
       sendPushNotification(order);
     });
 
@@ -37,11 +40,22 @@ export const useSocket = (
       console.log("Disconnected from WebSocket server");
     });
 
+    socket.on("acceptOrder", (response) => {
+      if (response.success) {
+        console.log("Order accepted successfully", response.order);
+        setLatestOrder(response.order);
+      } else {
+        console.error("Failed to accept order:", response.message);
+        setLatestOrder(null);
+      }
+    });
+
     // Clean up the socket connection on unmount
     return () => {
       socket.off("incomingOrder");
       socket.off("connect");
       socket.off("disconnect");
+      socket.off("acceptOrder");
     };
-  }, [driverId, setOrders, sendPushNotification]);
+  }, [driverId, setOrders, sendPushNotification, setLatestOrder]);
 };

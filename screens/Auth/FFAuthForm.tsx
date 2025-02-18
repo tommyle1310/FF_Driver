@@ -27,7 +27,7 @@ const FFAuthForm = ({
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isPasswordVisible, setIsPasswordVisible] = useState(false); // State to toggle password visibility
-    const passwordInputRef = useRef<TextInput>(null);
+  const passwordInputRef = useRef<TextInput>(null);
 
   const togglePasswordVisibility = () => {
     setIsPasswordVisible((prevState) => !prevState);
@@ -37,7 +37,7 @@ const FFAuthForm = ({
     onSubmit(email, password);
   };
 
-   const handleInputContainerPress = () => {
+  const handleInputContainerPress = () => {
     if (passwordInputRef.current) {
       passwordInputRef.current.focus();
     }
@@ -63,7 +63,7 @@ const FFAuthForm = ({
       <View style={styles.inputContainer}>
         <Text style={styles.inputLabel}>Email</Text>
         <TextInput
-        autoCapitalize="none"
+          autoCapitalize="none"
           placeholder="teole1310@gmail.com"
           value={email}
           onChangeText={setEmail}
@@ -75,7 +75,10 @@ const FFAuthForm = ({
         {error && <Text className="text-sm text-red-500">{error}</Text>}
       </View>
 
-      <Pressable onPress={handleInputContainerPress} style={styles.inputContainer}>
+      <Pressable
+        onPress={handleInputContainerPress}
+        style={styles.inputContainer}
+      >
         <Text style={styles.inputLabel}>Password</Text>
         <View
           className="rounded-md"
@@ -90,13 +93,13 @@ const FFAuthForm = ({
           }}
         >
           <TextInput
-             ref={passwordInputRef}
+            ref={passwordInputRef}
             placeholder="*******"
             value={password}
             className="px-4"
             onChangeText={setPassword}
             secureTextEntry={!isPasswordVisible} // Toggle based on state
-            style={{ borderColor: "none"}}
+            style={{ borderColor: "none" }}
           />
           <TouchableOpacity
             onPress={togglePasswordVisibility}

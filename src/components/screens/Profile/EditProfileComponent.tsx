@@ -28,12 +28,12 @@ const EditProfileComponent = ({
   setEmail: React.Dispatch<React.SetStateAction<string>>;
   setPhone: React.Dispatch<React.SetStateAction<string>>;
 }) => {
-  const { user_id, avatar } = useSelector((state: RootState) => state.auth);
+  const { avatar, driverId } = useSelector((state: RootState) => state.auth);
   const dispatch = useDispatch();
 
   const { imageUri, setImageUri, uploadImage, responseData } = useUploadImage(
     "CUSTOMER",
-    user_id || "CUS_ee0966ee-d3dd-49e6-bc20-73e2dab6a593"
+    driverId || "CUS_ee0966ee-d3dd-49e6-bc20-73e2dab6a593"
   );
 
   const selectImage = async () => {

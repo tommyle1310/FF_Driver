@@ -35,6 +35,7 @@ export type OrderItem = {
 
 // Define the main order type
 export type Order = {
+  _id: string;
   customer_id: string | null;
   restaurant_id: string;
   customer_location: string | undefined; // Assuming it's a string  ID from an address

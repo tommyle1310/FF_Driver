@@ -28,7 +28,9 @@ import { Type_PushNotification_Order } from "../types/pushNotification";
 import FFToast from "../components/FFToast";
 import FFText from "../components/FFText";
 import { View } from "react-native";
-import { Order } from "../types/Orders";
+import { Enum_PaymentMethod, Enum_TrackingInfo, Order } from "../types/Orders";
+import socket from "../services/socket";
+import { Enum_PaymentStatus } from "../types/Orders";
 
 const SidebarStack = createStackNavigator<SidebarStackParamList>();
 const AuthStack = createStackNavigator<AuthStackParamList>();
@@ -77,7 +79,20 @@ const MainNavigator = () => {
   });
   const [latestOrder, setLatestOrder] = useState<Order | null>(null);
   const handleAcceptOrder = async () => {
-    // console.log("check click latest ord");
+    console.log("check dthese", latestOrder, "and", driverId);
+    if (!latestOrder || !driverId) return;
+
+    socket.emit("acceptOrder", {
+      orderId: latestOrder._id,
+      driverId: driverId,
+      restaurantLocation: selectedLocation,
+    });
+    console.log("just emit accep odr", {
+      orderId: latestOrder._id,
+      driverId: driverId,
+      restaurantLocation: selectedLocation,
+    });
+    setIsShowIncomingOrderToast(false);
   };
 
   const { expoPushToken } = usePushNotifications();
@@ -87,11 +102,15 @@ const MainNavigator = () => {
     useState(false);
   let pushToken = expoPushToken as unknown as { data: string };
 
-  useSocket(driverId || "", setOrders, () =>
-    sendPushNotification({
-      order: orders[orders.length - 1],
-      expoPushToken: pushToken,
-    })
+  useSocket(
+    driverId || "",
+    setOrders,
+    () =>
+      sendPushNotification({
+        order: orders[orders.length - 1],
+        expoPushToken: pushToken,
+      }),
+    setLatestOrder as any // Temporary fix until we see useSocket.ts
   );
 
   useEffect(() => {
@@ -99,6 +118,9 @@ const MainNavigator = () => {
       setIsShowIncomingOrderToast(true);
     }
   }, [orders]);
+
+  // console.log("check latest order", orders[orders.length - 1]);
+
   return (
     <>
       <SidebarStack.Navigator initialRouteName="Home">

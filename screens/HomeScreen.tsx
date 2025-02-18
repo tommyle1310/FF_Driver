@@ -16,7 +16,7 @@ import {
   loadTokenFromAsyncStorage,
 } from "@/src/store/authSlice"; // Assuming loadTokenFromAsyncStorage exists
 import { toggleAvailability } from "@/src/store/availabilitySlice";
-import MapWithCurrentLocation from "@/src/components/Maps/CurrentLocation";
+import MapWrapper from "@/src/components/Maps/MapWrapper";
 
 const HomeScreen = () => {
   const [isShowSidebar, setIsShowSidebar] = useState(false);
@@ -75,7 +75,7 @@ const HomeScreen = () => {
         />
 
         {/* Map */}
-        <MapWithCurrentLocation />
+        <MapWrapper />
 
         <View
           style={{

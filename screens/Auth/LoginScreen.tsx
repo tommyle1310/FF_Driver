@@ -64,23 +64,26 @@ const Login = () => {
           avatar,
         } = decoded;
 
-        // Save all the relevant data to Redux and AsyncStorage
-        await dispatch(
-          saveTokenToAsyncStorage({
-            accessToken: response.data.data.access_token,
-            app_preferences: app_preferences,
-            user_type: user_type,
-            fWalletId: fWallet_id,
-            available_for_work: available_for_work,
-            contact_email: contact_email || [],
-            contact_phone: contact_phone || [],
-            balance: fWallet_balance, // Store the balance as well,
-            userId: user_id,
-            driverId: driver_id,
-            email: email,
-            avatar: avatar,
-          })
-        );
+        const authData = {
+          accessToken: response.data.data.access_token,
+          app_preferences: app_preferences,
+          user_type: user_type,
+          fWalletId: fWallet_id,
+          available_for_work: available_for_work,
+          contact_email: contact_email || [],
+          contact_phone: contact_phone || [],
+          balance: fWallet_balance,
+          userId: user_id,
+          driverId: driver_id,
+          email: email,
+          avatar: avatar,
+        };
+
+        // Save to Redux store
+        dispatch(setAuthState(authData));
+
+        // Save to AsyncStorage
+        await dispatch(saveTokenToAsyncStorage(authData));
 
         // Navigate to home or another screen
         navigation.navigate("Main");

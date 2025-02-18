@@ -1,16 +1,12 @@
 {
   "expo": {
     "name": "FF_Driver",
-    "slug": "your-app-slug",
+    "slug": "ff-driver",
     "version": "1.0.0",
-    "platforms": [
-      "ios",
-      "android"
-    ],
+    "platforms": ["ios", "android"],
     "orientation": "portrait",
     "scheme": "myapp",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true
     },
@@ -26,7 +22,6 @@
       "output": "static"
     },
     "plugins": [
-      "expo-dev-client",
       [
         "expo-splash-screen",
         {
