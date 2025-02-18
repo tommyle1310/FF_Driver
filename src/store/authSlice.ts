@@ -1,6 +1,19 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
+// Define the types for contact information
+interface ContactEmail {
+  title: string;
+  email: string;
+  is_default: boolean;
+}
+
+interface ContactPhone {
+  title: string;
+  number: string;
+  is_default: boolean;
+}
+
 // Define the types of state we will use in this slice
 interface AuthState {
   accessToken: string | null;
@@ -14,8 +27,10 @@ interface AuthState {
   avatar: { url: string; key: string } | null;
   fWalletId: string | null;
   user_type: string[] | null;
-  contact_email: string[] | null;
-  contact_phone: string[] | null;
+  contact_email: ContactEmail[];
+  contact_phone: ContactPhone[];
+  first_name: string | null;
+  last_name: string | null;
 }
 
 // Initialize the state
@@ -33,6 +48,8 @@ const initialState: AuthState = {
   user_type: null,
   contact_email: [],
   contact_phone: [],
+  first_name: null,
+  last_name: null,
 };
 
 export const loadTokenFromAsyncStorage = createAsyncThunk(
@@ -51,6 +68,8 @@ export const loadTokenFromAsyncStorage = createAsyncThunk(
     const user_type = await AsyncStorage.getItem("user_type");
     const contact_email = await AsyncStorage.getItem("contact_email");
     const contact_phone = await AsyncStorage.getItem("contact_phone");
+    const first_name = await AsyncStorage.getItem("first_name");
+    const last_name = await AsyncStorage.getItem("last_name");
     return {
       accessToken,
       app_preferences: app_preferences ? JSON.parse(app_preferences) : null,
@@ -64,6 +83,8 @@ export const loadTokenFromAsyncStorage = createAsyncThunk(
       contact_email: contact_email ? JSON.parse(contact_email) : [],
       contact_phone: contact_phone ? JSON.parse(contact_phone) : [],
       avatar: avatar ? JSON.parse(avatar) : null,
+      first_name,
+      last_name,
     };
   }
 );
@@ -82,8 +103,10 @@ export const saveTokenToAsyncStorage = createAsyncThunk(
     userId: string;
     avatar: { url: string; key: string };
     user_type: string[];
-    contact_email: string[];
-    contact_phone: string[];
+    contact_email: ContactEmail[];
+    contact_phone: ContactPhone[];
+    first_name: string;
+    last_name: string;
   }) => {
     // Save each value and log it
     await AsyncStorage.setItem("accessToken", data.accessToken);
@@ -110,6 +133,8 @@ export const saveTokenToAsyncStorage = createAsyncThunk(
       "contact_phone",
       JSON.stringify(data.contact_phone)
     );
+    await AsyncStorage.setItem("first_name", data.first_name);
+    await AsyncStorage.setItem("last_name", data.last_name);
     return data;
   }
 );
@@ -139,6 +164,8 @@ export const logout = createAsyncThunk(
     await AsyncStorage.removeItem("user_type");
     await AsyncStorage.removeItem("contact_email");
     await AsyncStorage.removeItem("contact_phone");
+    await AsyncStorage.removeItem("first_name");
+    await AsyncStorage.removeItem("last_name");
 
     // Dispatch the clearAuthState action to update the Redux store
     dispatch(clearAuthState());
@@ -163,6 +190,8 @@ const authSlice = createSlice({
         contact_email,
         contact_phone,
         available_for_work,
+        first_name,
+        last_name,
       } = action.payload;
       state.accessToken = accessToken;
       state.isAuthenticated = true;
@@ -177,6 +206,8 @@ const authSlice = createSlice({
       state.user_type = user_type;
       state.contact_email = contact_email;
       state.contact_phone = contact_phone;
+      state.first_name = first_name;
+      state.last_name = last_name;
     },
     clearAuthState: (state) => {
       state.accessToken = null;
@@ -192,6 +223,8 @@ const authSlice = createSlice({
       state.user_type = null;
       state.contact_email = [];
       state.contact_phone = [];
+      state.first_name = null;
+      state.last_name = null;
     },
     setBalance: (state, action) => {
       state.balance = action.payload; // Update the balance
@@ -217,6 +250,8 @@ const authSlice = createSlice({
           contact_email,
           contact_phone,
           available_for_work,
+          first_name,
+          last_name,
         } = action.payload;
 
         if (accessToken) {
@@ -233,6 +268,8 @@ const authSlice = createSlice({
           state.user_type = user_type;
           state.contact_email = contact_email;
           state.contact_phone = contact_phone;
+          state.first_name = first_name;
+          state.last_name = last_name;
         } else {
           state.isAuthenticated = false;
         }
@@ -251,6 +288,8 @@ const authSlice = createSlice({
           contact_email,
           contact_phone,
           available_for_work,
+          first_name,
+          last_name,
         } = action.payload;
         state.accessToken = accessToken;
         state.isAuthenticated = true;
@@ -265,6 +304,8 @@ const authSlice = createSlice({
         state.user_type = user_type;
         state.contact_email = contact_email;
         state.contact_phone = contact_phone;
+        state.first_name = first_name;
+        state.last_name = last_name;
       })
       .addCase(logout.fulfilled, (state) => {
         state.accessToken = null;
@@ -280,6 +321,8 @@ const authSlice = createSlice({
         state.user_type = null;
         state.contact_email = [];
         state.contact_phone = [];
+        state.first_name = null;
+        state.last_name = null;
       });
   },
 });

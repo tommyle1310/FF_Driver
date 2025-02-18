@@ -41,9 +41,8 @@ const FFSidebar = ({
   useEffect(() => {
     setIsVisible(visible);
   }, [visible]);
-  const { available_for_work, avatar } = useSelector(
-    (state: RootState) => state.auth
-  );
+  const { available_for_work, avatar, contact_phone, first_name, last_name } =
+    useSelector((state: RootState) => state.auth);
   // Set the initial position of the sidebar off-screen to the right
   const translateX = new Animated.Value(0); // Start in view
 
@@ -94,7 +93,7 @@ const FFSidebar = ({
   const sidebarTranslate = isvisible ? translateX : new Animated.Value(300); // Sidebar hidden when not visible
 
   const navigation = useNavigation<NavigationProp>();
-
+  console.log("check firstname lastname", avatar);
   return (
     <TouchableWithoutFeedback onPress={closeSidebar}>
       <Animated.View
@@ -117,9 +116,11 @@ const FFSidebar = ({
               size={80}
             />
             <View>
-              <FFText style={{ fontSize: 18 }}>Tommy Teo</FFText>
+              <FFText style={{ fontSize: 18 }}>
+                {first_name || "Flashfood"} {last_name || "Driver"}
+              </FFText>
               <FFText style={{ color: "#ccc", fontSize: 14 }}>
-                +84 707171164
+                {contact_phone?.find((item) => item?.number)?.number}
               </FFText>
             </View>
             <View style={{ width: "100%", alignItems: "center", gap: 20 }}>

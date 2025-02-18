@@ -59,11 +59,12 @@ const Login = () => {
           contact_email,
           contact_phone,
           fWallet_balance,
+          first_name,
+          last_name,
           driver_id,
           user_id,
           avatar,
         } = decoded;
-
         const authData = {
           accessToken: response.data.data.access_token,
           app_preferences: app_preferences,
@@ -77,11 +78,12 @@ const Login = () => {
           driverId: driver_id,
           email: email,
           avatar: avatar,
+          first_name: first_name,
+          last_name: last_name,
         };
 
         // Save to Redux store
         dispatch(setAuthState(authData));
-
         // Save to AsyncStorage
         await dispatch(saveTokenToAsyncStorage(authData));
 

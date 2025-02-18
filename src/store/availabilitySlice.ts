@@ -37,9 +37,11 @@ export const toggleAvailability = createAsyncThunk<
 
       const { EC, EM } = response.data;
       if (EC === 0) {
-        const newAvailableForWork = response.data.data.available_for_work;
+        const newAvailableForWork = Boolean(
+          response.data.data.available_for_work
+        );
 
-        // Dispatch the saveTokenToAsyncStorage action (assuming this function exists to save state)
+        // Get current state and include all required properties
         const currentState = getState().auth;
         await dispatch(
           saveTokenToAsyncStorage({
@@ -55,6 +57,8 @@ export const toggleAvailability = createAsyncThunk<
             contact_email: currentState.contact_email ?? [],
             contact_phone: currentState.contact_phone ?? [],
             avatar: currentState.avatar ?? { url: "", key: "" },
+            first_name: currentState.first_name ?? "",
+            last_name: currentState.last_name ?? "",
           })
         );
 

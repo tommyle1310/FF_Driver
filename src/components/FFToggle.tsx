@@ -7,24 +7,30 @@ interface FFToggleProps {
   label?: string;
   initialChecked?: boolean;
   onChange?: (value: boolean) => void;
+  isChangeTheme?: boolean;
 }
 
 const FFToggle: React.FC<FFToggleProps> = ({
   label,
   initialChecked = false,
   onChange,
+  isChangeTheme = false,
 }) => {
   const [isChecked, setIsChecked] = useState<boolean>(initialChecked);
 
   // Use the theme context to toggle the theme
-  const { toggleTheme } = useTheme();
+  const { toggleTheme, theme } = useTheme();
 
   const handleToggleChange = (value: boolean) => {
+    console.log("check change hteme", isChangeTheme);
+    if (isChangeTheme) {
+      toggleTheme();
+      return;
+    }
     setIsChecked(value);
     if (onChange) {
       onChange(value); // Call any external onChange prop
     }
-    toggleTheme(); // Toggle theme when the switch is changed
   };
 
   return (
@@ -37,7 +43,7 @@ const FFToggle: React.FC<FFToggleProps> = ({
           marginTop: -20,
           marginBottom: -20,
         }}
-        value={isChecked}
+        value={isChangeTheme ? (theme === "light" ? false : true) : isChecked}
         onValueChange={handleToggleChange}
         trackColor={{ false: "gray", true: "#63c550" }}
         thumbColor={isChecked ? "#fff" : "#f4f3f4"}
