@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import React from "react";
 import FFView from "@/src/components/FFView";
 import FFScreenTopSection from "@/src/components/FFScreenTopSection";
@@ -9,11 +9,14 @@ import FFSafeAreaView from "@/src/components/FFSafeAreaView";
 import { LinearGradient } from "expo-linear-gradient";
 import FFText from "@/src/components/FFText";
 import IconIonicons from "react-native-vector-icons/Ionicons";
+import FFBarChart from "@/src/components/FFBarChart";
 
 type TrackHistorySreenNavigationProp = StackNavigationProp<
   SidebarStackParamList,
   "Statistics"
 >;
+
+const chartData = [1000, 2000, 500, 1500, 2000, 500, 1000];
 
 const StatisticsScreen = () => {
   const navigation = useNavigation<TrackHistorySreenNavigationProp>();
@@ -69,12 +72,19 @@ const StatisticsScreen = () => {
             flex: 1,
           }}
         >
-          <FFText>Orders</FFText>
+          <FFText>Online Hours</FFText>
           <FFText fontSize="lg" fontWeight="800" style={{ color: "#4d9c39" }}>
-            1,310
+            23h 39m
           </FFText>
         </View>
       </View>
+      <FFBarChart data={chartData} />
+      {/* <View className="items-center flex-row justify-between p-4">
+        <FFText>Recent Orders</FFText>
+        <TouchableOpacity>
+          <FFText style={{ color: "#4d9c39" }}>See All</FFText>
+        </TouchableOpacity>
+      </View> */}
     </FFSafeAreaView>
   );
 };

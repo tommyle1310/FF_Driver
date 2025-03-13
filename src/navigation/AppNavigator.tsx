@@ -33,6 +33,7 @@ import socket from "../services/socket";
 import { Enum_PaymentStatus } from "../types/Orders";
 import MyVehicleScreen from "@/screens/MyVehicleScreen";
 import FChatScreen from "@/screens/FChatScreen";
+import OrderHistoryDetailsScreen from "@/screens/OrderHistoryDetails";
 
 const SidebarStack = createStackNavigator<SidebarStackParamList>();
 const AuthStack = createStackNavigator<AuthStackParamList>();
@@ -64,6 +65,9 @@ export type SidebarStackParamList = {
     type?: "SUPPORT" | "ORDER";
     orderId?: string;
   };
+  OrderHistoryDetails: {
+    orderId: string;
+  };
 };
 
 export type ScreenNames =
@@ -75,6 +79,7 @@ export type ScreenNames =
   | "Profile"
   | "MyWallet"
   | "SupportCenter"
+  | "OrderHistoryDetails"
   | "Settings"
   | "MyVehicles"
   | "FChat";
@@ -153,6 +158,11 @@ const MainNavigator = () => {
           options={{ headerShown: false }}
           name="Statistics"
           component={StatisticsScreen}
+        />
+        <SidebarStack.Screen
+          options={{ headerShown: false }}
+          name="OrderHistoryDetails"
+          component={OrderHistoryDetailsScreen}
         />
         <SidebarStack.Screen
           options={{ headerShown: false }}

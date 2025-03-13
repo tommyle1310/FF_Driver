@@ -45,31 +45,27 @@ const MyVehicleScreen = () => {
           style={{ elevation: 3 }}
           className="p-4 bg-white rounded-lg gap-2"
         >
+          <FFText style={{ marginBottom: 12 }}>Vehicle Details</FFText>
           <View className="flex-row justify-between items-center">
             <FFText fontWeight="400">License Plate</FFText>
             <FFText>51D2 - 99421</FFText>
           </View>
-          <FFSeperator />
           <View className="flex-row justify-between items-center">
             <FFText fontWeight="400">Brand</FFText>
             <FFText>Honda</FFText>
           </View>
-          <FFSeperator />
           <View className="flex-row justify-between items-center">
             <FFText fontWeight="400">Model</FFText>
             <FFText>Winner X</FFText>
           </View>
-          <FFSeperator />
           <View className="flex-row justify-between items-center">
             <FFText fontWeight="400">Color</FFText>
             <FFText>Red</FFText>
           </View>
-          <FFSeperator />
           <View className="flex-row justify-between items-center">
             <FFText fontWeight="400">Owner</FFText>
             <FFText>John Doe</FFText>
           </View>
-          <FFSeperator />
           <View className="flex-row justify-between items-center">
             <FFText fontWeight="400">Year</FFText>
             <FFText>2020</FFText>

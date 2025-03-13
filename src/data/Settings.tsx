@@ -15,7 +15,7 @@ const useSettingData = () => {
   const settingsData = {
     "Account Settings": [
       {
-        title: "Edit Profile",
+        title: "My Profile",
         rightIcon: <IconIonicons name="chevron-forward-outline" size={20} />,
         onPress: () => {
           navigation.navigate("Profile");

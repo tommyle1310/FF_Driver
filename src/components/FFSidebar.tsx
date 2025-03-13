@@ -123,13 +123,6 @@ const FFSidebar = ({
               </FFText>
             </View>
             <View style={{ width: "100%", alignItems: "center", gap: 20 }}>
-              <FFBadge
-                title="Edit Profile"
-                backgroundColor="#63c550"
-                textColor="#fff"
-                rounded={"sm"}
-                // onPress={() => navigation.navigate("Profile")}
-              />
               <FFToggle
                 initialChecked={available_for_work ?? false}
                 onChange={() => {
@@ -137,7 +130,7 @@ const FFSidebar = ({
                     dispatch(toggleAvailability()); // Call the function properly via dispatch
                   }
                 }}
-                label="Online Status"
+                label="Status"
               />
             </View>
             <View

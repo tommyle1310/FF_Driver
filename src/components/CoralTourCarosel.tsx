@@ -134,7 +134,7 @@ const CoralTourCarousel: React.FC<CoralTourCarouselProps> = ({
           paddingHorizontal: (SCREEN_WIDTH - CARD_WIDTH) / 2,
           minHeight: CARD_HEIGHT,
         }}
-        style={{ flexGrow: 0 }}
+        style={{ flexGrow: 0, paddingVertical: 12 }}
       />
     </View>
   );
