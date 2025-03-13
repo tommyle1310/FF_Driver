@@ -6,21 +6,37 @@ import FFText from "./FFText";
 type FFScreenTopSectionProps = {
   navigation: any; // Define the type for navigation
   title: string; // Define the type for title
+  titlePosition?: "center" | "left"; // Add optional titlePosition prop
 };
 
 const FFScreenTopSection: React.FC<FFScreenTopSectionProps> = ({
   navigation,
   title,
+  titlePosition = "center", // Default value is 'center'
 }) => {
   return (
-    <View style={styles.container}>
+    <View
+      style={[
+        styles.container,
+        titlePosition === "left" && styles.containerLeft,
+      ]}
+    >
       <TouchableOpacity
         style={styles.backButton}
         onPress={() => navigation.goBack()}
       >
         <IconIonicons name="chevron-back" size={24} />
       </TouchableOpacity>
-      <FFText fontSize="lg">{title}</FFText>
+      <FFText
+        fontSize="lg"
+        style={{
+          ...(titlePosition === "center"
+            ? styles.centerTitle
+            : styles.leftTitle),
+        }}
+      >
+        {title}
+      </FFText>
     </View>
   );
 };
@@ -32,10 +48,21 @@ const styles = StyleSheet.create({
     alignItems: "center",
     position: "relative",
   },
+  containerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
   backButton: {
     position: "absolute",
     left: 16,
     top: 16,
+    marginRight: 12,
+  },
+  centerTitle: {
+    textAlign: "center",
+  },
+  leftTitle: {
+    marginLeft: 40, // Give space for the back button
   },
 });
 

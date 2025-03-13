@@ -24,8 +24,8 @@ const FFAuthForm = ({
   navigation,
   error,
 }: FFAuthFormProps) => {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [email, setEmail] = useState("driver@gmail.com");
+  const [password, setPassword] = useState("000000");
   const [isPasswordVisible, setIsPasswordVisible] = useState(false); // State to toggle password visibility
   const passwordInputRef = useRef<TextInput>(null);
 

@@ -8,15 +8,21 @@ import { RootState } from "@/src/store/store";
 
 const ReadonlyProfileComponents = ({
   toggleStatus,
+  email,
+  phone,
+  dateJoined,
 }: {
   toggleStatus: () => void;
+  email?: string;
+  phone: string;
+  dateJoined?: string;
 }) => {
-  const { user_id, avatar } = useSelector((state: RootState) => state.auth);
+  const { avatar } = useSelector((state: RootState) => state.auth);
 
   return (
     <View
-      style={{ elevation: 10 }}
-      className="bg-white rounded-xl border gap-2 border-gray-200 p-4"
+      style={{ elevation: 10, borderWidth: 1, borderRadius: 10 }}
+      className="bg-white gap-2 border-gray-200 p-4"
     >
       <View className="flex-row justify-between gap-4">
         <FFAvatar avatar={avatar?.url} />

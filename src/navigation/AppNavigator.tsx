@@ -31,6 +31,8 @@ import { View } from "react-native";
 import { Enum_PaymentMethod, Enum_TrackingInfo, Order } from "../types/Orders";
 import socket from "../services/socket";
 import { Enum_PaymentStatus } from "../types/Orders";
+import MyVehicleScreen from "@/screens/MyVehicleScreen";
+import FChatScreen from "@/screens/FChatScreen";
 
 const SidebarStack = createStackNavigator<SidebarStackParamList>();
 const AuthStack = createStackNavigator<AuthStackParamList>();
@@ -56,6 +58,12 @@ export type SidebarStackParamList = {
   MyWallet: undefined;
   SupportCenter: undefined;
   Settings: undefined;
+  MyVehicles: undefined;
+  FChat: {
+    withUserId?: string;
+    type?: "SUPPORT" | "ORDER";
+    orderId?: string;
+  };
 };
 
 export type ScreenNames =
@@ -67,7 +75,9 @@ export type ScreenNames =
   | "Profile"
   | "MyWallet"
   | "SupportCenter"
-  | "Settings";
+  | "Settings"
+  | "MyVehicles"
+  | "FChat";
 
 // Main App Navigator (Authenticated)
 const MainNavigator = () => {
@@ -161,8 +171,18 @@ const MainNavigator = () => {
         />
         <SidebarStack.Screen
           options={{ headerShown: false }}
+          name="MyVehicles"
+          component={MyVehicleScreen}
+        />
+        <SidebarStack.Screen
+          options={{ headerShown: false }}
           name="SupportCenter"
           component={SupportCenterScreen}
+        />
+        <SidebarStack.Screen
+          options={{ headerShown: false }}
+          name="FChat"
+          component={FChatScreen}
         />
         <SidebarStack.Screen
           options={{ headerShown: false }}

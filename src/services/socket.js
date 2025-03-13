@@ -1,9 +1,8 @@
 // filepath: /path/to/your/project/src/services/socket.js
 import io from "socket.io-client";
+import { BACKEND_URL } from "../utils/constants";
 
-const socket = io(
-  "https://d03c-2001-ee0-50c6-6480-846-3ef6-1c6d-cf7c.ngrok-free.app/driver"
-); // Replace with your backend URL
+const socket = io(`${BACKEND_URL}/driver`); // Replace with your backend URL
 
 socket.on("connect", () => {
   console.log("Connected to WebSocket server");

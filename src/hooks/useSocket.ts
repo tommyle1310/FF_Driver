@@ -52,7 +52,7 @@ export const useSocket = (
 
     // Clean up the socket connection on unmount
     return () => {
-      socket.off("incomingOrder");
+      socket.off("incomingOrderForDriver");
       socket.off("connect");
       socket.off("disconnect");
       socket.off("acceptOrder");

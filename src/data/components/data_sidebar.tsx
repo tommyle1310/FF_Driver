@@ -7,38 +7,47 @@ import IconEntypo from "react-native-vector-icons/Entypo";
 // Define the sidebar items with a screen name and icon
 export const data_sidebar = [
   {
-    title: 'My tasks',
+    title: "My tasks",
     icon: <IconOcticons name="tasklist" size={20} color="#63c550" />,
-    screen: 'MyTasks',  // Store the screen name
+    screen: "MyTasks", // Store the screen name
   },
   {
-    title: 'Track History',
-    icon: <IconMaterialCommunityIcons name="history" size={20} color="#63c550" />,
-    screen: 'TrackHistory',
+    title: "Track History",
+    icon: (
+      <IconMaterialCommunityIcons name="history" size={20} color="#63c550" />
+    ),
+    screen: "TrackHistory",
   },
   {
-    title: 'Statistics',
+    title: "Statistics",
     icon: <IconIonicons name="stats-chart" size={20} color="#63c550" />,
-    screen: 'Statistics',
+    screen: "Statistics",
   },
   {
-    title: 'Notifications',
+    title: "Notifications",
     icon: <IconEntypo name="notification" size={20} color="#63c550" />,
-    screen: 'Notifications',
+    screen: "Notifications",
   },
   {
-    title: 'My Wallet',
+    title: "My Wallet",
     icon: <IconEntypo name="wallet" size={20} color="#63c550" />,
-    screen: 'MyWallet',
+    screen: "MyWallet",
   },
   {
-    title: 'Support Center',
+    title: "My Vehicles",
+    icon: (
+      <IconMaterialCommunityIcons name="motorbike" size={20} color="#63c550" />
+    ),
+    screen: "MyVehicles",
+  },
+  {
+    title: "Support Center",
     icon: <IconMaterialIcons name="support-agent" size={20} color="#63c550" />,
-    screen: 'SupportCenter',
+    screen: "SupportCenter",
   },
   {
-    title: 'Settings',
+    title: "Settings",
     icon: <IconIonicons name="settings" size={20} color="#63c550" />,
-    screen: 'Settings',
+    screen: "Settings",
   },
 ];

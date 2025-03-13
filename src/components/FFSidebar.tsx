@@ -93,7 +93,6 @@ const FFSidebar = ({
   const sidebarTranslate = isvisible ? translateX : new Animated.Value(300); // Sidebar hidden when not visible
 
   const navigation = useNavigation<NavigationProp>();
-  console.log("check firstname lastname", avatar);
   return (
     <TouchableWithoutFeedback onPress={closeSidebar}>
       <Animated.View
