@@ -28,7 +28,7 @@ import { Type_PushNotification_Order } from "../types/pushNotification";
 import FFToast from "../components/FFToast";
 import FFText from "../components/FFText";
 import { View } from "react-native";
-import { Enum_PaymentMethod, Enum_TrackingInfo, Order } from "../types/Orders";
+import { Enum_PaymentMethod, Enum_TrackingInfo } from "../types/Orders";
 import socket from "../services/socket";
 import { Enum_PaymentStatus } from "../types/Orders";
 import MyVehicleScreen from "@/screens/MyVehicleScreen";
@@ -87,54 +87,49 @@ export type ScreenNames =
 // Main App Navigator (Authenticated)
 const MainNavigator = () => {
   const { driverId } = useSelector((state: RootState) => state.auth);
-
-  const [selectedLocation, setSelectedLocation] = useState({
+  const [selectedLocation] = useState({
     lat: 10.826411,
     lng: 106.617353,
   });
-  const [latestOrder, setLatestOrder] = useState<Order | null>(null);
-  const handleAcceptOrder = async () => {
-    console.log("check dthese", latestOrder, "and", driverId);
-    if (!latestOrder || !driverId) return;
+  const [latestOrder, setLatestOrder] =
+    useState<Type_PushNotification_Order | null>(null);
+  const [orders, setOrders] = useState<Type_PushNotification_Order[]>([]);
+  const [isShowIncomingOrderToast, setIsShowIncomingOrderToast] =
+    useState(false);
+  const { expoPushToken } = usePushNotifications();
+  const pushToken = expoPushToken as unknown as { data: string };
 
-    socket.emit("acceptOrder", {
+  const handleAcceptOrder = () => {
+    if (!latestOrder || !driverId) return;
+    socket.emit("driverAcceptOrder", {
       orderId: latestOrder._id,
-      driverId: driverId,
+      driverId,
       restaurantLocation: selectedLocation,
     });
-    console.log("just emit accep odr", {
+    console.log("just emit accept order", {
       orderId: latestOrder._id,
-      driverId: driverId,
+      driverId,
       restaurantLocation: selectedLocation,
     });
     setIsShowIncomingOrderToast(false);
   };
 
-  const { expoPushToken } = usePushNotifications();
-  const [orders, setOrders] = useState<Type_PushNotification_Order[]>([]);
-
-  const [isShowIncomingOrderToast, setIsShowIncomingOrderToast] =
-    useState(false);
-  let pushToken = expoPushToken as unknown as { data: string };
-
   useSocket(
-    driverId || "",
+    driverId || "FF_DRI_b64aa8b7-3964-46a4-abf4-924c5515f57a",
     setOrders,
-    () =>
+    (order: Type_PushNotification_Order) =>
       sendPushNotification({
-        order: orders[orders.length - 1],
+        order,
         expoPushToken: pushToken,
       }),
-    setLatestOrder as any // Temporary fix until we see useSocket.ts
+    setLatestOrder
   );
 
   useEffect(() => {
-    if (orders.length > 0 && orders[orders.length - 1]) {
+    if (latestOrder) {
       setIsShowIncomingOrderToast(true);
     }
-  }, [orders]);
-
-  // console.log("check latest order", orders[orders.length - 1]);
+  }, [latestOrder]);
 
   return (
     <>
@@ -220,7 +215,7 @@ const MainNavigator = () => {
           </View>
           <View className="flex-row items-center gap-1">
             <FFText fontSize="sm" fontWeight="600">
-              {latestOrder?.order_items.length}
+              {latestOrder?.order_items?.length || 0}
             </FFText>
             <FFText fontSize="sm" fontWeight="500" style={{ color: "#63c550" }}>
               items
@@ -231,6 +226,14 @@ const MainNavigator = () => {
     </>
   );
 };
+
+interface Order {
+  _id: string;
+  customer_id: string;
+  total_amount: number | string;
+  status: string;
+  order_items?: any[];
+}
 
 // Auth Navigator (Login/Signup)
 const AuthNavigator = () => (

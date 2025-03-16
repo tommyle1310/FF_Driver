@@ -8,6 +8,9 @@ import { RootState } from "@/src/store/store";
 import * as ImagePicker from "expo-image-picker";
 import useUploadImage from "@/src/hooks/useUploadImage";
 import { setAvatar, setAvatarInAsyncStorage } from "@/src/store/authSlice";
+import Spinner from "../../FFSpinner";
+import FFModal from "../../FFModal";
+import FFText from "../../FFText";
 
 const EditProfileComponent = ({
   firstName,
@@ -31,11 +34,12 @@ const EditProfileComponent = ({
   const { avatar, driverId } = useSelector((state: RootState) => state.auth);
   const dispatch = useDispatch();
 
-  const { imageUri, setImageUri, uploadImage, responseData } = useUploadImage(
-    "CUSTOMER",
-    driverId || "CUS_ee0966ee-d3dd-49e6-bc20-73e2dab6a593"
-  );
-
+  const { imageUri, setImageUri, uploadImage, responseData, loading } =
+    useUploadImage(
+      "DRIVER",
+      driverId || "FF_DRI_b64aa8b7-3964-46a4-abf4-924c5515f57a"
+    );
+  const [modalVisible, setModalVisible] = useState(false);
   const selectImage = async () => {
     let result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -51,12 +55,16 @@ const EditProfileComponent = ({
     }
   };
   useEffect(() => {
+    console.log("check res data", responseData);
     if (responseData?.EC === 0) {
+      setModalVisible(true);
       dispatch(setAvatar(responseData.data.avatar)); // This updates Redux state
       dispatch(setAvatarInAsyncStorage(responseData.data.avatar)); // This updates AsyncStorage
     }
   }, [responseData]);
-
+  if (loading) {
+    return <Spinner isVisible={loading} />;
+  }
   return (
     <View
       style={{ elevation: 10, borderWidth: 1, borderRadius: 10 }}
@@ -101,6 +109,11 @@ const EditProfileComponent = ({
         placeholder="(+84) 707171164"
         error=""
       />
+      {responseData?.responseDetails?.status === "success" && (
+        <FFModal visible={modalVisible} onClose={() => setModalVisible(false)}>
+          <FFText>{responseData?.responseDetails?.details}</FFText>
+        </FFModal>
+      )}
     </View>
   );
 };

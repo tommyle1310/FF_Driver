@@ -1,8 +1,9 @@
-// filepath: /path/to/your/project/src/services/socket.js
 import io from "socket.io-client";
 import { BACKEND_URL } from "../utils/constants";
 
-const socket = io(`${BACKEND_URL}/driver`); // Replace with your backend URL
+const socket = io(`${BACKEND_URL}/driver`, {
+  transports: ["websocket"],
+});
 
 socket.on("connect", () => {
   console.log("Connected to WebSocket server");
