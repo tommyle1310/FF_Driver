@@ -121,11 +121,161 @@ const ProfileScreen = () => {
       <FFScreenTopSection title="My Profile" navigation={navigation} />
       <View className="p-4 gap-4">
         {screenStatus === "READONLY" ? (
-          <ReadonlyProfileComponents
-            email={email}
-            phone={phone}
-            toggleStatus={() => setScreenStatus("EDIT_PROFILE")}
-          />
+          <>
+            <ReadonlyProfileComponents
+              email={email}
+              phone={phone}
+              toggleStatus={() => setScreenStatus("EDIT_PROFILE")}
+            />
+            <View className="gap-2">
+              <FFText>Overview</FFText>
+              <View className="flex-row items-center gap-2">
+                <View
+                  style={{ elevation: 3 }}
+                  className="flex-1 p-4 items-center rounded-lg bg-white"
+                >
+                  <View className="p-1 rounded-full bg-[#cdcd0c]">
+                    <IconAntDesign name="star" size={12} color="#fff" />
+                  </View>
+                  <FFText>5.0</FFText>
+                  <FFText fontSize="sm" fontWeight="400">
+                    Ratings
+                  </FFText>
+                </View>
+                <View
+                  style={{ elevation: 3 }}
+                  className="flex-1 p-4 items-center rounded-lg bg-white"
+                >
+                  <View className="p-1 rounded-full bg-[#4d9c39]">
+                    <IconMaterialIcons
+                      name="delivery-dining"
+                      size={12}
+                      color="#fff"
+                    />
+                  </View>
+                  <FFText>5.0</FFText>
+                  <FFText fontSize="sm" fontWeight="400">
+                    Total Orders
+                  </FFText>
+                </View>
+                <View
+                  style={{ elevation: 3 }}
+                  className="flex-1 p-4 items-center rounded-lg bg-white"
+                >
+                  <View className="p-1 rounded-full bg-[#d21f3c]">
+                    <IconMaterialCommunityIcons
+                      name="cancel"
+                      size={12}
+                      color="#fff"
+                    />
+                  </View>
+                  <FFText>10%</FFText>
+                  <FFText fontSize="sm" fontWeight="400">
+                    Cancel Rate
+                  </FFText>
+                </View>
+              </View>
+            </View>
+            <View className="gap-2">
+              <View className="flex-row items-cente justify-between gap-2">
+                <FFText>Reviews</FFText>
+                <TouchableOpacity>
+                  <FFText fontWeight="400" style={{ color: "#4d9c39" }}>
+                    See All
+                  </FFText>
+                </TouchableOpacity>
+              </View>
+              <FlatList
+                horizontal
+                className="py-2"
+                data={[
+                  {
+                    id: "1",
+                    reviewer: {
+                      avatar: { url: "url_to_avatar_1", key: "avatar_key_1" },
+                      first_name: "Doraemon",
+                      last_name: "Nobi",
+                    },
+                    rating: 4.2,
+                    review: "Banh ran cholesterol",
+                    updated_at: "1 days ago",
+                    images: [
+                      { url: "url_to_image_1", key: "image_key_1" },
+                      { url: "url_to_image_2", key: "image_key_2" },
+                    ],
+                  },
+                  {
+                    id: "2",
+                    reviewer: {
+                      avatar: { url: "url_to_avatar_2", key: "avatar_key_2" },
+                      first_name: "Nobita",
+                      last_name: "Nobi",
+                    },
+                    rating: 4.5,
+                    review: "Great service, very satisfied!",
+                    updated_at: "2 days ago",
+                    images: [
+                      { url: "url_to_image_3", key: "image_key_3" },
+                      { url: "url_to_image_4", key: "image_key_4" },
+                    ],
+                  },
+                  {
+                    id: "3",
+                    reviewer: {
+                      avatar: { url: "url_to_avatar_3", key: "avatar_key_3" },
+                      first_name: "Nobita",
+                      last_name: "Nobi",
+                    },
+                    rating: 3.8,
+                    review: "Good, but can be improved.",
+                    updated_at: "3 days ago",
+                    images: [
+                      { url: "url_to_image_5", key: "image_key_5" },
+                      { url: "url_to_image_6", key: "image_key_6" },
+                    ],
+                  },
+                ]}
+                renderItem={({ item }: { item: ReviewItem }) => (
+                  <View
+                    style={{ elevation: 3, maxWidth: 200 }}
+                    className="flex-1 p-4 gap-2 items-center rounded-lg bg-white"
+                  >
+                    <View className="flex-row justify-start w-full  items-center gap-2">
+                      <FFAvatar size={40} />
+                      <FFText>
+                        {item.reviewer.first_name} {item.reviewer.last_name}
+                      </FFText>
+                    </View>
+                    <View className="w-full flex-row justify-between items-center">
+                      <View className="flex-row items-center gap-1">
+                        <IconAntDesign name="star" size={12} color="#4d9c39" />
+                        <FFText fontWeight="400" fontSize="sm">
+                          {item.rating}
+                        </FFText>
+                      </View>
+                      <FFText
+                        fontWeight="400"
+                        fontSize="sm"
+                        style={{ color: "#aaa" }}
+                      >
+                        {item.updated_at}
+                      </FFText>
+                    </View>
+                    <FFText
+                      fontSize="sm"
+                      fontWeight="500"
+                      style={{ textAlign: "left" }}
+                    >
+                      {item.review}
+                    </FFText>
+                  </View>
+                )}
+                keyExtractor={(item: any) => item.id}
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ gap: 8 }}
+              />
+            </View>
+          </>
         ) : (
           <EditProfileComponent
             email={email}
@@ -138,154 +288,6 @@ const ProfileScreen = () => {
             setPhone={setPhone}
           />
         )}
-        <View className="gap-2">
-          <FFText>Overview</FFText>
-          <View className="flex-row items-center gap-2">
-            <View
-              style={{ elevation: 3 }}
-              className="flex-1 p-4 items-center rounded-lg bg-white"
-            >
-              <View className="p-1 rounded-full bg-[#cdcd0c]">
-                <IconAntDesign name="star" size={12} color="#fff" />
-              </View>
-              <FFText>5.0</FFText>
-              <FFText fontSize="sm" fontWeight="400">
-                Ratings
-              </FFText>
-            </View>
-            <View
-              style={{ elevation: 3 }}
-              className="flex-1 p-4 items-center rounded-lg bg-white"
-            >
-              <View className="p-1 rounded-full bg-[#4d9c39]">
-                <IconMaterialIcons
-                  name="delivery-dining"
-                  size={12}
-                  color="#fff"
-                />
-              </View>
-              <FFText>5.0</FFText>
-              <FFText fontSize="sm" fontWeight="400">
-                Total Orders
-              </FFText>
-            </View>
-            <View
-              style={{ elevation: 3 }}
-              className="flex-1 p-4 items-center rounded-lg bg-white"
-            >
-              <View className="p-1 rounded-full bg-[#d21f3c]">
-                <IconMaterialCommunityIcons
-                  name="cancel"
-                  size={12}
-                  color="#fff"
-                />
-              </View>
-              <FFText>10%</FFText>
-              <FFText fontSize="sm" fontWeight="400">
-                Cancel Rate
-              </FFText>
-            </View>
-          </View>
-        </View>
-        <View className="gap-2">
-          <View className="flex-row items-cente justify-between gap-2">
-            <FFText>Reviews</FFText>
-            <TouchableOpacity>
-              <FFText fontWeight="400" style={{ color: "#4d9c39" }}>
-                See All
-              </FFText>
-            </TouchableOpacity>
-          </View>
-          <FlatList
-            horizontal
-            className="py-2"
-            data={[
-              {
-                id: "1",
-                reviewer: {
-                  avatar: { url: "url_to_avatar_1", key: "avatar_key_1" },
-                  first_name: "Doraemon",
-                  last_name: "Nobi",
-                },
-                rating: 4.2,
-                review: "Banh ran cholesterol",
-                updated_at: "1 days ago",
-                images: [
-                  { url: "url_to_image_1", key: "image_key_1" },
-                  { url: "url_to_image_2", key: "image_key_2" },
-                ],
-              },
-              {
-                id: "2",
-                reviewer: {
-                  avatar: { url: "url_to_avatar_2", key: "avatar_key_2" },
-                  first_name: "Nobita",
-                  last_name: "Nobi",
-                },
-                rating: 4.5,
-                review: "Great service, very satisfied!",
-                updated_at: "2 days ago",
-                images: [
-                  { url: "url_to_image_3", key: "image_key_3" },
-                  { url: "url_to_image_4", key: "image_key_4" },
-                ],
-              },
-              {
-                id: "3",
-                reviewer: {
-                  avatar: { url: "url_to_avatar_3", key: "avatar_key_3" },
-                  first_name: "Nobita",
-                  last_name: "Nobi",
-                },
-                rating: 3.8,
-                review: "Good, but can be improved.",
-                updated_at: "3 days ago",
-                images: [
-                  { url: "url_to_image_5", key: "image_key_5" },
-                  { url: "url_to_image_6", key: "image_key_6" },
-                ],
-              },
-            ]}
-            renderItem={({ item }: { item: ReviewItem }) => (
-              <View
-                style={{ elevation: 3, maxWidth: 200 }}
-                className="flex-1 p-4 gap-2 items-center rounded-lg bg-white"
-              >
-                <View className="flex-row justify-start w-full  items-center gap-2">
-                  <FFAvatar size={40} />
-                  <FFText>
-                    {item.reviewer.first_name} {item.reviewer.last_name}
-                  </FFText>
-                </View>
-                <View className="w-full flex-row justify-between items-center">
-                  <View className="flex-row items-center gap-1">
-                    <IconAntDesign name="star" size={12} color="#4d9c39" />
-                    <FFText fontWeight="400" fontSize="sm">
-                      {item.rating}
-                    </FFText>
-                  </View>
-                  <FFText
-                    fontWeight="400"
-                    fontSize="sm"
-                    style={{ color: "#aaa" }}
-                  >
-                    {item.updated_at}
-                  </FFText>
-                </View>
-                <FFText
-                  fontSize="sm"
-                  fontWeight="500"
-                  style={{ textAlign: "left" }}
-                >
-                  {item.review}
-                </FFText>
-              </View>
-            )}
-            keyExtractor={(item: any) => item.id}
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ gap: 8 }}
-          />
-        </View>
       </View>
     </FFSafeAreaView>
   );

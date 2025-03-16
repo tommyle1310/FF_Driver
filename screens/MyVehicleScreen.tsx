@@ -1,4 +1,11 @@
-import { View, Text, TouchableOpacity, ScrollView } from "react-native";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  ScrollView,
+  Image,
+  Pressable,
+} from "react-native";
 import React, { useEffect, useState } from "react";
 import FFView from "@/src/components/FFView";
 import FFScreenTopSection from "@/src/components/FFScreenTopSection";
@@ -16,11 +23,14 @@ import { useDispatch, useSelector } from "@/src/store/types";
 import { RootState } from "@/src/store/store";
 import FFModal from "@/src/components/FFModal";
 import Spinner from "@/src/components/FFSpinner";
+import useUploadImage from "@/src/hooks/useUploadImage";
 import {
   loadTokenFromAsyncStorage,
   saveVehicleDetailsToAsyncStorage,
   updateVehicle,
 } from "@/src/store/authSlice";
+import * as ImagePicker from "expo-image-picker";
+import { IMAGE_LINKS } from "@/src/assets/imageLinks";
 
 type MyVehicleScreenNavigationProp = StackNavigationProp<
   SidebarStackParamList,
@@ -120,11 +130,160 @@ const MyVehicleScreen = () => {
   const [color, setColor] = useState<string>("");
   const [owner, setOwner] = useState<string>("");
   const [year, setYear] = useState<string>("0");
-  const [isShowModalSuccess, setIsShowModalSuccess] = useState<boolean>(false);
+  const [modalStatusDetails, setModalStatusDetails] = useState<{
+    status: "SUCCESS" | "FAILED" | "HIDDEN";
+    details?: string;
+  }>({ status: "HIDDEN" });
   const [loading, setLoading] = useState<boolean>(false);
   const { driverId, vehicle } = useSelector((state: RootState) => state.auth);
+  const {
+    imageUri,
+    setImageUri,
+    uploadImage,
+    responseData,
+    loading: loadingSelectImg,
+  } = useUploadImage(
+    "DRIVER",
+    driverId || "FF_DRI_b64aa8b7-3964-46a4-abf4-924c5515f57a"
+  );
+  const [frontViewImg, setFrontViewImg] = useState<string | undefined>(
+    undefined
+  );
+  const [backViewImg, setBackViewImg] = useState<string | undefined>(undefined);
+  const [rightViewImg, setRightViewImg] = useState<string | undefined>(
+    undefined
+  );
+  const [leftViewImg, setLeftViewImg] = useState<string | undefined>(undefined);
+
+  const selectFrontViewImage = async () => {
+    let result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 1,
+    });
+
+    if (result && result.assets && result.assets.length > 0) {
+      const asset = result.assets[0];
+      setImageUri(asset.uri);
+      setFrontViewImg(asset.uri);
+    }
+  };
+
+  const selectBackViewImage = async () => {
+    let result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 1,
+    });
+
+    if (result && result.assets && result.assets.length > 0) {
+      const asset = result.assets[0];
+      setImageUri(asset.uri);
+      setBackViewImg(asset.uri);
+    }
+  };
+
+  const selectRightViewImage = async () => {
+    let result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 1,
+    });
+
+    if (result && result.assets && result.assets.length > 0) {
+      const asset = result.assets[0];
+      setImageUri(asset.uri);
+      setRightViewImg(asset.uri);
+    }
+  };
+
+  const selectLeftViewImage = async () => {
+    let result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 1,
+    });
+
+    if (result && result.assets && result.assets.length > 0) {
+      const asset = result.assets[0];
+      setImageUri(asset.uri);
+      setLeftViewImg(asset.uri);
+    }
+  };
+
+  const uploadDriverVehicleImages = async (uris: string[]) => {
+    if (uris.length > 0) {
+      setLoading(true);
+      try {
+        const formData = new FormData();
+
+        uris.forEach((uri) => {
+          formData.append("files", {
+            uri,
+            name: uri.split("/").pop() || "image.jpg",
+            type: "image/jpeg",
+          } as unknown as Blob);
+        });
+
+        formData.append("userType", "DRIVER");
+        formData.append("entityId", driverId || "");
+
+        const response = await axiosInstance.post(
+          "upload/galleries",
+          formData,
+          {
+            headers: {
+              "Content-Type": "multipart/form-data",
+            },
+            validateStatus: () => true,
+          }
+        );
+        console.log("check response.data img uploda buld", response.data);
+
+        const { EC, EM, data } = response.data;
+
+        if (EC === 0) {
+          setModalStatusDetails({
+            status: "SUCCESS",
+            details: "Images uploaded successfully",
+          });
+        } else {
+          setModalStatusDetails({
+            status: "FAILED",
+            details: EM || "Failed to upload images",
+          });
+        }
+      } catch (error) {
+        console.error(error);
+        setModalStatusDetails({
+          status: "FAILED",
+          details: "An error occurred while uploading the images",
+        });
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
 
   const handleSaveChanges = async () => {
+    if (!licensePlate || !brand || !model || !color || !owner || !year) {
+      setModalStatusDetails({
+        status: "FAILED",
+        details: "Please fill in all fields",
+      });
+      return;
+    }
+    if (!frontViewImg || !backViewImg || !leftViewImg || !rightViewImg) {
+      setModalStatusDetails({
+        status: "FAILED",
+        details: "Please provide all views of your vehicle",
+      });
+      return;
+    }
     const requestData = {
       license_plate: licensePlate,
       brand,
@@ -142,13 +301,22 @@ const MyVehicleScreen = () => {
           validateStatus: () => true,
         }
       );
+      await uploadDriverVehicleImages([
+        frontViewImg,
+        backViewImg,
+        leftViewImg,
+        rightViewImg,
+      ]);
 
       const { EC, EM, data } = response.data;
       if (EC === 0) {
         dispatch(updateVehicle(requestData));
         dispatch(saveVehicleDetailsToAsyncStorage(requestData));
         console.log("check data", data);
-        setIsShowModalSuccess(true);
+        setModalStatusDetails({
+          status: "SUCCESS",
+          details: "You have successfully updated your vehicle details",
+        });
         setIsUpdateStatus(false);
       }
     } catch (error) {
@@ -196,13 +364,56 @@ const MyVehicleScreen = () => {
               </FFText>
             </TouchableOpacity>
           </View>
-          <CoralTourCarousel
-            imageUrls={[
-              "https://res.cloudinary.com/dpubnzap3/image/upload/v1738818798/ei6ycutzsexeu90e8bxn.png",
-              "https://res.cloudinary.com/dpubnzap3/image/upload/v1738818798/ei6ycutzsexeu90e8bxn.png",
-              "https://res.cloudinary.com/dpubnzap3/image/upload/v1738818798/ei6ycutzsexeu90e8bxn.png",
-            ]}
-          />
+          {isUpdateStatus ? (
+            <View className="flex-row items-center gap-4">
+              {[
+                {
+                  title: "Front View",
+                  image: frontViewImg,
+                  onPress: selectFrontViewImage,
+                },
+                {
+                  title: "Back View",
+                  image: backViewImg,
+                  onPress: selectBackViewImage,
+                },
+                {
+                  title: "Right View",
+                  image: rightViewImg,
+                  onPress: selectRightViewImage,
+                },
+                {
+                  title: "Left View",
+                  image: leftViewImg,
+                  onPress: selectLeftViewImage,
+                },
+              ].map((view, index) => (
+                <Pressable
+                  key={index}
+                  onPress={view.onPress}
+                  className="flex-1 gap-2"
+                >
+                  <FFText fontSize="sm">{view.title}</FFText>
+                  <Image
+                    source={{
+                      uri: view.image ?? IMAGE_LINKS.DEFAULT_LOGO,
+                    }}
+                    style={{ width: 60, height: 60, borderRadius: 12 }}
+                    resizeMode="cover"
+                  />
+                </Pressable>
+              ))}
+            </View>
+          ) : (
+            <CoralTourCarousel
+              imageUrls={[
+                vehicle?.images[0].url ?? IMAGE_LINKS.DEFAULT_LOGO,
+                vehicle?.images[1].url ?? IMAGE_LINKS.DEFAULT_LOGO,
+                vehicle?.images[2].url ?? IMAGE_LINKS.DEFAULT_LOGO,
+                vehicle?.images[3].url ?? IMAGE_LINKS.DEFAULT_LOGO,
+              ]}
+            />
+          )}
           <View
             style={{ elevation: 3 }}
             className="p-4 bg-white rounded-lg gap-2"
@@ -232,7 +443,7 @@ const MyVehicleScreen = () => {
                 </View>
                 <View className="flex-row justify-between items-center">
                   <FFText fontWeight="400">Brand</FFText>
-                  <FFText>{vehicle?.brand}</FFText>
+                  <FFText>{vehicle?.brand ?? "coming soon..."}</FFText>
                 </View>
                 <View className="flex-row justify-between items-center">
                   <FFText fontWeight="400">Model</FFText>
@@ -244,11 +455,11 @@ const MyVehicleScreen = () => {
                 </View>
                 <View className="flex-row justify-between items-center">
                   <FFText fontWeight="400">Owner</FFText>
-                  <FFText>{vehicle?.owner}</FFText>
+                  <FFText>{vehicle?.owner ?? "coming soon..."}</FFText>
                 </View>
                 <View className="flex-row justify-between items-center">
                   <FFText fontWeight="400">Year</FFText>
-                  <FFText>{vehicle?.year}</FFText>
+                  <FFText>{vehicle?.year ?? "coming soon..."}</FFText>
                 </View>
               </>
             )}
@@ -256,10 +467,10 @@ const MyVehicleScreen = () => {
         </View>
       </ScrollView>
       <FFModal
-        onClose={() => setIsShowModalSuccess(false)}
-        visible={isShowModalSuccess}
+        onClose={() => setModalStatusDetails({ status: "HIDDEN" })}
+        visible={modalStatusDetails.status !== "HIDDEN"}
       >
-        <FFText>You have successfully updated your vehicle details</FFText>
+        <FFText>{modalStatusDetails.details}</FFText>
       </FFModal>
     </FFSafeAreaView>
   );

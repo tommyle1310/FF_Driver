@@ -105,12 +105,6 @@ const CoralTourCarousel: React.FC<CoralTourCarouselProps> = ({
             console.log("Image load error:", item.url, e.nativeEvent.error)
           }
         />
-        {Math.abs(index * (CARD_WIDTH + SPACING) - scrollXValue.current) <
-          CARD_WIDTH / 2 && (
-          <TouchableOpacity style={styles.heartIcon}>
-            <IconFeather name="heart" size={24} color={currentTheme.text} />
-          </TouchableOpacity>
-        )}
       </Animated.View>
     );
   };
