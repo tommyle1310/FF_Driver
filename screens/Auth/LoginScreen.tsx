@@ -64,6 +64,7 @@ const Login = () => {
           driver_id,
           user_id,
           avatar,
+          vehicle,
         } = decoded;
         const authData = {
           accessToken: response.data.data.access_token,
@@ -80,6 +81,7 @@ const Login = () => {
           avatar: avatar,
           first_name: first_name,
           last_name: last_name,
+          vehicle: vehicle,
         };
 
         // Save to Redux store

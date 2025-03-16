@@ -14,6 +14,21 @@ interface ContactPhone {
   is_default: boolean;
 }
 
+interface VehicleImage {
+  key: string;
+  url: string;
+}
+
+interface Vehicle {
+  color: string;
+  model: string;
+  images: VehicleImage[];
+  license_plate: string;
+  owner: string;
+  brand: string;
+  year: number;
+}
+
 // Define the types of state we will use in this slice
 interface AuthState {
   accessToken: string | null;
@@ -31,6 +46,7 @@ interface AuthState {
   contact_phone: ContactPhone[];
   first_name: string | null;
   last_name: string | null;
+  vehicle: Vehicle | null;
 }
 
 // Initialize the state
@@ -50,6 +66,7 @@ const initialState: AuthState = {
   contact_phone: [],
   first_name: null,
   last_name: null,
+  vehicle: null,
 };
 
 export const loadTokenFromAsyncStorage = createAsyncThunk(
@@ -70,6 +87,7 @@ export const loadTokenFromAsyncStorage = createAsyncThunk(
     const contact_phone = await AsyncStorage.getItem("contact_phone");
     const first_name = await AsyncStorage.getItem("first_name");
     const last_name = await AsyncStorage.getItem("last_name");
+    const vehicle = await AsyncStorage.getItem("vehicle");
     return {
       accessToken,
       app_preferences: app_preferences ? JSON.parse(app_preferences) : null,
@@ -85,6 +103,7 @@ export const loadTokenFromAsyncStorage = createAsyncThunk(
       avatar: avatar ? JSON.parse(avatar) : null,
       first_name,
       last_name,
+      vehicle: vehicle ? JSON.parse(vehicle) : null,
     };
   }
 );
@@ -107,6 +126,7 @@ export const saveTokenToAsyncStorage = createAsyncThunk(
     contact_phone: ContactPhone[];
     first_name: string;
     last_name: string;
+    vehicle?: Vehicle;
   }) => {
     // Save each value and log it
     await AsyncStorage.setItem("accessToken", data.accessToken);
@@ -135,7 +155,34 @@ export const saveTokenToAsyncStorage = createAsyncThunk(
     );
     await AsyncStorage.setItem("first_name", data.first_name);
     await AsyncStorage.setItem("last_name", data.last_name);
+    if (data.vehicle) {
+      await AsyncStorage.setItem("vehicle", JSON.stringify(data.vehicle));
+    }
     return data;
+  }
+);
+
+// Define the AsyncThunk for saving vehicle details to AsyncStorage
+export const saveVehicleDetailsToAsyncStorage = createAsyncThunk(
+  "auth/saveVehicleDetails",
+  async (data: {
+    color: string;
+    model: string;
+    license_plate: string;
+    owner: string;
+    brand: string;
+    year: number;
+  }) => {
+    await AsyncStorage.setItem("vehicle", JSON.stringify(data));
+    return data;
+  }
+);
+
+export const updateVehicle = createAsyncThunk(
+  "auth/updateVehicle",
+  async (vehicleDetails: Partial<Omit<Vehicle, "images">>) => {
+    await AsyncStorage.setItem("vehicle", JSON.stringify(vehicleDetails));
+    return vehicleDetails;
   }
 );
 
@@ -166,6 +213,7 @@ export const logout = createAsyncThunk(
     await AsyncStorage.removeItem("contact_phone");
     await AsyncStorage.removeItem("first_name");
     await AsyncStorage.removeItem("last_name");
+    await AsyncStorage.removeItem("vehicle");
 
     // Dispatch the clearAuthState action to update the Redux store
     dispatch(clearAuthState());
@@ -192,6 +240,7 @@ const authSlice = createSlice({
         available_for_work,
         first_name,
         last_name,
+        vehicle,
       } = action.payload;
       state.accessToken = accessToken;
       state.isAuthenticated = true;
@@ -208,6 +257,7 @@ const authSlice = createSlice({
       state.contact_phone = contact_phone;
       state.first_name = first_name;
       state.last_name = last_name;
+      state.vehicle = vehicle;
     },
     clearAuthState: (state) => {
       state.accessToken = null;
@@ -225,6 +275,7 @@ const authSlice = createSlice({
       state.contact_phone = [];
       state.first_name = null;
       state.last_name = null;
+      state.vehicle = null;
     },
     setBalance: (state, action) => {
       state.balance = action.payload; // Update the balance
@@ -252,6 +303,7 @@ const authSlice = createSlice({
           available_for_work,
           first_name,
           last_name,
+          vehicle,
         } = action.payload;
 
         if (accessToken) {
@@ -270,6 +322,7 @@ const authSlice = createSlice({
           state.contact_phone = contact_phone;
           state.first_name = first_name;
           state.last_name = last_name;
+          state.vehicle = vehicle;
         } else {
           state.isAuthenticated = false;
         }
@@ -290,6 +343,7 @@ const authSlice = createSlice({
           available_for_work,
           first_name,
           last_name,
+          vehicle,
         } = action.payload;
         state.accessToken = accessToken;
         state.isAuthenticated = true;
@@ -306,6 +360,20 @@ const authSlice = createSlice({
         state.contact_phone = contact_phone;
         state.first_name = first_name;
         state.last_name = last_name;
+        state.vehicle = vehicle ?? null;
+      })
+      .addCase(updateVehicle.fulfilled, (state, action) => {
+        if (state.vehicle) {
+          state.vehicle = {
+            ...state.vehicle,
+            ...action.payload,
+          };
+        } else {
+          state.vehicle = {
+            images: [],
+            ...action.payload,
+          } as Vehicle;
+        }
       })
       .addCase(logout.fulfilled, (state) => {
         state.accessToken = null;
@@ -323,6 +391,7 @@ const authSlice = createSlice({
         state.contact_phone = [];
         state.first_name = null;
         state.last_name = null;
+        state.vehicle = null;
       });
   },
 });
