@@ -29,11 +29,12 @@ import FFToast from "../components/FFToast";
 import FFText from "../components/FFText";
 import { View } from "react-native";
 import { Enum_PaymentMethod, Enum_TrackingInfo } from "../types/Orders";
-import socket from "../services/socket";
 import { Enum_PaymentStatus } from "../types/Orders";
 import MyVehicleScreen from "@/screens/MyVehicleScreen";
 import FChatScreen from "@/screens/FChatScreen";
 import OrderHistoryDetailsScreen from "@/screens/OrderHistoryDetails";
+import { io } from "socket.io-client";
+import { BACKEND_URL } from "../utils/constants";
 
 const SidebarStack = createStackNavigator<SidebarStackParamList>();
 const AuthStack = createStackNavigator<AuthStackParamList>();
@@ -84,7 +85,6 @@ export type ScreenNames =
   | "MyVehicles"
   | "FChat";
 
-// Main App Navigator (Authenticated)
 const MainNavigator = () => {
   const { driverId } = useSelector((state: RootState) => state.auth);
   const [selectedLocation] = useState({
@@ -94,27 +94,12 @@ const MainNavigator = () => {
   const [latestOrder, setLatestOrder] =
     useState<Type_PushNotification_Order | null>(null);
   const [orders, setOrders] = useState<Type_PushNotification_Order[]>([]);
-  const [isShowIncomingOrderToast, setIsShowIncomingOrderToast] =
-    useState(false);
+  const [isShowToast, setIsShowToast] = useState(false); // Đổi tên để rõ ràng hơn
   const { expoPushToken } = usePushNotifications();
   const pushToken = expoPushToken as unknown as { data: string };
+  const { accessToken } = useSelector((state: RootState) => state.auth);
 
-  const handleAcceptOrder = () => {
-    if (!latestOrder || !driverId) return;
-    socket.emit("driverAcceptOrder", {
-      orderId: latestOrder._id,
-      driverId,
-      restaurantLocation: selectedLocation,
-    });
-    console.log("just emit accept order", {
-      orderId: latestOrder._id,
-      driverId,
-      restaurantLocation: selectedLocation,
-    });
-    setIsShowIncomingOrderToast(false);
-  };
-
-  useSocket(
+  const socket = useSocket(
     driverId || "FF_DRI_b64aa8b7-3964-46a4-abf4-924c5515f57a",
     setOrders,
     (order: Type_PushNotification_Order) =>
@@ -122,14 +107,31 @@ const MainNavigator = () => {
         order,
         expoPushToken: pushToken,
       }),
-    setLatestOrder
+    setLatestOrder,
+    setIsShowToast // Truyền setter cho toast
   );
 
-  useEffect(() => {
-    if (latestOrder) {
-      setIsShowIncomingOrderToast(true);
-    }
-  }, [latestOrder]);
+  const handleAcceptOrder = () => {
+    if (!latestOrder || !driverId) return;
+    socket.emit("driverAcceptOrder", {
+      orderId: latestOrder.id,
+      driverId,
+      restaurantLocation: selectedLocation,
+    });
+    console.log("just emit accept order", {
+      orderId: latestOrder.id,
+      driverId,
+      restaurantLocation: selectedLocation,
+    });
+    setIsShowToast(false);
+  };
+
+  const getToastTitle = () => {
+    if (!latestOrder) return "Incoming Order";
+    return latestOrder.status === "PENDING"
+      ? "Incoming Order"
+      : "Order Status Updated";
+  };
 
   return (
     <>
@@ -198,9 +200,9 @@ const MainNavigator = () => {
       <FFToast
         disabledClose
         onAccept={handleAcceptOrder}
-        onReject={() => setIsShowIncomingOrderToast(false)}
-        onClose={() => setIsShowIncomingOrderToast(false)}
-        visible={isShowIncomingOrderToast}
+        onReject={() => setIsShowToast(false)}
+        onClose={() => setIsShowToast(false)}
+        visible={isShowToast}
         isApprovalType
       >
         <FFText>Incoming Order</FFText>
@@ -228,7 +230,7 @@ const MainNavigator = () => {
 };
 
 interface Order {
-  _id: string;
+  id: string;
   customer_id: string;
   total_amount: number | string;
   status: string;
