@@ -29,7 +29,7 @@ export const useSocket = (
 ) => {
   const { accessToken } = useSelector((state: RootState) => state.auth);
   const dispatch = useDispatch();
-  const socket = io(`${BACKEND_URL}driver`, {
+  const socket = io(`${BACKEND_URL}/driver`, {
     transports: ["websocket"],
     extraHeaders: {
       auth: `Bearer ${accessToken}`,

@@ -96,6 +96,7 @@ const MainNavigator = () => {
   const [orders, setOrders] = useState<Type_PushNotification_Order[]>([]);
   const [isShowToast, setIsShowToast] = useState(false); // Đổi tên để rõ ràng hơn
   const { expoPushToken } = usePushNotifications();
+
   const pushToken = expoPushToken as unknown as { data: string };
   const { accessToken } = useSelector((state: RootState) => state.auth);
   const { stages } = useSelector(

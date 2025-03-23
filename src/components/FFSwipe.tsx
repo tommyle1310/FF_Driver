@@ -4,7 +4,7 @@ import { PanGestureHandler } from "react-native-gesture-handler";
 import IconFeather from "react-native-vector-icons/Feather";
 import FFText from "./FFText";
 
-const SWIPER_WIDTH = 60;
+const SWIPER_WIDTH = 50;
 
 interface FFSwipeProps {
   onSwipe: () => void; // Callback when swipe reaches the edge

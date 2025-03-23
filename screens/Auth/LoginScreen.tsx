@@ -45,6 +45,7 @@ const Login = () => {
           validateStatus: () => true, // Always return true so axios doesn't throw on errors
         }
       );
+      console.log("check reosib data", response.data);
 
       // Now you can safely access the EC field
       const { EC, EM } = response.data; // Access EC directly

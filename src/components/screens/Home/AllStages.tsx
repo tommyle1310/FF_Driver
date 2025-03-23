@@ -84,9 +84,7 @@ const AllStages: React.FC<AllStagesProps> = ({
                       color: stage.type === "PICKUP" ? "#63c550" : "#e60000",
                     }}
                   >
-                    {stage.type === "PICKUP"
-                      ? "Pick-up point"
-                      : "Drop-off point"}
+                    {stage.type === "PICKUP" ? "Restaurant" : "Customer"}
                   </FFText>
                 </FFBadge>
                 <FFText fontSize="sm" fontWeight="500">

@@ -52,7 +52,7 @@ export interface Restaurant {
   restaurant_name: string;
 }
 
-interface StageDetails {
+export interface StageDetails {
   location?: Location;
   estimated_time?: number;
   actual_time?: number;

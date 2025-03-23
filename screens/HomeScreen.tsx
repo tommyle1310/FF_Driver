@@ -23,10 +23,16 @@ import {
   PickupAndDropoffStage,
 } from "@/src/utils/functions/filters";
 import FFModal from "@/src/components/FFModal";
+import { Ionicons } from "@expo/vector-icons";
+import { FontAwesome6 } from "@expo/vector-icons";
+
 import {
   initialState as initalStateCurrentActiveStage,
   Stage,
 } from "@/src/store/currentDriverProgressStageSlice";
+import FloatingStage from "@/src/components/FloatingStage";
+import FFSeperator from "@/src/components/FFSeperator";
+import FFButton from "@/src/components/FFButton";
 
 const HomeScreen = () => {
   const [isShowSidebar, setIsShowSidebar] = useState(false);
@@ -35,9 +41,8 @@ const HomeScreen = () => {
   const [selectedDestination, setSelectedDestination] =
     useState<PickupAndDropoffStage | null>(null);
   const [isShowModalStatus, setIsShowModalStatus] = useState(false);
-  const [currentActiveStage, setCurrentActiveStage] = useState<
-    Stage["details"]
-  >(initalStateCurrentActiveStage?.["stages"]?.[0]?.["details"]);
+  const [currentActiveLocation, setCurrentActiveLocation] =
+    useState<PickupAndDropoffStage | null>(null);
 
   // Get token and other data from Redux
   const { available_for_work, avatar } = useSelector(
@@ -60,16 +65,13 @@ const HomeScreen = () => {
   const handleGoNow = async () => {
     if (selectedDestination?.type === "DROPOFF") {
       setIsShowModalStatus(true);
+      return;
     }
-    // setCurrentActiveStage({
-    //   actual_time: 0
-    // });
-    console.log("check selected des", selectedDestination);
+    setCurrentActiveLocation(selectedDestination);
   };
-  console.log(
-    "cehk stages orders",
-    stages[3].details?.customerDetails?.address
-  );
+  const handleUpdateProgress = async () => {
+    console.log("cehck just swiped");
+  };
 
   // console.log("check filtered", filterPickupAndDropoffStages(stages));
 
@@ -128,21 +130,106 @@ const HomeScreen = () => {
           }}
         >
           {stages?.length > 0 ? (
-            <AllStages
-              handleGoNow={handleGoNow}
-              selectedDestination={selectedDestination}
-              setSelectedDestination={setSelectedDestination}
-              onCall={() => {}}
-              onChange={() => {}}
-              stages={filterPickupAndDropoffStages(
-                stages.map((item) => ({
-                  ...item,
-                  address: item.details?.restaurantDetails?.address
-                    ? item.details.restaurantDetails?.address
-                    : item.details?.customerDetails?.address?.[0],
-                }))
-              )}
-            />
+            currentActiveLocation ? (
+              <View style={{ padding: 12, gap: 12 }}>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                  }}
+                >
+                  <FFAvatar
+                    avatar={currentActiveLocation?.avatar?.url}
+                    size={60}
+                  />
+                  <FFText>{currentActiveLocation?.name}</FFText>
+                  <TouchableOpacity
+                    style={{
+                      backgroundColor: "#fff",
+                      width: 60,
+                      height: 60,
+                      justifyContent: "center",
+                      alignItems: "center",
+                      borderWidth: 1,
+                      borderColor: "#ddd",
+                      borderRadius: 9999,
+                    }}
+                    onPress={() => {}}
+                  >
+                    <Ionicons name="call-outline" size={20} />
+                  </TouchableOpacity>
+                </View>
+                <FFSeperator />
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 12,
+                  }}
+                >
+                  <TouchableOpacity
+                    style={{
+                      backgroundColor: "#fff",
+                      width: 50,
+                      height: 50,
+                      justifyContent: "center",
+                      alignItems: "center",
+                      borderWidth: 1,
+                      borderColor: "#ddd",
+                      borderRadius: 9999,
+                    }}
+                    onPress={() => {}}
+                  >
+                    <FontAwesome6
+                      name="triangle-exclamation"
+                      size={20}
+                      color={"#cf3719"}
+                    />
+                  </TouchableOpacity>
+                  <View className="flex-1">
+                    <View className="overflow-hidden relative my-4 rounded-lg bg-[#0EB228]">
+                      <FFSwipe
+                        onSwipe={() => {
+                          if (!loading) {
+                            handleUpdateProgress();
+                          }
+                        }}
+                        direction="right"
+                      />
+                      <FFText
+                        style={{
+                          position: "absolute",
+                          top: 0,
+                          bottom: 0,
+                          marginTop: 12,
+                          marginLeft: 64,
+                          color: "#fff",
+                        }}
+                      >
+                        Arrived
+                      </FFText>
+                    </View>
+                  </View>
+                </View>
+              </View>
+            ) : (
+              <AllStages
+                handleGoNow={handleGoNow}
+                selectedDestination={selectedDestination}
+                setSelectedDestination={setSelectedDestination}
+                onCall={() => {}}
+                onChange={() => {}}
+                stages={filterPickupAndDropoffStages(
+                  stages?.map((item) => ({
+                    ...item,
+                    address: item.details?.restaurantDetails?.address
+                      ? item.details.restaurantDetails?.address
+                      : item.details?.customerDetails?.address?.[0],
+                  }))
+                )}
+              />
+            )
           ) : (
             <>
               <View className="border-b-2 border-gray-300 flex-row items-center justify-between p-2 px-6">
@@ -169,6 +256,7 @@ const HomeScreen = () => {
           )}
         </View>
       </FFView>
+      <FloatingStage onNavigate={() => {}} stage={currentActiveLocation} />
       <FFModal
         visible={isShowModalStatus}
         onClose={() => setIsShowModalStatus(false)}
