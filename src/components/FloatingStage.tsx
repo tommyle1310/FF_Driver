@@ -36,7 +36,7 @@ const FloatingStage: React.FC<FloatingStageProps> = ({ stage, onNavigate }) => {
     >
       {/* Left Section */}
       <View className="flex-row items-center flex-1 gap-2">
-        <FFAvatar size={30} />
+        <FFAvatar avatar={stage?.avatar?.url} size={30} />
         <View style={{ width: "80%" }}>
           <FFText>{stage.name}</FFText>
           <FFText fontSize="sm" fontWeight="400">

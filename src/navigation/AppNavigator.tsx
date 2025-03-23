@@ -51,7 +51,7 @@ export type AuthStackParamList = {
 };
 
 export type SidebarStackParamList = {
-  Home: undefined;
+  Home: { emitUpdateDps: (data: any) => void };
   MyTasks: undefined;
   TrackHistory: undefined;
   Statistics: undefined;
@@ -103,7 +103,7 @@ const MainNavigator = () => {
     (state: RootState) => state.currentDriverProgressStage
   );
 
-  const { emitDriverAcceptOrder } = useSocket(
+  const { emitDriverAcceptOrder, emitUpdateDriverProgress } = useSocket(
     driverId || "FF_DRI_b64aa8b7-3964-46a4-abf4-924c5515f57a",
     setOrders,
     (order: Type_PushNotification_Order) =>
@@ -134,6 +134,7 @@ const MainNavigator = () => {
       <SidebarStack.Navigator initialRouteName="Home">
         <SidebarStack.Screen
           name="Home"
+          initialParams={{ emitUpdateDps: emitUpdateDriverProgress }}
           component={HomeScreen}
           options={{ headerShown: false }}
         />
