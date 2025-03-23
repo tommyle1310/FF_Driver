@@ -98,8 +98,11 @@ const MainNavigator = () => {
   const { expoPushToken } = usePushNotifications();
   const pushToken = expoPushToken as unknown as { data: string };
   const { accessToken } = useSelector((state: RootState) => state.auth);
+  const { stages } = useSelector(
+    (state: RootState) => state.currentDriverProgressStage
+  );
 
-  const socket = useSocket(
+  const { emitDriverAcceptOrder } = useSocket(
     driverId || "FF_DRI_b64aa8b7-3964-46a4-abf4-924c5515f57a",
     setOrders,
     (order: Type_PushNotification_Order) =>
@@ -113,10 +116,9 @@ const MainNavigator = () => {
 
   const handleAcceptOrder = () => {
     if (!latestOrder || !driverId) return;
-    socket.emit("driverAcceptOrder", {
+    emitDriverAcceptOrder({
+      driverId: driverId,
       orderId: latestOrder.id,
-      driverId,
-      restaurantLocation: selectedLocation,
     });
     console.log("just emit accept order", {
       orderId: latestOrder.id,
@@ -124,13 +126,6 @@ const MainNavigator = () => {
       restaurantLocation: selectedLocation,
     });
     setIsShowToast(false);
-  };
-
-  const getToastTitle = () => {
-    if (!latestOrder) return "Incoming Order";
-    return latestOrder.status === "PENDING"
-      ? "Incoming Order"
-      : "Order Status Updated";
   };
 
   return (

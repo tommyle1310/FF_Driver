@@ -17,6 +17,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import FFAvatar from "@/src/components/FFAvatar";
 import { RootState } from "@/src/store/store";
 import useSettingData from "@/src/data/Settings";
+import { clearDriverProgressStage } from "@/src/store/currentDriverProgressStageSlice";
 
 type LogoutSreenNavigationProp = StackNavigationProp<
   RootStackParamList,
@@ -85,6 +86,7 @@ const SettingsScreen = () => {
                 <FFButton
                   onPress={() => {
                     dispatch(logout());
+                    dispatch(clearDriverProgressStage());
                     navigation.navigate("Auth");
                   }}
                   className="w-full"

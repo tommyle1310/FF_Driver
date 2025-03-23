@@ -9,35 +9,28 @@ const FFButton: React.FC<{
   isLinear?: boolean;
   textClassName?: string;
   onPress?: () => void;
-  variant?: "primary" | "secondary" | "outline" | "danger"; // Added variant prop
-  style?: ViewStyle; // Optional style prop for custom styles
+  variant?: "primary" | "secondary" | "outline" | "danger" | "disabled"; // Thêm variant "disabled"
+  style?: ViewStyle;
 }> = ({
   children,
   className,
-  isLinear = true, // Default to linear gradient for all variants
+  isLinear = true,
   textClassName,
   onPress = () => {},
-  variant = "primary", // Default to "primary" variant
-  style, // Optional style prop for custom styles
+  variant = "primary",
+  style,
 }) => {
   const { theme } = useTheme();
-
-  // State to handle the press effect
   const [pressed, setPressed] = useState(false);
 
-  // Define gradient colors for the light and dark theme
+  // Gradient colors cho theme
   const gradientColors: readonly [string, string] =
-    theme === "light"
-      ? ["#63c550", "#a3d98f"] // Light theme gradient with a softer lighter green
-      : ["#63c550", "#4a9e3e"]; // Dark theme gradient
+    theme === "light" ? ["#63c550", "#a3d98f"] : ["#63c550", "#4a9e3e"];
 
-  // Darker color versions for the pressed effect (optional)
   const darkenedGradientColors: readonly [string, string] =
-    theme === "light"
-      ? ["#4d9c39", "#7dbf72"] // Darkened light theme gradient (slightly more muted)
-      : ["#4c9f3a", "#3e7c2a"]; // Darkened dark theme gradient (deeper green for contrast)
+    theme === "light" ? ["#4d9c39", "#7dbf72"] : ["#4c9f3a", "#3e7c2a"];
 
-  // Color schemes for other variants (using gradients for all)
+  // Định nghĩa style cho các variant
   const variantStyles = {
     primary: {
       gradientStart: pressed ? darkenedGradientColors[0] : gradientColors[0],
@@ -45,61 +38,71 @@ const FFButton: React.FC<{
       textColor: "white",
     },
     secondary: {
-      gradientStart: pressed ? "#7fa9e7" : "#a3c9f1", // Lighter blue gradient
-      gradientEnd: pressed ? "#4c8ecf" : "#7fa9e7", // Darker blue gradient
-      textColor: "#333", // Dark text for secondary button
+      gradientStart: pressed ? "#7fa9e7" : "#a3c9f1",
+      gradientEnd: pressed ? "#4c8ecf" : "#7fa9e7",
+      textColor: "#333",
     },
     outline: {
-      gradientStart: pressed ? "#e2e2e2" : "#f3f3f3", // Light gray gradient
-      gradientEnd: pressed ? "#cccccc" : "#e2e2e2", // Slightly darker gray gradient
-      textColor: "#333", // Dark text for outline button
+      gradientStart: pressed ? "#e2e2e2" : "#f3f3f3",
+      gradientEnd: pressed ? "#cccccc" : "#e2e2e2",
+      textColor: "#333",
     },
     danger: {
-      gradientStart: pressed ? "#800000" : "#d21f3c", // Red gradient for danger
-      gradientEnd: pressed ? "#e60000" : "#ff4343", // Darker red gradient
+      gradientStart: pressed ? "#800000" : "#d21f3c",
+      gradientEnd: pressed ? "#e60000" : "#ff4343",
       textColor: "white",
+    },
+    disabled: {
+      gradientStart: "#e2e2e2", // Giống secondary nhưng không thay đổi khi nhấn
+      gradientEnd: "#cccccc", // Không có pressed effect
+      textColor: "#333",
     },
   };
 
   const { gradientStart, gradientEnd, textColor } = variantStyles[variant];
 
   const renderChildren = () => {
-    // Check if children is a string, if so, wrap it with a Text component
     if (typeof children === "string") {
       return (
         <Text
           style={[
             { color: textColor, fontSize: 16, fontWeight: "600" },
-            textClassName as any, // NativeWind will handle the className for styles
+            textClassName as any,
           ]}
         >
           {children}
         </Text>
       );
     }
-
-    // If children is a ReactNode (not a string), return it as is
     return children;
   };
 
+  // Kiểm tra nếu variant là "disabled" thì không cho nhấn
+  const isDisabled = variant === "disabled";
+
   return (
     <Pressable
-      onPressIn={() => setPressed(true)} // When press starts
-      onPressOut={() => {
-        setPressed(false);
-        onPress();
-      }} // When press ends
+      onPressIn={!isDisabled ? () => setPressed(true) : undefined} // Không áp dụng nếu disabled
+      onPressOut={
+        !isDisabled
+          ? () => {
+              setPressed(false);
+              onPress();
+            }
+          : undefined
+      } // Không chạy onPress nếu disabled
       style={[
         {
-          transform: [{ scale: pressed ? 0.95 : 1 }], // Apply scaling when pressed
+          transform: [{ scale: pressed && !isDisabled ? 0.95 : 1 }], // Không scale nếu disabled
           justifyContent: "center",
           alignItems: "center",
         },
-        style, // Merge any custom style provided
+        style,
       ]}
+      disabled={isDisabled} // Dùng thuộc tính disabled của Pressable
     >
       <LinearGradient
-        colors={[gradientStart, gradientEnd]} // Always use a gradient
+        colors={[gradientStart, gradientEnd]}
         start={[0, 0]}
         end={[1, 0]}
         style={{
@@ -114,7 +117,7 @@ const FFButton: React.FC<{
           shadowRadius: 3,
           elevation: 5,
         }}
-        className={className} // Preserve the className prop for tailwind-like classes
+        className={className}
       >
         {renderChildren()}
       </LinearGradient>

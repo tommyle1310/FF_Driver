@@ -15,6 +15,7 @@ import { sendPushNotification } from "@/src/utils/functions/pushNotification";
 import useSearchNearbyDrivers from "@/src/hooks/useSearchNearbyDrivers";
 import { useNavigation } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
+import { loadDriverProgressStageFromAsyncStorage } from "@/src/store/currentDriverProgressStageSlice";
 
 type RootNavigationProp = StackNavigationProp<RootStackParamList, "Main">;
 
@@ -24,6 +25,7 @@ const RootLayout = () => {
   useEffect(() => {
     const loadToken = async () => {
       dispatch(loadTokenFromAsyncStorage());
+      dispatch(loadDriverProgressStageFromAsyncStorage());
     };
 
     loadToken();

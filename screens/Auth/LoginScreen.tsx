@@ -15,6 +15,7 @@ import axiosInstance from "@/src/utils/axiosConfig";
 import { RootState } from "@/src/store/store";
 import { decodeJWT } from "@/src/utils/functions";
 import { RootStackParamList } from "@/src/navigation/AppNavigator";
+import Spinner from "@/src/components/FFSpinner";
 
 type LoginScreenNavigationProp = StackNavigationProp<
   RootStackParamList,
@@ -25,13 +26,15 @@ const Login = () => {
   const navigation = useNavigation<LoginScreenNavigationProp>();
   const dispatch = useDispatch();
   const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+
   const handleLoginSubmit = async (email: string, password: string) => {
     // Request body
     const requestBody = {
       email: email,
       password: password,
     };
-
+    setIsLoading(true);
     try {
       // Make the POST request
       const response = await axiosInstance.post(
@@ -98,6 +101,8 @@ const Login = () => {
     } catch (error) {
       console.error("Login failed:", error);
       // Handle error here
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -120,6 +125,7 @@ const Login = () => {
         end={[0, 1]}
         className="flex-1 items-center justify-center"
       >
+        <Spinner isVisible={isLoading} isOverlay />
         <FFAuthForm
           error={error}
           isSignUp={false}

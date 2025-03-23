@@ -17,15 +17,34 @@ import {
 } from "@/src/store/authSlice"; // Assuming loadTokenFromAsyncStorage exists
 import { toggleAvailability } from "@/src/store/availabilitySlice";
 import MapWrapper from "@/src/components/Maps/MapWrapper";
+import AllStages from "@/src/components/screens/Home/AllStages";
+import {
+  filterPickupAndDropoffStages,
+  PickupAndDropoffStage,
+} from "@/src/utils/functions/filters";
+import FFModal from "@/src/components/FFModal";
+import {
+  initialState as initalStateCurrentActiveStage,
+  Stage,
+} from "@/src/store/currentDriverProgressStageSlice";
 
 const HomeScreen = () => {
   const [isShowSidebar, setIsShowSidebar] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true); // Loading state
+  const [selectedDestination, setSelectedDestination] =
+    useState<PickupAndDropoffStage | null>(null);
+  const [isShowModalStatus, setIsShowModalStatus] = useState(false);
+  const [currentActiveStage, setCurrentActiveStage] = useState<
+    Stage["details"]
+  >(initalStateCurrentActiveStage?.["stages"]?.[0]?.["details"]);
 
   // Get token and other data from Redux
   const { available_for_work, avatar } = useSelector(
     (state: RootState) => state.auth
+  );
+  const { stages, orders } = useSelector(
+    (state: RootState) => state.currentDriverProgressStage
   );
 
   const dispatch = useDispatch();
@@ -38,9 +57,25 @@ const HomeScreen = () => {
     loadToken();
   }, [dispatch]);
 
+  const handleGoNow = async () => {
+    if (selectedDestination?.type === "DROPOFF") {
+      setIsShowModalStatus(true);
+    }
+    // setCurrentActiveStage({
+    //   actual_time: 0
+    // });
+    console.log("check selected des", selectedDestination);
+  };
+  console.log(
+    "cehk stages orders",
+    stages[3].details?.customerDetails?.address
+  );
+
+  // console.log("check filtered", filterPickupAndDropoffStages(stages));
+
   return (
     <FFSafeAreaView>
-      <FFView style={{ flex: 1, padding: 8, position: "relative" }}>
+      <FFView style={{ flex: 1, position: "relative" }}>
         {/* Top section - Badge centered */}
         <View
           className="absolute z-[1] top-4"
@@ -81,7 +116,9 @@ const HomeScreen = () => {
           style={{
             position: "absolute",
             left: 0,
+            elevation: 10,
             right: 0,
+            paddingHorizontal: 12,
             bottom: 0,
             backgroundColor: "white",
             marginHorizontal: -10,
@@ -90,29 +127,54 @@ const HomeScreen = () => {
             borderTopStartRadius: 40,
           }}
         >
-          <View className="border-b-2 border-gray-300 flex-row items-center justify-between p-2 px-6">
-            <FFAvatar />
-            <FFText style={{ textAlign: "center", margin: 10 }}>
-              You're {available_for_work ? "Online" : "Offline"}
-            </FFText>
-            <FFAvatar />
-          </View>
+          {stages?.length > 0 ? (
+            <AllStages
+              handleGoNow={handleGoNow}
+              selectedDestination={selectedDestination}
+              setSelectedDestination={setSelectedDestination}
+              onCall={() => {}}
+              onChange={() => {}}
+              stages={filterPickupAndDropoffStages(
+                stages.map((item) => ({
+                  ...item,
+                  address: item.details?.restaurantDetails?.address
+                    ? item.details.restaurantDetails?.address
+                    : item.details?.customerDetails?.address?.[0],
+                }))
+              )}
+            />
+          ) : (
+            <>
+              <View className="border-b-2 border-gray-300 flex-row items-center justify-between p-2 px-6">
+                <FFAvatar />
+                <FFText style={{ textAlign: "center", margin: 10 }}>
+                  You're {available_for_work ? "Online" : "Offline"}
+                </FFText>
+                <FFAvatar />
+              </View>
 
-          {!available_for_work && (
-            <View className="overflow-hidden mx-6 my-4 rounded-lg bg-[#0EB228]">
-              <FFSwipe
-                onSwipe={() => {
-                  if (!loading) {
-                    dispatch(toggleAvailability()); // Call the function properly via dispatch
-                  }
-                }}
-                direction="right"
-              />
-            </View>
+              {!available_for_work && (
+                <View className="overflow-hidden mx-6 my-4 rounded-lg bg-[#0EB228]">
+                  <FFSwipe
+                    onSwipe={() => {
+                      if (!loading) {
+                        dispatch(toggleAvailability()); // Call the function properly via dispatch
+                      }
+                    }}
+                    direction="right"
+                  />
+                </View>
+              )}
+            </>
           )}
         </View>
       </FFView>
-
+      <FFModal
+        visible={isShowModalStatus}
+        onClose={() => setIsShowModalStatus(false)}
+      >
+        <FFText>You must pickup your order first to begin this process.</FFText>
+      </FFModal>
       <FFSidebar
         visible={isShowSidebar}
         onClose={() => setIsShowSidebar(false)}
