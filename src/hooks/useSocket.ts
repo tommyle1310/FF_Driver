@@ -1,5 +1,5 @@
 // useSocket.ts
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Type_PushNotification_Order } from "../types/pushNotification";
 import { io, Socket } from "socket.io-client"; // Thêm Socket type để type rõ hơn
 import { BACKEND_URL } from "../utils/constants";
@@ -25,7 +25,7 @@ export const useSocket = (
   setLatestOrder: React.Dispatch<
     React.SetStateAction<Type_PushNotification_Order | null>
   >,
-  setIsShowToast?: React.Dispatch<React.SetStateAction<boolean>> // Thêm setter cho toast
+  setIsShowToast?: React.Dispatch<React.SetStateAction<boolean>>
 ) => {
   const { accessToken } = useSelector((state: RootState) => state.auth);
   const dispatch = useDispatch();
@@ -35,6 +35,8 @@ export const useSocket = (
       auth: `Bearer ${accessToken}`,
     },
   });
+  const lastResponseRef = useRef<string | null>(null); // Lưu dữ liệu cuối cùng để so sánh
+  const isInitialUpdateRef = useRef(true); // Cờ để cho phép cập nhật ban đầu sau driverAcceptOrder
 
   useEffect(() => {
     if (!driverId) {
@@ -115,10 +117,24 @@ export const useSocket = (
       if (setIsShowToast) setIsShowToast(true);
       sendPushNotification(buildDataToPushNotificationType);
     });
+
     socket.on("driverStagesUpdated", (response) => {
-      dispatch(setDriverProgressStage(response));
-      dispatch(saveDriverProgressStageToAsyncStorage(response));
-      console.log("cehck response driverStagesUpdated", response);
+      console.log("hello workd", response);
+
+      const responseString = JSON.stringify(response);
+      // Cho phép cập nhật ban đầu sau driverAcceptOrder hoặc khi dữ liệu thay đổi
+      if (
+        isInitialUpdateRef.current ||
+        lastResponseRef.current !== responseString
+      ) {
+        console.log("Dispatch driverStagesUpdated:", response);
+        dispatch(setDriverProgressStage(response));
+        dispatch(saveDriverProgressStageToAsyncStorage(response));
+        lastResponseRef.current = responseString;
+        isInitialUpdateRef.current = false; // Chỉ cho phép cập nhật ban đầu một lần
+      } else {
+        console.log("Bỏ qua driverStagesUpdated vì dữ liệu không đổi");
+      }
     });
 
     socket.on("driverAcceptOrder", (response) => {
@@ -127,6 +143,7 @@ export const useSocket = (
         setLatestOrder(response.order);
         setOrders((prevOrders) => [...prevOrders, response.order]);
         if (setIsShowToast) setIsShowToast(true);
+        isInitialUpdateRef.current = true; // Reset để cho phép nhận driverStagesUpdated sau driverAcceptOrder
       } else {
         console.error("Failed to accept order:", response.message);
         setLatestOrder(null);
@@ -141,6 +158,7 @@ export const useSocket = (
       socket.off("connect");
       socket.off("notifyOrderStatus");
       socket.off("incomingOrderForDriver");
+      socket.off("driverStagesUpdated");
       socket.off("driverAcceptOrder");
       socket.off("disconnect");
     };
@@ -150,9 +168,9 @@ export const useSocket = (
     sendPushNotification,
     setLatestOrder,
     setIsShowToast,
+    dispatch,
   ]);
 
-  // Hàm emit driverAcceptOrder
   const emitDriverAcceptOrder = (data: {
     driverId: string;
     orderId: string;
@@ -161,7 +179,6 @@ export const useSocket = (
     console.log("Emitted driverAcceptOrder with data:", data);
   };
 
-  // Hàm emit updateDriverProgress
   const emitUpdateDriverProgress = (data: any) => {
     socket.emit("updateDriverProgress", data);
     console.log("Emitted updateDriverProgress with data:", data);
@@ -171,5 +188,5 @@ export const useSocket = (
     socket,
     emitDriverAcceptOrder,
     emitUpdateDriverProgress,
-  }; // Return object chứa socket và 2 hàm emit
+  };
 };

@@ -35,6 +35,9 @@ import FChatScreen from "@/screens/FChatScreen";
 import OrderHistoryDetailsScreen from "@/screens/OrderHistoryDetails";
 import { io } from "socket.io-client";
 import { BACKEND_URL } from "../utils/constants";
+import Spinner from "../components/FFSpinner";
+import RatingScreen from "@/screens/RatingScreen";
+import { Avatar } from "../types/common";
 
 const SidebarStack = createStackNavigator<SidebarStackParamList>();
 const AuthStack = createStackNavigator<AuthStackParamList>();
@@ -54,6 +57,33 @@ export type SidebarStackParamList = {
   Home: { emitUpdateDps: (data: any) => void };
   MyTasks: undefined;
   TrackHistory: undefined;
+  Rating: {
+    customer1: {
+      id: string;
+      avatar: Avatar;
+    };
+    restaurant1: {
+      id: string;
+      avatar: Avatar;
+    };
+    customer2?: {
+      id: string;
+      avatar: Avatar;
+    };
+    restaurant2?: {
+      id: string;
+      avatar: Avatar;
+    };
+    customer3?: {
+      id: string;
+      avatar: Avatar;
+    };
+    restaurant3?: {
+      id: string;
+      avatar: Avatar;
+    };
+    orderId?: string;
+  };
   Statistics: undefined;
   Notifications: undefined;
   Profile: undefined;
@@ -96,7 +126,7 @@ const MainNavigator = () => {
   const [orders, setOrders] = useState<Type_PushNotification_Order[]>([]);
   const [isShowToast, setIsShowToast] = useState(false); // Đổi tên để rõ ràng hơn
   const { expoPushToken } = usePushNotifications();
-
+  const [isLoading, setIsLoading] = useState(false);
   const pushToken = expoPushToken as unknown as { data: string };
   const { accessToken } = useSelector((state: RootState) => state.auth);
   const { stages } = useSelector(
@@ -117,10 +147,12 @@ const MainNavigator = () => {
 
   const handleAcceptOrder = () => {
     if (!latestOrder || !driverId) return;
+    setIsLoading(true);
     emitDriverAcceptOrder({
       driverId: driverId,
       orderId: latestOrder.id,
     });
+    setIsLoading(false);
     console.log("just emit accept order", {
       orderId: latestOrder.id,
       driverId,
@@ -142,6 +174,11 @@ const MainNavigator = () => {
           options={{ headerShown: false }}
           name="MyTasks"
           component={MyTasksScreen}
+        />
+        <SidebarStack.Screen
+          options={{ headerShown: false }}
+          name="Rating"
+          component={RatingScreen}
         />
         <SidebarStack.Screen
           options={{ headerShown: false }}
@@ -194,6 +231,7 @@ const MainNavigator = () => {
           component={SettingsScreen}
         />
       </SidebarStack.Navigator>
+      <Spinner isVisible={isLoading} isOverlay />
       <FFToast
         disabledClose
         onAccept={handleAcceptOrder}

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { View, TouchableOpacity, Pressable } from "react-native";
 import FFSafeAreaView from "@/src/components/FFSafeAreaView";
 import FFText from "@/src/components/FFText";
@@ -25,29 +25,48 @@ import {
 import FFModal from "@/src/components/FFModal";
 import { Ionicons } from "@expo/vector-icons";
 import { FontAwesome6 } from "@expo/vector-icons";
-import { Stage } from "@/src/store/currentDriverProgressStageSlice";
+import {
+  loadDriverProgressStageFromAsyncStorage,
+  Stage,
+} from "@/src/store/currentDriverProgressStageSlice";
 import FloatingStage from "@/src/components/FloatingStage";
 import FFSeperator from "@/src/components/FFSeperator";
 import FFButton from "@/src/components/FFButton";
 import { useSocket } from "@/src/hooks/useSocket";
-import { RouteProp, useRoute } from "@react-navigation/native";
+import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { SidebarStackParamList } from "@/src/navigation/AppNavigator";
+import { Enum_TrackingInfo } from "@/src/types/Orders";
+import { StackNavigationProp } from "@react-navigation/stack";
+import { Avatar } from "@/src/types/common";
 
 type HomeRouteProp = RouteProp<SidebarStackParamList, "Home">;
+type HomeSreenNavigationProp = StackNavigationProp<
+  SidebarStackParamList,
+  "Home"
+>;
 
 const HomeScreen = () => {
+  const navigation = useNavigation<HomeSreenNavigationProp>();
   const route = useRoute<HomeRouteProp>();
   const { emitUpdateDps } = route.params;
   const [isShowSidebar, setIsShowSidebar] = useState(false);
   const [loading, setLoading] = useState(true);
   const [selectedDestination, setSelectedDestination] =
     useState<PickupAndDropoffStage | null>(null);
-  const [isShowModalStatus, setIsShowModalStatus] = useState(false);
+  const [modalDetails, setModalDetails] = useState<{
+    status: "SUCCESS" | "ERROR" | "HIDDEN" | "INFO";
+    title: string;
+    desc: string;
+  }>({ status: "HIDDEN", title: "", desc: "" });
   const [currentActiveLocation, setCurrentActiveLocation] =
     useState<PickupAndDropoffStage | null>(null);
   const [isResetSwipe, setIsResetSwipe] = useState(false);
-  const [currentStage, setCurrentStage] = useState<Stage>();
+  const isUpdatingRef = useRef(false); // Theo dõi quá trình update
+  const [currentStage, setCurrentStage] = useState<Stage | null>();
   const dispatch = useDispatch();
+  const [swipeTextCurrentStage, setSwipeTextCurrentStage] = useState(
+    `I've arrived restaurant`
+  );
 
   const { available_for_work, avatar } = useSelector(
     (state: RootState) => state.auth
@@ -59,41 +78,177 @@ const HomeScreen = () => {
   useEffect(() => {
     const loadToken = async () => {
       await dispatch(loadTokenFromAsyncStorage());
+      await dispatch(loadDriverProgressStageFromAsyncStorage());
       setLoading(false);
     };
     loadToken();
   }, [dispatch]);
 
   const handleGoNow = async () => {
-    if (selectedDestination?.type === "DROPOFF") {
-      setIsShowModalStatus(true);
-      return;
-    }
+    console.log(
+      "check current stage",
+      !currentStage?.state.startsWith("en_route_to_customer") ||
+        !currentStage.state.startsWith("completed"),
+      currentStage?.state,
+      currentStage
+    );
+
+    // if (
+    //   !currentStage?.state.startsWith("en_route_to_customer") ||
+    //   !currentStage.state.startsWith("delivery_complete")
+    // ) {
+    //   setModalDetails({
+    //     status: "ERROR",
+    //     title: "wtf",
+    //     desc: "You are not allowed to pickup at the moment, please finish picking up order before proceediing this action 😁.",
+    //   });
+    //   return;
+    // }
     setCurrentActiveLocation(selectedDestination);
   };
 
-  const handleUpdateProgress = async () => {
+  useEffect(() => {
+    const loadData = async () => {
+      await dispatch(loadTokenFromAsyncStorage());
+      await dispatch(loadDriverProgressStageFromAsyncStorage());
+    };
+    loadData();
+  }, [dispatch]);
+
+  useEffect(() => {
+    console.log("cehck curr stages", currentStage);
+    if (currentStage?.state.startsWith("delivery_complete")) {
+      const buildDataCustomer1 = filterPickupAndDropoffStages(
+        stages?.map((item) => ({
+          ...item,
+          address: item.details?.restaurantDetails?.address
+            ? item.details.restaurantDetails?.address
+            : item.details?.customerDetails?.address?.[0],
+        }))
+      ).find((item) => item.type === "DROPOFF") as {
+        id: string;
+        avatar: Avatar;
+      };
+      const buildDataRestaurant1 = filterPickupAndDropoffStages(
+        stages?.map((item) => ({
+          ...item,
+          address: item.details?.restaurantDetails?.address
+            ? item.details.restaurantDetails?.address
+            : item.details?.customerDetails?.address?.[0],
+        }))
+      ).find((item) => item.type === "PICKUP") as {
+        id: string;
+        avatar: Avatar;
+      };
+
+      navigation.navigate("Rating", {
+        customer1: buildDataCustomer1,
+        restaurant1: buildDataRestaurant1,
+      });
+    }
+
+    if (currentStage?.state.startsWith("waiting_for_pickup")) {
+      setSelectedDestination(null);
+      setCurrentActiveLocation(null);
+      setSwipeTextCurrentStage(`I've arrived restaurant`);
+    }
+    if (currentStage?.state.startsWith("restaurant_pickup")) {
+      setSelectedDestination(null);
+      setCurrentActiveLocation(null);
+      setSwipeTextCurrentStage(`I've picked up order`);
+    }
+    if (currentStage?.state.startsWith("en_route_to_customer")) {
+      setSelectedDestination(null);
+      setCurrentActiveLocation(null);
+      setSwipeTextCurrentStage(`I've arrived destination`);
+    }
+  }, [currentStage]);
+
+  console.log(
+    "check customer ",
+    filterPickupAndDropoffStages(
+      stages?.map((item) => ({
+        ...item,
+        address: item.details?.restaurantDetails?.address
+          ? item.details.restaurantDetails?.address
+          : item.details?.customerDetails?.address?.[0],
+      }))
+    ).find((item) => item.type === "DROPOFF")
+  );
+  console.log(
+    "check restaurant ",
+    filterPickupAndDropoffStages(
+      stages?.map((item) => ({
+        ...item,
+        address: item.details?.restaurantDetails?.address
+          ? item.details.restaurantDetails?.address
+          : item.details?.customerDetails?.address?.[0],
+      }))
+    ).find((item) => item.type === "PICKUP")
+  );
+
+  const handleUpdateProgress = useCallback(async () => {
+    console.log("cehk fall hadnle udoae progers");
+
+    // Tìm stage tiếp theo cần tăng (in_progress hoặc pending)
+    const nextStageIndex = stages.findIndex(
+      (stage) => stage.status === "in_progress" || stage.status === "pending"
+    );
+    const nextStage = nextStageIndex !== -1 ? stages[nextStageIndex] : null;
+
+    if (!nextStage || isUpdatingRef.current) {
+      console.log(
+        "Update bị ngăn: không tìm thấy stage tiếp theo hoặc đang cập nhật"
+      );
+      return;
+    }
+
+    // Nếu stage hiện tại đã completed, không cần kiểm tra thêm
+    if (nextStage.status === "completed") {
+      console.log("Stage tiếp theo đã completed, không cần emit");
+      return;
+    }
+
+    isUpdatingRef.current = true;
+
     try {
-      await emitUpdateDps(id);
-      // setCurrentStage(stages[1]);
-      // Ví dụ: Gọi API hoặc dispatch action để cập nhật tiến trình
-      // await axiosInstance.post("/update-progress", { stageId: stages[0].id });
-
-      // Sau khi xử lý xong, reset swipe
+      console.log(
+        "Emit updateDriverProgress với id:",
+        id,
+        "và stage:",
+        nextStage.state
+      );
+      await emitUpdateDps({ stageId: id }); // Gửi thêm orderId nếu có
       setIsResetSwipe(true);
-
-      // Đợi animation reset hoàn tất (khoảng 300ms) rồi đặt lại isResetSwipe về false
       setTimeout(() => {
         setIsResetSwipe(false);
+        isUpdatingRef.current = false;
       }, 300);
+
+      // Cập nhật currentStage sau khi emit
+      setCurrentStage(nextStage);
     } catch (error) {
-      console.error("Error updating progress:", error);
-      // Nếu lỗi, vẫn có thể reset swipe tùy ý
-      setIsResetSwipe(true);
-      setTimeout(() => setIsResetSwipe(false), 300);
+      isUpdatingRef.current = false;
+      setIsResetSwipe(false);
     }
-  };
-  console.log("check ", stages);
+  }, [id, emitUpdateDps, stages]); // Thêm stages vào dependency để cập nhật khi stages thay đổi
+
+  // Chỉ cập nhật currentStage ban đầu hoặc khi stages thay đổi
+  useEffect(() => {
+    if (stages.length > 0) {
+      const activeStage =
+        stages.find(
+          (stage) =>
+            stage.status === "in_progress" || stage.status === "pending"
+        ) || stages[0];
+      if (!currentStage || currentStage.state !== activeStage.state) {
+        console.log("Cập nhật currentStage:", activeStage);
+        setCurrentStage(activeStage);
+      }
+    } else if (stages.length === 0 && currentStage) {
+      setCurrentStage(null);
+    }
+  }, [stages]);
 
   return (
     <FFSafeAreaView>
@@ -211,6 +366,7 @@ const HomeScreen = () => {
                       direction="right"
                     />
                     <FFText
+                      fontWeight="400"
                       style={{
                         position: "absolute",
                         top: 0,
@@ -220,7 +376,7 @@ const HomeScreen = () => {
                         color: "#fff",
                       }}
                     >
-                      I've Arrived Restaurant
+                      {swipeTextCurrentStage}
                     </FFText>
                   </View>
                 </View>
@@ -273,10 +429,18 @@ const HomeScreen = () => {
         stage={currentActiveLocation}
       />
       <FFModal
-        visible={isShowModalStatus}
-        onClose={() => setIsShowModalStatus(false)}
+        visible={modalDetails.status !== "HIDDEN"}
+        onClose={() =>
+          setModalDetails({ status: "HIDDEN", title: "", desc: "" })
+        }
       >
-        <FFText>You must pickup your order first to begin this process.</FFText>
+        <FFText>{modalDetails.title}</FFText>
+        {modalDetails?.status === "INFO" && (
+          <View className="flex-row gap-2 items-center">
+            <FFButton>Cancel</FFButton>
+            <FFButton>Confirm</FFButton>
+          </View>
+        )}
       </FFModal>
       <FFSidebar
         visible={isShowSidebar}
