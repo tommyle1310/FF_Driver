@@ -111,7 +111,7 @@ interface Order {
   updated_at: number;
 }
 
-interface DriverProgressStageState {
+export interface DriverProgressStageState {
   id: string | null;
   driver_id: string | null;
   current_state: string | null;
