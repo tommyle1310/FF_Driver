@@ -52,3 +52,24 @@ export function formatEpochToDate(epochTimestamp: number): string {
   // Trả về định dạng dd/mm/yyyy
   return `${day}/${month}/${year}`;
 }
+export function formatEpochToDateTime(epochTimestamp: number): string {
+  // Kiểm tra xem timestamp là giây (10 chữ số) hay mili giây (13 chữ số)
+  const timestampInMs =
+    epochTimestamp.toString().length > 10
+      ? epochTimestamp
+      : epochTimestamp * 1000;
+
+  const date = new Date(timestampInMs);
+
+  // Lấy giờ và phút
+  const hours = String(date.getHours()).padStart(2, "0"); // Đảm bảo 2 chữ số
+  const minutes = String(date.getMinutes()).padStart(2, "0"); // Đảm bảo 2 chữ số
+
+  // Lấy ngày, tháng, năm
+  const day = String(date.getDate()).padStart(2, "0"); // Đảm bảo 2 chữ số
+  const month = String(date.getMonth() + 1).padStart(2, "0"); // getMonth() trả về 0-11, nên +1
+  const year = date.getFullYear();
+
+  // Trả về định dạng hh:mm dd/mm/yyyy
+  return `${hours}:${minutes} ${day}/${month}/${year}`;
+}

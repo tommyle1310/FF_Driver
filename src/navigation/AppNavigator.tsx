@@ -97,7 +97,7 @@ export type SidebarStackParamList = {
     orderId?: string;
   };
   OrderHistoryDetails: {
-    orderId: string;
+    dpsId: string;
   };
 };
 

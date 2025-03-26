@@ -441,9 +441,10 @@ const HomeScreen = () => {
             }}
           >
             <TouchableOpacity
-              onPress={() =>
-                setModalDetails({ status: "HIDDEN", desc: "", title: "" })
-              }
+              onPress={() => {
+                setModalDetails({ status: "HIDDEN", desc: "", title: "" });
+                setIsResetSwipe(true);
+              }}
               className=" flex-1 items-center py-3 px-4 rounded-lg"
             >
               <FFText>Cancel</FFText>

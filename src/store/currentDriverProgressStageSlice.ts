@@ -125,6 +125,7 @@ export interface DriverProgressStageState {
   events: Event[];
   created_at: number | null;
   updated_at: number | null;
+  total_earns: number | null;
   orders: Order[];
 }
 
@@ -143,6 +144,7 @@ export const initialState: DriverProgressStageState = {
   events: [],
   created_at: null,
   updated_at: null,
+  total_earns: null,
   orders: [],
 };
 
@@ -188,6 +190,7 @@ const currentDriverProgressStageSlice = createSlice({
         id,
         driver_id,
         current_state,
+        total_earns,
         previous_state,
         stages,
         next_state,
@@ -204,6 +207,7 @@ const currentDriverProgressStageSlice = createSlice({
       state.driver_id = driver_id;
       state.current_state = current_state;
       state.previous_state = previous_state;
+      state.total_earns = total_earns;
       state.stages = stages;
       state.next_state = next_state;
       state.estimated_time_remaining = estimated_time_remaining;
@@ -229,6 +233,7 @@ const currentDriverProgressStageSlice = createSlice({
     clearState: (state) => {
       state.id = null;
       state.driver_id = null;
+      state.total_earns = null;
       state.current_state = null;
       state.previous_state = null;
       state.stages = [];
@@ -253,6 +258,7 @@ const currentDriverProgressStageSlice = createSlice({
               id,
               driver_id,
               current_state,
+              total_earns,
               previous_state,
               stages,
               next_state,
@@ -267,6 +273,7 @@ const currentDriverProgressStageSlice = createSlice({
             } = action.payload;
             state.id = id;
             state.driver_id = driver_id;
+            state.total_earns = total_earns;
             state.current_state = current_state;
             state.previous_state = previous_state;
             state.stages = stages;
@@ -287,6 +294,7 @@ const currentDriverProgressStageSlice = createSlice({
         (state, action) => {
           const {
             id,
+            total_earns,
             driver_id,
             current_state,
             previous_state,
@@ -303,6 +311,7 @@ const currentDriverProgressStageSlice = createSlice({
           } = action.payload;
           state.id = id;
           state.driver_id = driver_id;
+          state.total_earns = total_earns;
           state.current_state = current_state;
           state.previous_state = previous_state;
           state.stages = stages;
@@ -320,6 +329,7 @@ const currentDriverProgressStageSlice = createSlice({
       .addCase(clearDriverProgressStage.fulfilled, (state) => {
         state.id = null;
         state.driver_id = null;
+        state.total_earns = null;
         state.current_state = null;
         state.previous_state = null;
         state.stages = [];

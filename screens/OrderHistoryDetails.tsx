@@ -1,5 +1,5 @@
 import { View, Text, Pressable, ScrollView } from "react-native";
-import React from "react";
+import React, { useEffect, useState } from "react";
 import FFView from "@/src/components/FFView";
 import FFScreenTopSection from "@/src/components/FFScreenTopSection";
 import { StackNavigationProp } from "@react-navigation/stack";
@@ -14,6 +14,13 @@ import IconFontAwesome5 from "react-native-vector-icons/FontAwesome5";
 import FFSeperator from "@/src/components/FFSeperator";
 import FFVerticalCheckpointProgress from "@/src/components/FFVerticalCheckpointProgress";
 import FFJBRowItem from "@/src/components/FFJBRowItems";
+import axiosInstance from "@/src/utils/axiosConfig";
+import { DriverProgressStageState } from "@/src/store/currentDriverProgressStageSlice";
+import Spinner from "@/src/components/FFSpinner";
+import {
+  formatEpochToDate,
+  formatEpochToDateTime,
+} from "@/src/utils/functions";
 
 type OrderHistoryDetailsScreenNavigationProp = StackNavigationProp<
   SidebarStackParamList,
@@ -21,33 +28,71 @@ type OrderHistoryDetailsScreenNavigationProp = StackNavigationProp<
 >;
 type TrackHistoryRouteProp = RouteProp<SidebarStackParamList, "TrackHistory">;
 
-const checkpoints = [
-  {
-    status: "Started",
-    time: "01 Jan 2022, 11:47AM",
-    address: "Bus Sta Upas, Majestic, Bengaluru, Karnataka",
-    postalCode: "560009",
-  },
-  {
-    status: "Ended",
-    time: "01 Jan 2022, 01:14PM",
-    address: "M.G. Railway Colony, Majestic, Bengaluru, Karnataka",
-    postalCode: "560023",
-  },
-];
-
 const OrderHistoryDetailsScreen = () => {
   const navigation = useNavigation<OrderHistoryDetailsScreenNavigationProp>();
   const { params } = useRoute<TrackHistoryRouteProp>() as unknown as {
-    params: { orderId: string };
+    params: { dpsId: string };
   };
+  const [isLoading, setIsLoading] = useState(false);
+  const [dps, setDps] = useState<DriverProgressStageState>();
+
+  const checkpoints = [
+    {
+      status: "Started",
+      time: formatEpochToDateTime(dps?.created_at ?? 0),
+      address: `${dps?.stages?.[1]?.details?.restaurantDetails?.address?.street}, ${dps?.stages?.[1]?.details?.restaurantDetails?.address?.city}, ${dps?.stages?.[1]?.details?.restaurantDetails?.address?.nationality}`,
+      postalCode: "",
+    },
+    {
+      status: "Ended",
+      time: formatEpochToDateTime(dps?.updated_at ?? 0),
+      address: `${
+        dps?.stages?.[dps?.stages?.length - 1]?.details?.customerDetails
+          ?.address?.[0]?.street
+      }, ${
+        dps?.stages?.[dps?.stages?.length - 1]?.details?.customerDetails
+          ?.address?.[0]?.city
+      }, ${
+        dps?.stages?.[dps?.stages?.length - 1]?.details?.customerDetails
+          ?.address?.[0]?.nationality
+      }`,
+      postalCode: "",
+    },
+  ];
+
+  useEffect(() => {
+    if (params.dpsId) {
+      fetchDps();
+    }
+  }, [params.dpsId]);
+
+  const fetchDps = async () => {
+    setIsLoading(true);
+    try {
+      const response = await axiosInstance.get(
+        `/driver-progress-stages/${params.dpsId}`
+      );
+      const { EC, EM, data } = response.data;
+      if (EC === 0) {
+        setDps(data);
+      } else {
+        console.error("Error fetching profile data:", EM);
+      }
+    } catch (error) {
+      console.error("Error fetching profile data:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  console.log("cehck dps", dps);
 
   return (
     <FFSafeAreaView>
       <ScrollView>
         <FFScreenTopSection
           titlePosition="left"
-          title={`Trip #${params.orderId}`}
+          title={`Trip #${params.dpsId}`}
           navigation={navigation}
         />
         <View style={{ paddingBottom: 40 }} className="p-4 gap-4">
@@ -58,27 +103,33 @@ const OrderHistoryDetailsScreen = () => {
           <View className="rounded-lg border p-4 border-gray-300 bg-white gap-2">
             <FFText style={{ color: "#4c8ecf" }}>Basic Details</FFText>
             <View className="">
-              <FFJBRowItem
-                leftItem="Trip ID"
-                rightItem={`#${params.orderId}`}
-                leftItemCss={{}}
-                rightItemCss={{ fontWeight: "600" }}
-              />
+              <View className="flex-row justify-between gap-4">
+                <FFText fontWeight="400" style={{ fontSize: 14 }}>
+                  Trip ID
+                </FFText>
+                <FFText fontSize="sm" style={{ flex: 1 }}>
+                  {params?.dpsId}
+                </FFText>
+              </View>
               <FFJBRowItem
                 leftItem="Trip Type"
-                rightItem={`Single`}
+                rightItem={
+                  dps?.orders && dps?.orders?.length > 1
+                    ? "Combined orders"
+                    : "Single order"
+                }
                 leftItemCss={{}}
                 rightItemCss={{ fontWeight: "600" }}
               />
               <FFJBRowItem
                 leftItem="Distance"
-                rightItem={`99.1 km`}
+                rightItem={`${dps?.total_distance_travelled?.toFixed(2)} km`}
                 leftItemCss={{}}
                 rightItemCss={{ fontWeight: "600" }}
               />
               <FFJBRowItem
                 leftItem="Duration"
-                rightItem={`2h 1m`}
+                rightItem={`${dps?.actual_time_spent}m`}
                 leftItemCss={{}}
                 rightItemCss={{ fontWeight: "600" }}
               />
@@ -94,7 +145,7 @@ const OrderHistoryDetailsScreen = () => {
             />
             <FFJBRowItem
               leftItem="Customer Tips"
-              rightItem={`$2`}
+              rightItem={`$${dps?.total_tips}`}
               leftItemCss={{}}
               rightItemCss={{ fontWeight: "600" }}
             />
@@ -113,11 +164,12 @@ const OrderHistoryDetailsScreen = () => {
             <FFSeperator />
             <View className="items-center justify-between">
               <FFText style={{ color: "#4a9e3e" }}>Total earned:</FFText>
-              <FFText style={{ color: "#4a9e3e" }}>$5</FFText>
+              <FFText style={{ color: "#4a9e3e" }}>${dps?.total_earns}</FFText>
             </View>
           </View>
         </View>
       </ScrollView>
+      <Spinner isVisible={isLoading} isOverlay />
     </FFSafeAreaView>
   );
 };

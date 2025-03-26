@@ -66,7 +66,9 @@ const TrackHistoryScreen = () => {
           <Pressable
             key={item.id}
             onPress={() =>
-              navigation.navigate("OrderHistoryDetails", { orderId: "123456" })
+              navigation.navigate("OrderHistoryDetails", {
+                dpsId: item?.id ?? "",
+              })
             }
             className="rounded-lg border border-gray-300 overflow-hidden bg-white gap-2"
           >
@@ -126,17 +128,19 @@ const TrackHistoryScreen = () => {
                 </View>
                 <View className="flex-row items-center gap-2">
                   <IconMaterialIcons name="route" />
-                  <FFText fontSize="sm">15.36km</FFText>
+                  <FFText fontSize="sm">
+                    {item?.total_distance_travelled?.toFixed(2)}km
+                  </FFText>
                 </View>
                 <View className="flex-row items-center gap-2">
                   <IconFeather name="clock" />
-                  <FFText fontSize="sm">36m</FFText>
+                  <FFText fontSize="sm">{item?.actual_time_spent}m</FFText>
                 </View>
               </View>
             </View>
             <View className="items-center justify-center bg-[#55b542] p-4 gap-2 flex-row">
               <IconFontAwesome5 name="money-bill-wave" color="#fff" />
-              <FFText style={{ color: "#fff" }}>$1.212</FFText>
+              <FFText style={{ color: "#fff" }}>${item?.total_earns}</FFText>
             </View>
           </Pressable>
         ))}
