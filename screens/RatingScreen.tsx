@@ -11,13 +11,14 @@ import FFText from "@/src/components/FFText";
 import FFButton from "@/src/components/FFButton";
 import IconAntDesign from "react-native-vector-icons/AntDesign";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
-import { useSelector } from "@/src/store/types";
+import { useDispatch, useSelector } from "@/src/store/types";
 import { RootState } from "@/src/store/store";
 import axiosInstance from "@/src/utils/axiosConfig";
 import { StackNavigationProp } from "@react-navigation/stack";
 import FFAvatar from "@/src/components/FFAvatar";
 import Spinner from "@/src/components/FFSpinner";
 import { SidebarStackParamList } from "@/src/navigation/AppNavigator";
+import { clearDriverProgressStage } from "@/src/store/currentDriverProgressStageSlice";
 
 type RatingScreenRouteProp = RouteProp<SidebarStackParamList, "Rating">;
 
@@ -27,6 +28,7 @@ type RatingScreenNavigationProp = StackNavigationProp<
 >;
 
 const RatingScreen = () => {
+  const dispatch = useDispatch();
   const navigation = useNavigation<RatingScreenNavigationProp>();
   const [rating, setRating] = useState(0);
   const [review, setReview] = useState("");
@@ -41,21 +43,22 @@ const RatingScreen = () => {
   };
   const { driverId } = useSelector((state: RootState) => state.auth);
 
-  // useEffect(() => {
-  //   console.log("cehck enti", driver, restaurant);
-  // }, [driver, restaurant]);
-
   const handleSubmit = async () => {
     setIsLoading(true);
     try {
       const requestData = {
-        rr_reviewer_customer_id: "FF_CUS_3db15de0-56e9-429a-9e51-21e5bd75b112",
+        rr_reviewer_driver_id: driverId,
         reviewer_type: "driver",
-        rr_recipient_driver_id: "FF_DRI_b64aa8b7-3964-46a4-abf4-924c5515f57a",
+        rr_recipient_customer_id:
+          typeRating === "CUSTOMER"
+            ? customer1.id.split("_dropoff")[0]
+            : undefined,
         rr_recipient_restaurant_id:
-          "FF_RES_3b6fdece-9449-4192-a5d6-28a24720e927",
-        recipient_type: "restaurant",
-        order_id: orderId ?? "FF_ORDER_d0dfb222-d95d-4df1-9d78-c125187216e3",
+          typeRating === "RESTAURANT"
+            ? restaurant1.id.split("_pickup")[0]
+            : undefined,
+        recipient_type: typeRating === "RESTAURANT" ? "restaurant" : "customer",
+        order_id: orderId,
         food_rating: rating,
         delivery_rating: rating,
         delivery_review: undefined,
@@ -82,7 +85,8 @@ const RatingScreen = () => {
           setTypeRating("CUSTOMER");
           return;
         }
-        navigation.navigate("MyTasks");
+        dispatch(clearDriverProgressStage());
+        navigation.navigate("Home", {});
       }
     } catch (error) {
       console.error("Error submitting rating", error);
@@ -142,7 +146,10 @@ const RatingScreen = () => {
         <View style={styles.buttonContainer}>
           <FFButton
             variant="outline"
-            onPress={() => navigation.navigate("MyTasks")}
+            onPress={() => {
+              navigation.navigate("Home", {});
+              dispatch(clearDriverProgressStage());
+            }}
             style={styles.skipButton}
           >
             Skip

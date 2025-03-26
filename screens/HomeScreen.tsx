@@ -26,6 +26,7 @@ import FFModal from "@/src/components/FFModal";
 import { Ionicons } from "@expo/vector-icons";
 import { FontAwesome6 } from "@expo/vector-icons";
 import {
+  clearDriverProgressStage,
   loadDriverProgressStageFromAsyncStorage,
   Stage,
 } from "@/src/store/currentDriverProgressStageSlice";
@@ -54,7 +55,7 @@ const HomeScreen = () => {
   const [selectedDestination, setSelectedDestination] =
     useState<PickupAndDropoffStage | null>(null);
   const [modalDetails, setModalDetails] = useState<{
-    status: "SUCCESS" | "ERROR" | "HIDDEN" | "INFO";
+    status: "SUCCESS" | "ERROR" | "HIDDEN" | "INFO" | "YESNO";
     title: string;
     desc: string;
   }>({ status: "HIDDEN", title: "", desc: "" });
@@ -108,53 +109,14 @@ const HomeScreen = () => {
   };
 
   useEffect(() => {
-    const loadData = async () => {
-      await dispatch(loadTokenFromAsyncStorage());
-      await dispatch(loadDriverProgressStageFromAsyncStorage());
-    };
-    loadData();
-  }, [dispatch]);
-
-  useEffect(() => {
-    console.log("cehck curr stages", currentStage);
-    if (currentStage?.state.startsWith("delivery_complete")) {
-      const buildDataCustomer1 = filterPickupAndDropoffStages(
-        stages?.map((item) => ({
-          ...item,
-          address: item.details?.restaurantDetails?.address
-            ? item.details.restaurantDetails?.address
-            : item.details?.customerDetails?.address?.[0],
-        }))
-      ).find((item) => item.type === "DROPOFF") as {
-        id: string;
-        avatar: Avatar;
-      };
-      const buildDataRestaurant1 = filterPickupAndDropoffStages(
-        stages?.map((item) => ({
-          ...item,
-          address: item.details?.restaurantDetails?.address
-            ? item.details.restaurantDetails?.address
-            : item.details?.customerDetails?.address?.[0],
-        }))
-      ).find((item) => item.type === "PICKUP") as {
-        id: string;
-        avatar: Avatar;
-      };
-
-      navigation.navigate("Rating", {
-        customer1: buildDataCustomer1,
-        restaurant1: buildDataRestaurant1,
-      });
-    }
-
     if (currentStage?.state.startsWith("waiting_for_pickup")) {
-      setSelectedDestination(null);
-      setCurrentActiveLocation(null);
+      // setSelectedDestination(null);
+      // setCurrentActiveLocation(null);
       setSwipeTextCurrentStage(`I've arrived restaurant`);
     }
     if (currentStage?.state.startsWith("restaurant_pickup")) {
-      setSelectedDestination(null);
-      setCurrentActiveLocation(null);
+      // setSelectedDestination(null);
+      // setCurrentActiveLocation(null);
       setSwipeTextCurrentStage(`I've picked up order`);
     }
     if (currentStage?.state.startsWith("en_route_to_customer")) {
@@ -164,37 +126,25 @@ const HomeScreen = () => {
     }
   }, [currentStage]);
 
-  console.log(
-    "check customer ",
-    filterPickupAndDropoffStages(
-      stages?.map((item) => ({
-        ...item,
-        address: item.details?.restaurantDetails?.address
-          ? item.details.restaurantDetails?.address
-          : item.details?.customerDetails?.address?.[0],
-      }))
-    ).find((item) => item.type === "DROPOFF")
-  );
-  console.log(
-    "check restaurant ",
-    filterPickupAndDropoffStages(
-      stages?.map((item) => ({
-        ...item,
-        address: item.details?.restaurantDetails?.address
-          ? item.details.restaurantDetails?.address
-          : item.details?.customerDetails?.address?.[0],
-      }))
-    ).find((item) => item.type === "PICKUP")
-  );
-
   const handleUpdateProgress = useCallback(async () => {
-    console.log("cehk fall hadnle udoae progers");
+    if (stages[stages.length - 2].state.startsWith("en_route_to_customer")) {
+      if (currentStage?.state.startsWith("en_route_to_customer")) {
+        console.log("cos even lot vao day ko", stages[stages.length - 2].state);
 
+        setModalDetails({
+          status: "YESNO",
+          title: "Are you sure?",
+          desc: "Please confirm your delivery",
+        });
+        return;
+      }
+    }
     // Tìm stage tiếp theo cần tăng (in_progress hoặc pending)
     const nextStageIndex = stages.findIndex(
       (stage) => stage.status === "in_progress" || stage.status === "pending"
     );
     const nextStage = nextStageIndex !== -1 ? stages[nextStageIndex] : null;
+    console.log("check next stage", currentStage);
 
     if (!nextStage || isUpdatingRef.current) {
       console.log(
@@ -212,13 +162,9 @@ const HomeScreen = () => {
     isUpdatingRef.current = true;
 
     try {
-      console.log(
-        "Emit updateDriverProgress với id:",
-        id,
-        "và stage:",
-        nextStage.state
-      );
-      await emitUpdateDps({ stageId: id }); // Gửi thêm orderId nếu có
+      if (emitUpdateDps) {
+        await emitUpdateDps({ stageId: id }); // Gửi thêm orderId nếu có
+      }
       setIsResetSwipe(true);
       setTimeout(() => {
         setIsResetSwipe(false);
@@ -249,6 +195,50 @@ const HomeScreen = () => {
       setCurrentStage(null);
     }
   }, [stages]);
+
+  const handleFinishProgress = async () => {
+    if (emitUpdateDps) {
+      await emitUpdateDps({ stageId: id });
+    }
+
+    const buildDataCustomer1 = filterPickupAndDropoffStages(
+      stages?.map((item) => ({
+        ...item,
+        address: item.details?.restaurantDetails?.address
+          ? item.details.restaurantDetails?.address
+          : item.details?.customerDetails?.address?.[0],
+      }))
+    ).find((item) => item.type === "DROPOFF") as {
+      id: string;
+      avatar: Avatar;
+    };
+    const buildDataRestaurant1 = filterPickupAndDropoffStages(
+      stages?.map((item) => ({
+        ...item,
+        address: item.details?.restaurantDetails?.address
+          ? item.details.restaurantDetails?.address
+          : item.details?.customerDetails?.address?.[0],
+      }))
+    ).find((item) => item.type === "PICKUP") as {
+      id: string;
+      avatar: Avatar;
+    };
+    setCurrentActiveLocation(null);
+    setCurrentStage(null);
+    setIsResetSwipe(true);
+    setModalDetails({ status: "HIDDEN", desc: "", title: "" });
+    setSelectedDestination(null);
+    setSwipeTextCurrentStage("");
+    await dispatch(clearDriverProgressStage());
+
+    navigation.navigate("Rating", {
+      customer1: buildDataCustomer1,
+      orderId: orders[0].id,
+      restaurant1: buildDataRestaurant1,
+    });
+  };
+
+  console.log("cehkc curent stages", stages);
 
   return (
     <FFSafeAreaView>
@@ -434,11 +424,39 @@ const HomeScreen = () => {
           setModalDetails({ status: "HIDDEN", title: "", desc: "" })
         }
       >
-        <FFText>{modalDetails.title}</FFText>
-        {modalDetails?.status === "INFO" && (
-          <View className="flex-row gap-2 items-center">
-            <FFButton>Cancel</FFButton>
-            <FFButton>Confirm</FFButton>
+        <FFText style={{ textAlign: "center" }}>{modalDetails.title}</FFText>
+        <FFText
+          fontWeight="400"
+          style={{ color: "#aaa", marginVertical: 12, textAlign: "center" }}
+        >
+          {modalDetails.desc}
+        </FFText>
+        {modalDetails?.status === "YESNO" && (
+          <View
+            style={{
+              width: "100%",
+              gap: 12,
+              flexDirection: "row", // Ensures buttons are in a row
+              justifyContent: "space-between", // Distributes space evenly
+            }}
+          >
+            <TouchableOpacity
+              onPress={() =>
+                setModalDetails({ status: "HIDDEN", desc: "", title: "" })
+              }
+              className=" flex-1 items-center py-3 px-4 rounded-lg"
+            >
+              <FFText>Cancel</FFText>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => {
+                handleFinishProgress();
+                // setModalDetails({ status: "HIDDEN", desc: "", title: "" });
+              }}
+              className=" flex-1 items-center py-3 px-4 rounded-lg"
+            >
+              <FFText style={{ color: "#63c550" }}>Confirm</FFText>
+            </TouchableOpacity>
           </View>
         )}
       </FFModal>

@@ -172,6 +172,8 @@ export const clearDriverProgressStage = createAsyncThunk(
   "currentDriverProgressStage/clear",
   async (_, { dispatch }) => {
     await AsyncStorage.removeItem("currentDriverProgressStage");
+    console.log("check clear sach");
+
     dispatch(clearState());
   }
 );

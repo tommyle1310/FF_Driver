@@ -54,7 +54,7 @@ export type AuthStackParamList = {
 };
 
 export type SidebarStackParamList = {
-  Home: { emitUpdateDps: (data: any) => void };
+  Home: { emitUpdateDps?: (data: any) => void };
   MyTasks: undefined;
   TrackHistory: undefined;
   Rating: {
