@@ -10,8 +10,8 @@ const BAR_SPACING = 20; // Khoảng cách giữa các cột
 const Y_AXIS_WIDTH = 30; // Chiều rộng của trục Y
 
 interface FFBarChartProps {
-  data: number[]; // Mảng dữ liệu (ví dụ: [1000, 2000, 500, 1500, 2000, 500, 1000])
-  labels?: string[]; // Nhãn cho trục x (mặc định là ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'])
+  data: number[]; // Mảng dữ liệu
+  labels?: string[]; // Nhãn cho trục x
 }
 
 const FFBarChart: React.FC<FFBarChartProps> = ({
@@ -26,12 +26,20 @@ const FFBarChart: React.FC<FFBarChartProps> = ({
 
   // Đảm bảo số lượng data và labels khớp nhau
   const validData = data.slice(0, labels.length);
+  const validLabels = labels.slice(0, data.length); // Chỉ lấy số nhãn tương ứng với data
 
-  // Giá trị max để scale chiều cao cột, bao gồm cả 0
-  const maxValue = Math.max(...validData, 2000); // Giá trị tối đa trên trục Y
+  // Giá trị max để scale chiều cao cột, dựa trên dữ liệu thực tế
+  const maxValue = Math.max(...validData, 1); // Đảm bảo maxValue ít nhất là 1 để tránh chia cho 0
 
-  // Các mốc trên trục Y, bắt đầu từ 0
-  const yAxisValues = [1500, 1000, 500, 0];
+  // Các mốc trên trục Y, tự động tính dựa trên maxValue
+  const yAxisStep = maxValue / 4; // Chia trục Y thành 5 mức (0, 25%, 50%, 75%, 100%)
+  const yAxisValues = [
+    maxValue,
+    maxValue * 0.75,
+    maxValue * 0.5,
+    maxValue * 0.25,
+    0,
+  ];
 
   return (
     <View
@@ -41,21 +49,21 @@ const FFBarChart: React.FC<FFBarChartProps> = ({
         backgroundColor: currentTheme.background,
         elevation: 3,
         justifyContent: "center",
-        width: SCREEN_WIDTH - 32, // Đảm bảo không bị tràn màn hình
+        width: SCREEN_WIDTH - 32,
         marginHorizontal: "auto",
         padding: 10,
         paddingTop: 32,
       }}
     >
-      <View style={[styles.container, {}]}>
+      <View style={styles.container}>
         {/* Trục Y (giá trị) */}
         <View style={styles.yAxis}>
-          {yAxisValues.map((value) => (
+          {yAxisValues.map((value, index) => (
             <Text
-              key={value}
+              key={index}
               style={[styles.yLabel, { color: currentTheme.text }]}
             >
-              {value}
+              {value.toFixed(2)} {/* Hiển thị 2 chữ số thập phân */}
             </Text>
           ))}
         </View>
@@ -71,14 +79,14 @@ const FFBarChart: React.FC<FFBarChartProps> = ({
                   style={[
                     styles.bar,
                     {
-                      height: barHeight,
+                      height: barHeight < 1 ? 1 : barHeight, // Đảm bảo cột tối thiểu 1px để thấy được
                       backgroundColor: currentTheme.barColor,
                       width: BAR_WIDTH,
                     },
                   ]}
                 />
                 <Text style={[styles.xLabel, { color: currentTheme.text }]}>
-                  {labels[index]}
+                  {validLabels[index]}
                 </Text>
               </View>
             );

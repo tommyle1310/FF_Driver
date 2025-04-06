@@ -20,8 +20,6 @@ type TrackHistorySreenNavigationProp = StackNavigationProp<
   "Statistics"
 >;
 
-const chartData = [1000, 2000, 500, 1500, 2000, 500, 1000];
-
 const months = [
   "Jan",
   "Feb",
@@ -52,30 +50,87 @@ const StatisticsScreen = () => {
   const [tempStartDay, setTempStartDay] = useState(startDate.getDate());
   const [tempEndMonth, setTempEndMonth] = useState(endDate.getMonth());
   const [tempEndDay, setTempEndDay] = useState(endDate.getDate());
-  // const [listOnlineHours, setListOnlineHours] = useState<{date, items, total}>([]);
+
+  // State cho dữ liệu từ API
+  const [statsData, setStatsData] = useState({
+    total_earns: 0,
+    total_tips: 0,
+    total_online_hours: 0,
+  });
+
+  // State cho tab và dữ liệu chart
+  const [activeTab, setActiveTab] = useState<"earns" | "tips" | "hours">(
+    "earns"
+  );
+  const [chartData, setChartData] = useState<number[]>([]);
+  const [statsRecords, setStatsRecords] = useState<any[]>([]);
 
   useEffect(() => {
-    fetchOnlineHours();
-  }, [driverId]);
+    fetchDriverStats();
+  }, [driverId, startDate, endDate]);
 
-  const fetchOnlineHours = async () => {
+  const fetchDriverStats = async () => {
     setIsLoading(true);
     try {
+      const startDateStr = startDate.toISOString().split("T")[0]; // YYYY-MM-DD
+      const endDateStr = endDate.toISOString().split("T")[0];
       const res = await axiosInstance.get(
-        `/drivers/online-session/${driverId}`
+        `/driver-stats/${driverId}?start_date=${startDateStr}&end_date=${endDateStr}`
       );
       const { EC, EM, data } = res.data;
       if (EC === 0) {
-        console.log("Online hours data:", data);
+        console.log("Driver stats data:", data);
+        setStatsRecords(data);
+
+        // Tính tổng từ tất cả records
+        const totalStats = data.reduce(
+          (
+            acc: {
+              total_earns: number;
+              total_tips: number;
+              total_online_hours: number;
+            },
+            record: any
+          ) => ({
+            total_earns: acc.total_earns + (record.total_earns || 0),
+            total_tips: acc.total_tips + (record.total_tips || 0),
+            total_online_hours:
+              acc.total_online_hours + (record.total_online_hours || 0),
+          }),
+          { total_earns: 0, total_tips: 0, total_online_hours: 0 }
+        );
+
+        setStatsData(totalStats);
+        updateChartData(data, activeTab);
+      } else {
+        console.error("Error from API:", EM);
       }
     } catch (err) {
-      console.error("Error fetching online hours:", err);
+      console.error("Error fetching driver stats:", err);
     } finally {
       setIsLoading(false);
     }
   };
 
-  console.log("cehck start date", startDate);
+  const updateChartData = (records: any[], tab: string) => {
+    let chartValues: number[];
+    if (tab === "earns") {
+      chartValues = records.map((record) => record.total_earns || 0);
+    } else if (tab === "tips") {
+      chartValues = records.map((record) => record.total_tips || 0);
+    } else {
+      chartValues = records.map((record) => record.total_online_hours || 0);
+    }
+
+    // Không tạo dữ liệu giả nếu chỉ có 1 record, giữ nguyên 1 giá trị
+    console.log("check chart data", chartValues);
+    setChartData(chartValues);
+  };
+
+  const handleTabChange = (tab: "earns" | "tips" | "hours") => {
+    setActiveTab(tab);
+    updateChartData(statsRecords, tab);
+  };
 
   const onStartDateConfirm = () => {
     const newDate = new Date(
@@ -94,9 +149,20 @@ const StatisticsScreen = () => {
   };
 
   const formatDate = (date: Date): string => {
-    return date.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
+    return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  };
+
+  const formatHours = (hours: number): string => {
+    const h = Math.floor(hours);
+    const m = Math.round((hours - h) * 60);
+    return `${h}h ${m}m`;
+  };
+
+  // Trong StatisticsScreen
+  const getChartLabels = () => {
+    return statsRecords.map((record) => {
+      const date = new Date(parseInt(record.period_start) * 1000); // Chuyển epoch sang Date
+      return date.toLocaleDateString("en-US", { weekday: "short" }); // Lấy tên ngày trong tuần (Mon, Tue, ...)
     });
   };
 
@@ -108,6 +174,21 @@ const StatisticsScreen = () => {
         end={[1, 0]}
         style={styles.headerGradient}
       >
+        <View
+          style={{
+            paddingHorizontal: 16,
+            paddingTop: 16,
+            alignItems: "center",
+            position: "relative",
+          }}
+        >
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+          >
+            <IconIonicons name="chevron-back" color={"#fff"} size={24} />
+          </TouchableOpacity>
+        </View>
         <View className="items-center justify-center gap-2">
           <FFText style={styles.headerText}>Earnings</FFText>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
@@ -126,10 +207,51 @@ const StatisticsScreen = () => {
             </TouchableOpacity>
           </View>
           <FFText fontWeight="700" fontSize="lg" style={{ color: "#fff" }}>
-            $1,310.2004
+            ${statsData.total_earns.toFixed(2)}
           </FFText>
         </View>
       </LinearGradient>
+      {/* Summary Cards */}
+      <View
+        style={{
+          marginTop: -32,
+          padding: 16,
+          width: "100%",
+          flexDirection: "row",
+          gap: 12,
+        }}
+      >
+        <View
+          style={{
+            elevation: 3,
+            padding: 16,
+            alignItems: "center",
+            borderRadius: 8,
+            backgroundColor: "#fff",
+            flex: 1,
+          }}
+        >
+          <FFText>Earnings</FFText>
+          <FFText fontSize="lg" fontWeight="800" style={{ color: "#4d9c39" }}>
+            ${statsData.total_earns.toFixed(2)}
+          </FFText>
+        </View>
+        <View
+          style={{
+            elevation: 3,
+            padding: 16,
+            alignItems: "center",
+            borderRadius: 8,
+            backgroundColor: "#fff",
+            flex: 1,
+          }}
+        >
+          <FFText>Online Hours</FFText>
+          <FFText fontSize="lg" fontWeight="800" style={{ color: "#4d9c39" }}>
+            {formatHours(statsData.total_online_hours)}
+          </FFText>
+        </View>
+      </View>
 
       {/* Start Date Picker Modal */}
       <Modal visible={showStartPicker} transparent animationType="slide">
@@ -217,47 +339,52 @@ const StatisticsScreen = () => {
         </View>
       </Modal>
 
+      {/* Tabs */}
       <View
         style={{
-          marginTop: -32,
-          padding: 16,
-          width: "100%",
           flexDirection: "row",
-          gap: 12,
+          justifyContent: "space-around",
+          marginVertical: 16,
         }}
       >
-        <View
-          style={{
-            elevation: 3,
-            padding: 16,
-            alignItems: "center",
-            borderRadius: 8,
-            backgroundColor: "#fff",
-            flex: 1,
-          }}
+        <TouchableOpacity
+          style={[styles.tab, activeTab === "earns" && styles.activeTab]}
+          onPress={() => handleTabChange("earns")}
         >
-          <FFText>Orders</FFText>
-          <FFText fontSize="lg" fontWeight="800" style={{ color: "#4d9c39" }}>
-            1,310
+          <FFText
+            style={
+              activeTab === "earns" ? styles.activeTabText : styles.tabText
+            }
+          >
+            Earnings
           </FFText>
-        </View>
-        <View
-          style={{
-            elevation: 3,
-            padding: 16,
-            alignItems: "center",
-            borderRadius: 8,
-            backgroundColor: "#fff",
-            flex: 1,
-          }}
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === "tips" && styles.activeTab]}
+          onPress={() => handleTabChange("tips")}
         >
-          <FFText>Online Hours</FFText>
-          <FFText fontSize="lg" fontWeight="800" style={{ color: "#4d9c39" }}>
-            23h 39m
+          <FFText
+            style={activeTab === "tips" ? styles.activeTabText : styles.tabText}
+          >
+            Tips
           </FFText>
-        </View>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === "hours" && styles.activeTab]}
+          onPress={() => handleTabChange("hours")}
+        >
+          <FFText
+            style={
+              activeTab === "hours" ? styles.activeTabText : styles.tabText
+            }
+          >
+            Hours
+          </FFText>
+        </TouchableOpacity>
       </View>
-      <FFBarChart data={chartData} />
+
+      {/* Chart */}
+      <FFBarChart data={chartData} labels={getChartLabels()} />
     </FFSafeAreaView>
   );
 };
@@ -266,10 +393,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#f9f9f9",
-  },
-  scrollContainer: {
-    flexGrow: 1,
-    paddingBottom: 100,
   },
   headerGradient: {
     paddingHorizontal: 12,
@@ -282,6 +405,12 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 3,
     elevation: 5,
+  },
+  backButton: {
+    position: "absolute",
+    left: 16,
+    top: 16,
+    marginRight: 12,
   },
   headerText: {
     color: "#fff",
@@ -326,6 +455,21 @@ const styles = StyleSheet.create({
     padding: 10,
     backgroundColor: "#63c550",
     borderRadius: 5,
+  },
+  tab: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 20,
+  },
+  activeTab: {
+    backgroundColor: "#63c550",
+  },
+  tabText: {
+    color: "#000",
+  },
+  activeTabText: {
+    color: "#fff",
+    fontWeight: "bold",
   },
 });
 
