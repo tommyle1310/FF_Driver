@@ -1,53 +1,100 @@
-import { View, Text, TouchableOpacity } from "react-native";
-import React, { useState } from "react";
-import FFView from "@/src/components/FFView";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  ScrollView,
+  Image,
+  Linking,
+} from "react-native";
+import React, { useEffect, useState } from "react";
+import FFSafeAreaView from "@/src/components/FFSafeAreaView";
 import FFScreenTopSection from "@/src/components/FFScreenTopSection";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { SidebarStackParamList } from "@/src/navigation/AppNavigator";
 import { useNavigation } from "@react-navigation/native";
-import FFSafeAreaView from "@/src/components/FFSafeAreaView";
-import { ScrollView } from "react-native-gesture-handler";
-import Ionicons from "react-native-vector-icons/Ionicons";
+import { Ionicons } from "@expo/vector-icons";
 import FFText from "@/src/components/FFText";
+import axiosInstance from "@/src/utils/axiosConfig";
+import FFSkeleton from "@/src/components/FFSkeleton";
 
-type TrackHistorySreenNavigationProp = StackNavigationProp<
+type SupportCenterNavigationProp = StackNavigationProp<
   SidebarStackParamList,
   "SupportCenter"
 >;
 
-const SupportCenterScreen = () => {
-  const navigation = useNavigation<TrackHistorySreenNavigationProp>();
-  const [activeTab, setActiveTab] = useState<"FAQ" | "Contact Us">("FAQ");
+export enum FAQType {
+  GENERAL = "GENERAL",
+  ACCOUNT = "ACCOUNT",
+  PAYMENT = "PAYMENT",
+  SERVICE = "SERVICE",
+}
 
-  const faqData = [
-    {
-      question: "How do I manage my notifications?",
-      answer:
-        "To manage notifications, go to 'Settings,' select 'Notification Settings,' and customize your preferences.",
-    },
-    {
-      question: "How do I start a guided meditation session?",
-      answer:
-        "Select a meditation from our library and follow the audio instructions.",
-    },
-    {
-      question: "How do I join a support group?",
-      answer:
-        "Browse available groups in the 'Community' section and click 'Join'.",
-    },
-    {
-      question: "Is my data safe and private?",
-      answer: "Yes, we use industry-standard encryption to protect your data.",
-    },
-  ];
+type FAQContentBlock =
+  | { type: "text"; value: string }
+  | { type: "image"; value: { url: string; key: string } }
+  | { type: "image_row"; value: { url: string; key: string }[] };
+
+type FAQ = {
+  id: string;
+  question: string;
+  answer: FAQContentBlock[];
+  status: string;
+  type: FAQType;
+  created_at: string;
+  updated_at: string | null;
+};
+
+const SupportCenterScreen = () => {
+  const navigation = useNavigation<SupportCenterNavigationProp>();
+  const [activeTab, setActiveTab] = useState<"FAQ" | "Contact Us">("FAQ");
+  const [faqs, setFaqs] = useState<FAQ[]>([]);
+  const [isLoadingFAQ, setIsLoadingFAQ] = useState(false);
+
+  const fetchFAQs = async () => {
+    setIsLoadingFAQ(true);
+    try {
+      const response = await axiosInstance.get("/faqs");
+      const { EC, EM, data } = response.data;
+      if (EC === 0) {
+        setFaqs(data);
+        console.log("FAQs fetched:", data);
+      } else {
+        console.log("Error fetching FAQs:", EM);
+      }
+    } catch (error) {
+      console.log("Fetch FAQs error:", error);
+    } finally {
+      setIsLoadingFAQ(false);
+    }
+  };
+
+  const handleFilterFAQ = async (type: FAQType) => {
+    setIsLoadingFAQ(true);
+    try {
+      const response = await axiosInstance.get(`/faqs/type/${type}`);
+      const { EC, EM, data } = response.data;
+      if (EC === 0) {
+        setFaqs(data);
+        console.log(`FAQs of type ${type} fetched:`, data);
+      } else {
+        console.log("Error fetching FAQs:", EM);
+      }
+    } catch (error) {
+      console.log(`Fetch FAQs of type ${type} error:`, error);
+    } finally {
+      setIsLoadingFAQ(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchFAQs();
+  }, []);
 
   const contactOptions = [
     {
       title: "Customer Services",
       icon: "headset",
-      onPress: () => {
-        navigation.navigate("FChat", { type: "SUPPORT" });
-      },
+      onPress: () => navigation.navigate("FChat", { type: "SUPPORT" }),
     },
     { title: "WhatsApp", icon: "logo-whatsapp" },
     { title: "Website", icon: "globe" },
@@ -58,15 +105,61 @@ const SupportCenterScreen = () => {
 
   const FAQSection = () => (
     <ScrollView className="px-4">
-      {faqData.map((item, index) => (
-        <TouchableOpacity key={index} className="border-b  py-4">
+      {faqs.map((item, index) => (
+        <TouchableOpacity key={index} className="border-b py-4">
           <View className="flex-row justify-between items-center">
             <Text className="text-base font-medium flex-1">
               {item.question}
             </Text>
             <Ionicons name="chevron-down" size={20} color="black" />
           </View>
-          <Text className="text-gray-600 mt-2">{item.answer}</Text>
+          {item.answer[0] &&
+            (isLoadingFAQ ? (
+              <View style={{ gap: 12 }}>
+                <FFSkeleton height={80} />
+                <FFSkeleton height={80} />
+                <FFSkeleton height={80} />
+              </View>
+            ) : (
+              <>
+                {item.answer[0].type === "text" && (
+                  <Text className="text-gray-600 mt-2">
+                    {item.answer[0].value.replace(/\[(.*?)\]\((.*?)\)/g, "$1")}
+                    {item.answer[0].value.includes("http") && (
+                      <Text
+                        className="text-blue-500 underline"
+                        onPress={() => {
+                          const url =
+                            item.answer[0].value.match(/\((.*?)\)/)?.[1];
+                          if (url) Linking.openURL(url);
+                        }}
+                      >
+                        {" (Nhấn để xem)"}
+                      </Text>
+                    )}
+                  </Text>
+                )}
+                {item.answer[0].type === "image" && (
+                  <Image
+                    source={{ uri: item.answer[0].value.url }}
+                    style={{ width: "100%", height: 200, marginTop: 8 }}
+                    resizeMode="contain"
+                  />
+                )}
+                {item.answer[0].type === "image_row" && (
+                  <View className="flex-row justify-between mt-2">
+                    {item.answer[0].value.map((img, imgIndex) => (
+                      <Image
+                        key={imgIndex}
+                        source={{ uri: img.url }}
+                        style={{ width: "48%", height: 100 }}
+                        resizeMode="contain"
+                      />
+                    ))}
+                  </View>
+                )}
+              </>
+            ))}
         </TouchableOpacity>
       ))}
     </ScrollView>
@@ -91,7 +184,7 @@ const SupportCenterScreen = () => {
     <FFSafeAreaView className="">
       <FFScreenTopSection title="Support Center" navigation={navigation} />
 
-      <View className=" flex-1">
+      <View className="flex-1">
         {/* Tab Buttons */}
         <View className="flex-row border-b border-gray-200">
           <TouchableOpacity
@@ -133,16 +226,21 @@ const SupportCenterScreen = () => {
               className="py-3"
               style={{ height: 0 }}
             >
-              {["General", "Account", "Payment", "Service"].map(
-                (category, index) => (
-                  <TouchableOpacity
-                    key={index}
-                    className="px-4 py-1 mx-2 bg-[#ceedc3] items-center justify-center rounded-full"
-                  >
-                    <FFText fontSize="sm">{category}</FFText>
-                  </TouchableOpacity>
-                )
-              )}
+              {[
+                { value: FAQType.GENERAL, label: "General" },
+                { value: FAQType.ACCOUNT, label: "Account" },
+                { value: FAQType.PAYMENT, label: "Payment" },
+                { value: FAQType.SERVICE, label: "Service" },
+              ].map((category, index) => (
+                <TouchableOpacity
+                  onPress={() => handleFilterFAQ(category.value)}
+                  key={index}
+                  style={{ elevation: 3 }}
+                  className="px-4 py-1 mx-2 bg-[#ffffff] items-center justify-center rounded-full"
+                >
+                  <FFText fontSize="sm">{category.label}</FFText>
+                </TouchableOpacity>
+              ))}
             </ScrollView>
           )}
 

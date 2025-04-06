@@ -25,7 +25,7 @@ const useSettingData = () => {
         title: "Change Password",
         rightIcon: <IconIonicons name="chevron-forward-outline" size={20} />,
         onPress: () => {
-          // Add the navigation logic for changing password
+          navigation.navigate("ChangePassword");
         },
       },
       {

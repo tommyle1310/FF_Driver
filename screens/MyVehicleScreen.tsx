@@ -407,10 +407,14 @@ const MyVehicleScreen = () => {
           ) : (
             <CoralTourCarousel
               imageUrls={[
-                vehicle?.images[0].url ?? IMAGE_LINKS.DEFAULT_LOGO,
-                vehicle?.images[1].url ?? IMAGE_LINKS.DEFAULT_LOGO,
-                vehicle?.images[2].url ?? IMAGE_LINKS.DEFAULT_LOGO,
-                vehicle?.images[3].url ?? IMAGE_LINKS.DEFAULT_LOGO,
+                vehicle?.images[vehicle?.images?.length - 4].url ??
+                  IMAGE_LINKS.DEFAULT_LOGO,
+                vehicle?.images[vehicle?.images?.length - 3].url ??
+                  IMAGE_LINKS.DEFAULT_LOGO,
+                vehicle?.images[vehicle?.images?.length - 2].url ??
+                  IMAGE_LINKS.DEFAULT_LOGO,
+                vehicle?.images[vehicle?.images?.length - 1].url ??
+                  IMAGE_LINKS.DEFAULT_LOGO,
               ]}
             />
           )}

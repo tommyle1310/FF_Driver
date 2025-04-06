@@ -21,6 +21,11 @@ import {
   formatEpochToDate,
   formatEpochToDateTime,
 } from "@/src/utils/functions";
+import FFSkeleton from "@/src/components/FFSkeleton";
+import {
+  BasicDetailsSkeleton,
+  BillCalculationSkeleton,
+} from "@/src/components/SkeletonLayoutScreen/OrderHistoryDetails";
 
 type OrderHistoryDetailsScreenNavigationProp = StackNavigationProp<
   SidebarStackParamList,
@@ -98,75 +103,88 @@ const OrderHistoryDetailsScreen = () => {
         <View style={{ paddingBottom: 40 }} className="p-4 gap-4">
           <View className="rounded-lg border p-4 border-gray-300 bg-white gap-2">
             <FFText style={{ color: "#4c8ecf" }}>Pickup & Destination</FFText>
-            <FFVerticalCheckpointProgress checkpoints={checkpoints} />
+            <FFVerticalCheckpointProgress
+              checkpoints={checkpoints}
+              isLoading={isLoading}
+            />
           </View>
-          <View className="rounded-lg border p-4 border-gray-300 bg-white gap-2">
-            <FFText style={{ color: "#4c8ecf" }}>Basic Details</FFText>
-            <View className="">
-              <View className="flex-row justify-between gap-4">
-                <FFText fontWeight="400" style={{ fontSize: 14 }}>
-                  Trip ID
-                </FFText>
-                <FFText fontSize="sm" style={{ flex: 1 }}>
-                  {params?.dpsId}
+          {isLoading ? (
+            <BasicDetailsSkeleton />
+          ) : (
+            <View className="rounded-lg border p-4 border-gray-300 bg-white gap-2">
+              <FFText style={{ color: "#4c8ecf" }}>Basic Details</FFText>
+              <View className="">
+                <View className="flex-row justify-between gap-4">
+                  <FFText fontWeight="400" style={{ fontSize: 14 }}>
+                    Trip ID
+                  </FFText>
+                  <FFText fontSize="sm" style={{ flex: 1 }}>
+                    {params?.dpsId}
+                  </FFText>
+                </View>
+                <FFJBRowItem
+                  leftItem="Trip Type"
+                  rightItem={
+                    dps?.orders && dps?.orders?.length > 1
+                      ? "Combined orders"
+                      : "Single order"
+                  }
+                  leftItemCss={{}}
+                  rightItemCss={{ fontWeight: "600" }}
+                />
+                <FFJBRowItem
+                  leftItem="Distance"
+                  rightItem={`${dps?.total_distance_travelled?.toFixed(2)} km`}
+                  leftItemCss={{}}
+                  rightItemCss={{ fontWeight: "600" }}
+                />
+                <FFJBRowItem
+                  leftItem="Duration"
+                  rightItem={`${dps?.actual_time_spent}m`}
+                  leftItemCss={{}}
+                  rightItemCss={{ fontWeight: "600" }}
+                />
+              </View>
+            </View>
+          )}
+          {isLoading ? (
+            <BillCalculationSkeleton />
+          ) : (
+            <View className="rounded-lg border p-4 border-gray-300 bg-white gap-2">
+              <FFText style={{ color: "#4c8ecf" }}>Bill Calculation</FFText>
+              <FFJBRowItem
+                leftItem="Base Fare"
+                rightItem={`$3`}
+                leftItemCss={{}}
+                rightItemCss={{ fontWeight: "600" }}
+              />
+              <FFJBRowItem
+                leftItem="Customer Tips"
+                rightItem={`$${dps?.total_tips}`}
+                leftItemCss={{}}
+                rightItemCss={{ fontWeight: "600" }}
+              />
+              <FFJBRowItem
+                leftItem="Additional Fees"
+                rightItem={`$20`}
+                leftItemCss={{}}
+                rightItemCss={{ fontWeight: "600" }}
+              />
+              <FFJBRowItem
+                leftItem="Deductions"
+                rightItem={`$0`}
+                leftItemCss={{}}
+                rightItemCss={{ fontWeight: "600" }}
+              />
+              <FFSeperator />
+              <View className="items-center justify-between">
+                <FFText style={{ color: "#4a9e3e" }}>Total earned:</FFText>
+                <FFText style={{ color: "#4a9e3e" }}>
+                  ${dps?.total_earns}
                 </FFText>
               </View>
-              <FFJBRowItem
-                leftItem="Trip Type"
-                rightItem={
-                  dps?.orders && dps?.orders?.length > 1
-                    ? "Combined orders"
-                    : "Single order"
-                }
-                leftItemCss={{}}
-                rightItemCss={{ fontWeight: "600" }}
-              />
-              <FFJBRowItem
-                leftItem="Distance"
-                rightItem={`${dps?.total_distance_travelled?.toFixed(2)} km`}
-                leftItemCss={{}}
-                rightItemCss={{ fontWeight: "600" }}
-              />
-              <FFJBRowItem
-                leftItem="Duration"
-                rightItem={`${dps?.actual_time_spent}m`}
-                leftItemCss={{}}
-                rightItemCss={{ fontWeight: "600" }}
-              />
             </View>
-          </View>
-          <View className="rounded-lg border p-4 border-gray-300 bg-white gap-2">
-            <FFText style={{ color: "#4c8ecf" }}>Bill Calculation</FFText>
-            <FFJBRowItem
-              leftItem="Base Fare"
-              rightItem={`$3`}
-              leftItemCss={{}}
-              rightItemCss={{ fontWeight: "600" }}
-            />
-            <FFJBRowItem
-              leftItem="Customer Tips"
-              rightItem={`$${dps?.total_tips}`}
-              leftItemCss={{}}
-              rightItemCss={{ fontWeight: "600" }}
-            />
-            <FFJBRowItem
-              leftItem="Additional Fees"
-              rightItem={`$20`}
-              leftItemCss={{}}
-              rightItemCss={{ fontWeight: "600" }}
-            />
-            <FFJBRowItem
-              leftItem="Deductions"
-              rightItem={`$0`}
-              leftItemCss={{}}
-              rightItemCss={{ fontWeight: "600" }}
-            />
-            <FFSeperator />
-            <View className="items-center justify-between">
-              <FFText style={{ color: "#4a9e3e" }}>Total earned:</FFText>
-              <FFText style={{ color: "#4a9e3e" }}>${dps?.total_earns}</FFText>
-            </View>
-          </View>
+          )}
         </View>
       </ScrollView>
       <Spinner isVisible={isLoading} isOverlay />

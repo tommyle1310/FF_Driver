@@ -44,8 +44,10 @@ const AllStages: React.FC<AllStagesProps> = ({
           <FFText className="text-lg font-bold">$35.6</FFText>
         </View>
         <View className="flex-row justify-between items-center mb-4">
-          <FFText className="text-lg font-bold">Packages</FFText>
-          <FFText className="text-lg font-bold">3</FFText>
+          <FFText className="text-lg font-bold">Total orders</FFText>
+          <FFText className="text-lg font-bold">
+            {stages.length === 2 ? 1 : stages.length === 4 ? 2 : 3}
+          </FFText>
         </View>
         <FFText className="text-sm text-gray-500 mb-4">
           Total distance: 478 km

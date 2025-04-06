@@ -8,7 +8,7 @@ import FFAvatar from "./FFAvatar";
 
 interface FloatingStageProps {
   stage: PickupAndDropoffStage | null; // Allow null for cases where no stage is active
-  onNavigate: () => void;
+  onNavigate: (location?: { lat: number; lng: number }) => void;
 }
 
 const FloatingStage: React.FC<FloatingStageProps> = ({ stage, onNavigate }) => {
@@ -48,7 +48,7 @@ const FloatingStage: React.FC<FloatingStageProps> = ({ stage, onNavigate }) => {
       {/* Right Section */}
       <TouchableOpacity
         style={{ alignItems: "center", justifyContent: "center" }}
-        onPress={onNavigate}
+        onPress={() => onNavigate(stage?.location)}
       >
         <View
           style={{ width: 20, aspectRatio: 1, borderColor: "#a3c9f1" }}

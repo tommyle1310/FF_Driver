@@ -4,6 +4,7 @@ import {
 } from "@/src/store/currentDriverProgressStageSlice";
 import { Address } from "@/src/types/Address";
 import { Avatar } from "@/src/types/common";
+import { Linking } from "react-native";
 
 export interface PickupAndDropoffStage {
   id: string;
@@ -102,4 +103,23 @@ export const filterPickupAndDropoffStages = (
   });
 
   return result;
+};
+
+export const openGoogleMaps = async (location: {
+  lat: number;
+  lng: number;
+}) => {
+  const { lat, lng } = location;
+  const url = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+
+  try {
+    const supported = await Linking.canOpenURL(url); // Kiểm tra xem thiết bị có thể mở URL không
+    if (supported) {
+      await Linking.openURL(url); // Mở Google Maps
+    } else {
+      console.error("Cannot open Google Map");
+    }
+  } catch (error) {
+    console.error("An error occured while opening Google Map:", error);
+  }
 };

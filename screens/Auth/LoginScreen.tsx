@@ -48,6 +48,8 @@ const Login = () => {
 
       // Now you can safely access the EC field
       const { EC, EM } = response.data; // Access EC directly
+      console.log("cehck res ", response);
+      console.log("cehck res data ", response.data);
 
       if (EC === 0) {
         // Success: Decode the JWT from the response data

@@ -1,4 +1,4 @@
-import { View, Text, Pressable } from "react-native";
+import { View, Text, Pressable, ScrollView } from "react-native";
 import React, { useEffect, useState } from "react";
 import FFView from "@/src/components/FFView";
 import FFScreenTopSection from "@/src/components/FFScreenTopSection";
@@ -22,26 +22,58 @@ import {
   limitMaxCharacters,
   limitMaxWords,
 } from "@/src/utils/functions";
+import FFSkeleton from "@/src/components/FFSkeleton";
 
 type TrackHistorySreenNavigationProp = StackNavigationProp<
   SidebarStackParamList,
   "TrackHistory"
 >;
 
+// Hàm phụ để phân loại ngày
+const categorizeByDate = (items: DriverProgressStageState[]) => {
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+
+  const grouped: { [key: string]: DriverProgressStageState[] } = {
+    Today: [],
+    Yesterday: [],
+    Older: [],
+  };
+
+  items.forEach((item) => {
+    const itemDate = new Date((item?.created_at ?? 0) * 1000); // Giả sử created_at là epoch timestamp
+    const isToday = itemDate.toDateString() === today.toDateString();
+    const isYesterday = itemDate.toDateString() === yesterday.toDateString();
+
+    if (isToday) {
+      grouped["Today"].push(item);
+    } else if (isYesterday) {
+      grouped["Yesterday"].push(item);
+    } else {
+      grouped["Older"].push(item);
+    }
+  });
+
+  return grouped;
+};
+
 const TrackHistoryScreen = () => {
   const navigation = useNavigation<TrackHistorySreenNavigationProp>();
   const { userId, driverId } = useSelector((state: RootState) => state.auth);
+
   const [isLoading, setIsLoading] = useState(false);
   const [dps, setDps] = useState<DriverProgressStageState[]>([]);
 
   useEffect(() => {
     fetchAllDps();
   }, [driverId]);
+
   const fetchAllDps = async () => {
     setIsLoading(true);
     try {
       const response = await axiosInstance.get(
-        `/drivers/driver-progress-stages/${driverId}?limit=1`
+        `/drivers/driver-progress-stages/${driverId}?limit=5`
       );
       const { EC, EM, data } = response.data;
       if (EC === 0) {
@@ -56,13 +88,15 @@ const TrackHistoryScreen = () => {
     }
   };
 
-  return (
-    <FFSafeAreaView>
-      <FFScreenTopSection title="History" navigation={navigation} />
-      <Spinner isVisible={isLoading} isOverlay />
-      <View className="p-4">
-        <FFSeperator label="Today" />
-        {dps?.map((item) => (
+  const groupedDps = categorizeByDate(dps);
+
+  const renderSection = (label: string, items: DriverProgressStageState[]) => {
+    if (items.length === 0) return null;
+
+    return (
+      <>
+        <FFSeperator label={label} />
+        {items.map((item) => (
           <Pressable
             key={item.id}
             onPress={() =>
@@ -70,7 +104,7 @@ const TrackHistoryScreen = () => {
                 dpsId: item?.id ?? "",
               })
             }
-            className="rounded-lg border border-gray-300 overflow-hidden bg-white gap-2"
+            className="rounded-lg border border-gray-300 overflow-hidden bg-white gap-2 mb-4"
           >
             <View className="p-4">
               <View className="flex-row items-center gap-2 justify-between">
@@ -144,7 +178,30 @@ const TrackHistoryScreen = () => {
             </View>
           </Pressable>
         ))}
-      </View>
+      </>
+    );
+  };
+
+  return (
+    <FFSafeAreaView>
+      <FFScreenTopSection title="History" navigation={navigation} />
+      <ScrollView>
+        <View className="p-4">
+          {isLoading ? (
+            <View className="gap-4">
+              <FFSkeleton height={180} />
+              <FFSkeleton height={180} />
+              <FFSkeleton height={180} />
+            </View>
+          ) : (
+            <>
+              {renderSection("Today", groupedDps["Today"])}
+              {renderSection("Yesterday", groupedDps["Yesterday"])}
+              {renderSection("Older", groupedDps["Older"])}
+            </>
+          )}
+        </View>
+      </ScrollView>
     </FFSafeAreaView>
   );
 };

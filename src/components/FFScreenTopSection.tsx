@@ -44,7 +44,7 @@ const FFScreenTopSection: React.FC<FFScreenTopSectionProps> = ({
 const styles = StyleSheet.create({
   container: {
     paddingHorizontal: 16,
-    paddingTop: 16,
+    paddingVertical: 16,
     alignItems: "center",
     position: "relative",
   },

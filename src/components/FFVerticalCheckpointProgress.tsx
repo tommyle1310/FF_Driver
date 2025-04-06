@@ -1,6 +1,7 @@
 import React from "react";
 import { View, StyleSheet, Text } from "react-native";
 import FFText from "./FFText";
+import FFSkeleton from "./FFSkeleton";
 
 interface Checkpoint {
   status: string; // Trạng thái để xác định màu của vòng tròn
@@ -11,39 +12,59 @@ interface Checkpoint {
 
 interface FFVerticalCheckpointProgressProps {
   checkpoints: Checkpoint[]; // Mảng các checkpoint
+  isLoading?: boolean;
 }
 
 const FFVerticalCheckpointProgress: React.FC<
   FFVerticalCheckpointProgressProps
-> = ({ checkpoints }) => {
+> = ({ checkpoints, isLoading }) => {
   return (
     <View style={styles.container}>
-      {checkpoints.map((checkpoint, index) => (
-        <View key={index} style={styles.checkpointWrapper}>
-          {/* Vòng tròn checkpoint */}
-          <View
-            style={[
-              styles.circle,
-              {
-                backgroundColor:
-                  checkpoint.status === "Started" ? "#34C759" : "#FF3B30", // Xanh cho Started, đỏ cho Ended
-              },
-            ]}
-          />
-
-          {/* Đường thẳng dọc (không hiển thị ở checkpoint cuối cùng) */}
-          {index < checkpoints.length - 1 && <View style={styles.line} />}
-
-          {/* Thông tin checkpoint */}
-          <View style={styles.info}>
-            <FFText style={styles.status}>
-              {checkpoint.status.toUpperCase()} : {checkpoint.time}
-            </FFText>
-            <FFText style={styles.address}>{checkpoint.address}</FFText>
-            <FFText style={styles.postalCode}>{checkpoint.postalCode}</FFText>
+      {isLoading ? (
+        <View className="gap-4">
+          <View className="flex-row gap-2">
+            <FFSkeleton height={40} width={40} />
+            <View style={{ flex: 1, gap: 8 }}>
+              <FFSkeleton height={30} style={{ flex: 1 }} />
+              <FFSkeleton height={40} width={200} />
+            </View>
+          </View>
+          <View className="flex-row gap-2">
+            <FFSkeleton height={40} width={40} />
+            <View style={{ flex: 1, gap: 8 }}>
+              <FFSkeleton height={30} style={{ flex: 1 }} />
+              <FFSkeleton height={40} width={200} />
+            </View>
           </View>
         </View>
-      ))}
+      ) : (
+        checkpoints.map((checkpoint, index) => (
+          <View key={index} style={styles.checkpointWrapper}>
+            {/* Vòng tròn checkpoint */}
+            <View
+              style={[
+                styles.circle,
+                {
+                  backgroundColor:
+                    checkpoint.status === "Started" ? "#34C759" : "#FF3B30", // Xanh cho Started, đỏ cho Ended
+                },
+              ]}
+            />
+
+            {/* Đường thẳng dọc (không hiển thị ở checkpoint cuối cùng) */}
+            {index < checkpoints.length - 1 && <View style={styles.line} />}
+
+            {/* Thông tin checkpoint */}
+            <View style={styles.info}>
+              <FFText style={styles.status}>
+                {checkpoint.status.toUpperCase()} : {checkpoint.time}
+              </FFText>
+              <FFText style={styles.address}>{checkpoint.address}</FFText>
+              <FFText style={styles.postalCode}>{checkpoint.postalCode}</FFText>
+            </View>
+          </View>
+        ))
+      )}
     </View>
   );
 };

@@ -38,6 +38,7 @@ import { BACKEND_URL } from "../utils/constants";
 import Spinner from "../components/FFSpinner";
 import RatingScreen from "@/screens/RatingScreen";
 import { Avatar } from "../types/common";
+import ChangePasswordScreen from "@/screens/ChangePasswordScreen";
 
 const SidebarStack = createStackNavigator<SidebarStackParamList>();
 const AuthStack = createStackNavigator<AuthStackParamList>();
@@ -91,6 +92,7 @@ export type SidebarStackParamList = {
   SupportCenter: undefined;
   Settings: undefined;
   MyVehicles: undefined;
+  ChangePassword: undefined;
   FChat: {
     withUserId?: string;
     type?: "SUPPORT" | "ORDER";
@@ -113,6 +115,7 @@ export type ScreenNames =
   | "OrderHistoryDetails"
   | "Settings"
   | "MyVehicles"
+  | "ChangePassword"
   | "FChat";
 
 const MainNavigator = () => {
@@ -184,6 +187,11 @@ const MainNavigator = () => {
           options={{ headerShown: false }}
           name="TrackHistory"
           component={TrackHistoryScreen}
+        />
+        <SidebarStack.Screen
+          options={{ headerShown: false }}
+          name="ChangePassword"
+          component={ChangePasswordScreen}
         />
         <SidebarStack.Screen
           options={{ headerShown: false }}

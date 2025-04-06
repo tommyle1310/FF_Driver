@@ -20,6 +20,7 @@ import MapWrapper from "@/src/components/Maps/MapWrapper";
 import AllStages from "@/src/components/screens/Home/AllStages";
 import {
   filterPickupAndDropoffStages,
+  openGoogleMaps,
   PickupAndDropoffStage,
 } from "@/src/utils/functions/filters";
 import FFModal from "@/src/components/FFModal";
@@ -65,9 +66,9 @@ const HomeScreen = () => {
   const isUpdatingRef = useRef(false); // Theo dõi quá trình update
   const [currentStage, setCurrentStage] = useState<Stage | null>();
   const dispatch = useDispatch();
-  const [swipeTextCurrentStage, setSwipeTextCurrentStage] = useState(
-    `I've arrived restaurant`
-  );
+  const [isDisabledSwipe, setIsDisabledSwipe] = useState(false);
+  const [swipeTextCurrentStage, setSwipeTextCurrentStage] =
+    useState(`I'm ready`);
 
   const { available_for_work, avatar } = useSelector(
     (state: RootState) => state.auth
@@ -109,6 +110,9 @@ const HomeScreen = () => {
   };
 
   useEffect(() => {
+    if (!currentStage?.state.startsWith("driver_ready")) {
+      setIsDisabledSwipe(false);
+    }
     if (currentStage?.state.startsWith("waiting_for_pickup")) {
       // setSelectedDestination(null);
       // setCurrentActiveLocation(null);
@@ -127,6 +131,7 @@ const HomeScreen = () => {
   }, [currentStage]);
 
   const handleUpdateProgress = useCallback(async () => {
+    setIsDisabledSwipe(true);
     if (stages[stages.length - 2].state.startsWith("en_route_to_customer")) {
       if (currentStage?.state.startsWith("en_route_to_customer")) {
         console.log("cos even lot vao day ko", stages[stages.length - 2].state);
@@ -238,7 +243,15 @@ const HomeScreen = () => {
     });
   };
 
-  console.log("cehkc curent stages", stages);
+  const handleNavigateGoogleMap = async (
+    location: { lat: number; lng: number } | undefined
+  ) => {
+    if (location) {
+      openGoogleMaps(location);
+    }
+  };
+
+  console.log("cehkc dog stages", stages);
 
   return (
     <FFSafeAreaView>
@@ -349,9 +362,15 @@ const HomeScreen = () => {
                       color={"#cf3719"}
                     />
                   </TouchableOpacity>
-                  <View className="overflow-hidden flex-1 relative my-4 rounded-lg bg-[#0EB228]">
+                  <View
+                    style={{
+                      backgroundColor: isDisabledSwipe ? "e0e0e0" : "#0EB228",
+                    }}
+                    className="overflow-hidden flex-1 relative my-4 rounded-lg "
+                  >
                     <FFSwipe
                       reset={isResetSwipe}
+                      isDisabled={isDisabledSwipe}
                       onSwipe={handleUpdateProgress}
                       direction="right"
                     />
@@ -415,7 +434,7 @@ const HomeScreen = () => {
         </View>
       </FFView>
       <FloatingStage
-        onNavigate={() => console.log("Navigate")}
+        onNavigate={(res) => handleNavigateGoogleMap(res)}
         stage={currentActiveLocation}
       />
       <FFModal
