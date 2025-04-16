@@ -184,7 +184,6 @@ const currentDriverProgressStageSlice = createSlice({
   name: "currentDriverProgressStage",
   initialState,
   reducers: {
-    // Set toàn bộ state
     setDriverProgressStage: (state, action) => {
       const {
         id,
@@ -203,12 +202,28 @@ const currentDriverProgressStageSlice = createSlice({
         updated_at,
         orders,
       } = action.payload;
+
+      // Filter duplicate stages
+      const uniqueStages = stages.reduce((acc: Stage[], stage: Stage) => {
+        if (
+          !acc.find(
+            (s: Stage) =>
+              s.state === stage.state &&
+              s.status === stage.status &&
+              s.timestamp === stage.timestamp
+          )
+        ) {
+          acc.push(stage);
+        }
+        return acc;
+      }, [] as Stage[]);
+
       state.id = id;
       state.driver_id = driver_id;
       state.current_state = current_state;
       state.previous_state = previous_state;
       state.total_earns = total_earns;
-      state.stages = stages;
+      state.stages = uniqueStages;
       state.next_state = next_state;
       state.estimated_time_remaining = estimated_time_remaining;
       state.actual_time_spent = actual_time_spent;
@@ -219,34 +234,32 @@ const currentDriverProgressStageSlice = createSlice({
       state.updated_at = updated_at;
       state.orders = orders;
     },
-    // Update current_state
     updateCurrentState: (state, action) => {
       state.current_state = action.payload;
       state.updated_at = Math.floor(Date.now() / 1000);
     },
-    // Update stages
     updateStages: (state, action) => {
-      state.stages = action.payload;
+      // Filter duplicate stages
+      const uniqueStages = action.payload.reduce(
+        (acc: Stage[], stage: Stage) => {
+          if (
+            !acc.find(
+              (s: Stage) =>
+                s.state === stage.state &&
+                s.status === stage.status &&
+                s.timestamp === stage.timestamp
+            )
+          ) {
+            acc.push(stage);
+          }
+          return acc;
+        },
+        [] as Stage[]
+      );
+      state.stages = uniqueStages;
       state.updated_at = Math.floor(Date.now() / 1000);
     },
-    // Clear state
-    clearState: (state) => {
-      state.id = null;
-      state.driver_id = null;
-      state.total_earns = null;
-      state.current_state = null;
-      state.previous_state = null;
-      state.stages = [];
-      state.next_state = null;
-      state.estimated_time_remaining = null;
-      state.actual_time_spent = null;
-      state.total_distance_travelled = null;
-      state.total_tips = null;
-      state.events = [];
-      state.created_at = null;
-      state.updated_at = null;
-      state.orders = [];
-    },
+    clearState: () => initialState,
   },
   extraReducers: (builder) => {
     builder
@@ -271,12 +284,26 @@ const currentDriverProgressStageSlice = createSlice({
               updated_at,
               orders,
             } = action.payload;
+            // Filter duplicate stages
+            const uniqueStages = stages.reduce((acc: Stage[], stage: Stage) => {
+              if (
+                !acc.find(
+                  (s: Stage) =>
+                    s.state === stage.state &&
+                    s.status === stage.status &&
+                    s.timestamp === stage.timestamp
+                )
+              ) {
+                acc.push(stage);
+              }
+              return acc;
+            }, [] as Stage[]);
             state.id = id;
             state.driver_id = driver_id;
             state.total_earns = total_earns;
             state.current_state = current_state;
             state.previous_state = previous_state;
-            state.stages = stages;
+            state.stages = uniqueStages;
             state.next_state = next_state;
             state.estimated_time_remaining = estimated_time_remaining;
             state.actual_time_spent = actual_time_spent;
@@ -309,12 +336,26 @@ const currentDriverProgressStageSlice = createSlice({
             updated_at,
             orders,
           } = action.payload;
+          // Filter duplicate stages
+          const uniqueStages = stages.reduce((acc: Stage[], stage: Stage) => {
+            if (
+              !acc.find(
+                (s: Stage) =>
+                  s.state === stage.state &&
+                  s.status === stage.status &&
+                  s.timestamp === stage.timestamp
+              )
+            ) {
+              acc.push(stage);
+            }
+            return acc;
+          }, [] as Stage[]);
           state.id = id;
           state.driver_id = driver_id;
           state.total_earns = total_earns;
           state.current_state = current_state;
           state.previous_state = previous_state;
-          state.stages = stages;
+          state.stages = uniqueStages;
           state.next_state = next_state;
           state.estimated_time_remaining = estimated_time_remaining;
           state.actual_time_spent = actual_time_spent;
@@ -326,23 +367,7 @@ const currentDriverProgressStageSlice = createSlice({
           state.orders = orders;
         }
       )
-      .addCase(clearDriverProgressStage.fulfilled, (state) => {
-        state.id = null;
-        state.driver_id = null;
-        state.total_earns = null;
-        state.current_state = null;
-        state.previous_state = null;
-        state.stages = [];
-        state.next_state = null;
-        state.estimated_time_remaining = null;
-        state.actual_time_spent = null;
-        state.total_distance_travelled = null;
-        state.total_tips = null;
-        state.events = [];
-        state.created_at = null;
-        state.updated_at = null;
-        state.orders = [];
-      });
+      .addCase(clearDriverProgressStage.fulfilled, () => initialState);
   },
 });
 

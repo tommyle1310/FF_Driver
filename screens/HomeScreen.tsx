@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { View, TouchableOpacity, Pressable } from "react-native";
+import { View, TouchableOpacity } from "react-native";
 import FFSafeAreaView from "@/src/components/FFSafeAreaView";
 import FFText from "@/src/components/FFText";
 import FFSidebar from "@/src/components/FFSidebar";
@@ -8,13 +8,8 @@ import FFBadge from "@/src/components/FFBadge";
 import FFView from "@/src/components/FFView";
 import FFSwipe from "@/src/components/FFSwipe";
 import { useDispatch, useSelector } from "@/src/store/types";
-import { AppDispatch, RootState } from "@/src/store/store";
-import axiosInstance from "@/src/utils/axiosConfig";
-import {
-  saveTokenToAsyncStorage,
-  setAuthState,
-  loadTokenFromAsyncStorage,
-} from "@/src/store/authSlice";
+import { RootState } from "@/src/store/store";
+import { loadTokenFromAsyncStorage } from "@/src/store/authSlice";
 import { toggleAvailability } from "@/src/store/availabilitySlice";
 import MapWrapper from "@/src/components/Maps/MapWrapper";
 import AllStages from "@/src/components/screens/Home/AllStages";
@@ -33,15 +28,11 @@ import {
 } from "@/src/store/currentDriverProgressStageSlice";
 import FloatingStage from "@/src/components/FloatingStage";
 import FFSeperator from "@/src/components/FFSeperator";
-import FFButton from "@/src/components/FFButton";
 import { useSocket } from "@/src/hooks/useSocket";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { SidebarStackParamList } from "@/src/navigation/AppNavigator";
-import { Enum_TrackingInfo } from "@/src/types/Orders";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { Avatar } from "@/src/types/common";
-import io from "socket.io-client";
-import { BACKEND_URL } from "@/src/utils/constants";
 
 type HomeRouteProp = RouteProp<SidebarStackParamList, "Home">;
 type HomeSreenNavigationProp = StackNavigationProp<
@@ -78,12 +69,13 @@ const HomeScreen = () => {
     (state: RootState) => state.currentDriverProgressStage
   );
 
-  const { isWaitingForResponse, emitUpdateDriverProgress } = useSocket(
-    id || "",
-    () => {},
-    () => {},
-    () => {}
-  );
+  const { isWaitingForResponse, emitUpdateDriverProgress, completeOrder } =
+    useSocket(
+      id || "",
+      () => {},
+      () => {},
+      () => {}
+    );
 
   useEffect(() => {
     const loadToken = async () => {
@@ -113,6 +105,9 @@ const HomeScreen = () => {
       setCurrentActiveLocation(null);
       setSwipeTextCurrentStage(`I've arrived destination`);
     }
+    if (currentStage?.state.startsWith("delivery_complete")) {
+      setSwipeTextCurrentStage(``); // Clear swipe text when delivery is complete
+    }
   }, [currentStage]);
 
   const handleUpdateProgress = useCallback(async () => {
@@ -127,29 +122,34 @@ const HomeScreen = () => {
     isUpdatingRef.current = true;
     console.log("Starting updateDriverProgress with stageId:", id);
 
-    if (stages[stages.length - 2]?.state.startsWith("en_route_to_customer")) {
-      if (currentStage?.state.startsWith("en_route_to_customer")) {
-        setModalDetails({
-          status: "YESNO",
-          title: "Are you sure?",
-          desc: "Please confirm your delivery",
-        });
-        isUpdatingRef.current = false;
-        return;
-      }
+    // Check if current stage is en_route_to_customer
+    if (currentStage?.state.startsWith("en_route_to_customer")) {
+      setModalDetails({
+        status: "YESNO",
+        title: "Are you sure?",
+        desc: "Please confirm your delivery",
+      });
+      isUpdatingRef.current = false;
+      return;
     }
 
-    // Deduplicate stages and find the next stage
-    const uniqueStages = stages.reduce((acc, stage) => {
-      if (
-        !acc.find(
-          (s: Stage) => s.state === stage.state && s.status === stage.status
-        )
-      ) {
-        acc.push(stage);
-      }
-      return acc;
-    }, [] as Stage[]);
+    // Deduplicate and sort stages by timestamp
+    const uniqueStages = stages
+      .reduce((acc, stage) => {
+        if (
+          !acc.find(
+            (s: Stage) =>
+              s.state === stage.state &&
+              s.status === stage.status &&
+              s.timestamp === stage.timestamp
+          )
+        ) {
+          acc.push(stage);
+        }
+        return acc;
+      }, [] as Stage[])
+      .sort((a, b) => a.timestamp - b.timestamp);
+
     const nextStageIndex = uniqueStages.findIndex(
       (stage) => stage.status === "in_progress" || stage.status === "pending"
     );
@@ -182,7 +182,7 @@ const HomeScreen = () => {
       console.error("Error updating progress:", error);
       setIsResetSwipe(false);
     } finally {
-      isUpdatingRef.current = false; // Always reset isUpdating
+      isUpdatingRef.current = false;
     }
   }, [
     id,
@@ -194,21 +194,29 @@ const HomeScreen = () => {
 
   useEffect(() => {
     if (stages.length > 0) {
-      const uniqueStages = stages.reduce((acc, stage) => {
-        if (
-          !acc.find(
-            (s: Stage) => s.state === stage.state && s.status === stage.status
-          )
-        ) {
-          acc.push(stage);
-        }
-        return acc;
-      }, [] as Stage[]);
+      // Deduplicate and sort stages by timestamp
+      const uniqueStages = stages
+        .reduce((acc, stage) => {
+          if (
+            !acc.find(
+              (s: Stage) =>
+                s.state === stage.state &&
+                s.status === stage.status &&
+                s.timestamp === stage.timestamp
+            )
+          ) {
+            acc.push(stage);
+          }
+          return acc;
+        }, [] as Stage[])
+        .sort((a, b) => a.timestamp - b.timestamp);
+
       const activeStage =
         uniqueStages.find(
           (stage) =>
             stage.status === "in_progress" || stage.status === "pending"
-        ) || uniqueStages[0];
+        ) || uniqueStages[uniqueStages.length - 1];
+
       if (!currentStage || currentStage.state !== activeStage.state) {
         console.log("Updating currentStage:", activeStage);
         setCurrentStage(activeStage);
@@ -219,45 +227,51 @@ const HomeScreen = () => {
   }, [stages]);
 
   const handleFinishProgress = async () => {
-    if (emitUpdateDriverProgress) {
-      await emitUpdateDriverProgress({ stageId: id });
+    try {
+      if (emitUpdateDriverProgress) {
+        console.log("Emitting final updateDriverProgress with stageId:", id);
+        await emitUpdateDriverProgress({ stageId: id });
+      }
+
+      const buildDataCustomer1 = filterPickupAndDropoffStages(
+        stages?.map((item) => ({
+          ...item,
+          address: item.details?.restaurantDetails?.address
+            ? item.details.restaurantDetails?.address
+            : item.details?.customerDetails?.address?.[0],
+        }))
+      ).find((item) => item.type === "DROPOFF") as {
+        id: string;
+        avatar: Avatar;
+      };
+      const buildDataRestaurant1 = filterPickupAndDropoffStages(
+        stages?.map((item) => ({
+          ...item,
+          address: item.details?.restaurantDetails?.address
+            ? item.details.restaurantDetails?.address
+            : item.details?.customerDetails?.address?.[0],
+        }))
+      ).find((item) => item.type === "PICKUP") as {
+        id: string;
+        avatar: Avatar;
+      };
+
+      setCurrentActiveLocation(null);
+      setCurrentStage(null);
+      setIsResetSwipe(true);
+      setModalDetails({ status: "HIDDEN", desc: "", title: "" });
+      setSelectedDestination(null);
+      setSwipeTextCurrentStage("");
+      completeOrder();
+
+      navigation.navigate("Rating", {
+        customer1: buildDataCustomer1,
+        orderId: orders[0].id,
+        restaurant1: buildDataRestaurant1,
+      });
+    } catch (error) {
+      console.error("Error finishing progress:", error);
     }
-
-    const buildDataCustomer1 = filterPickupAndDropoffStages(
-      stages?.map((item) => ({
-        ...item,
-        address: item.details?.restaurantDetails?.address
-          ? item.details.restaurantDetails?.address
-          : item.details?.customerDetails?.address?.[0],
-      }))
-    ).find((item) => item.type === "DROPOFF") as {
-      id: string;
-      avatar: Avatar;
-    };
-    const buildDataRestaurant1 = filterPickupAndDropoffStages(
-      stages?.map((item) => ({
-        ...item,
-        address: item.details?.restaurantDetails?.address
-          ? item.details.restaurantDetails?.address
-          : item.details?.customerDetails?.address?.[0],
-      }))
-    ).find((item) => item.type === "PICKUP") as {
-      id: string;
-      avatar: Avatar;
-    };
-    setCurrentActiveLocation(null);
-    setCurrentStage(null);
-    setIsResetSwipe(true);
-    setModalDetails({ status: "HIDDEN", desc: "", title: "" });
-    setSelectedDestination(null);
-    setSwipeTextCurrentStage("");
-    await dispatch(clearDriverProgressStage());
-
-    navigation.navigate("Rating", {
-      customer1: buildDataCustomer1,
-      orderId: orders[0].id,
-      restaurant1: buildDataRestaurant1,
-    });
   };
 
   const handleNavigateGoogleMap = async (
@@ -387,7 +401,10 @@ const HomeScreen = () => {
                   >
                     <FFSwipe
                       reset={isResetSwipe}
-                      isDisabled={isWaitingForResponse}
+                      isDisabled={
+                        isWaitingForResponse ||
+                        currentStage?.state.startsWith("delivery_complete")
+                      }
                       onSwipe={handleUpdateProgress}
                       direction="right"
                     />

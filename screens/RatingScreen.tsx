@@ -19,6 +19,7 @@ import FFAvatar from "@/src/components/FFAvatar";
 import Spinner from "@/src/components/FFSpinner";
 import { SidebarStackParamList } from "@/src/navigation/AppNavigator";
 import { clearDriverProgressStage } from "@/src/store/currentDriverProgressStageSlice";
+import { useSocket } from "@/src/hooks/useSocket";
 
 type RatingScreenRouteProp = RouteProp<SidebarStackParamList, "Rating">;
 
@@ -29,6 +30,7 @@ type RatingScreenNavigationProp = StackNavigationProp<
 
 const RatingScreen = () => {
   const dispatch = useDispatch();
+
   const navigation = useNavigation<RatingScreenNavigationProp>();
   const [rating, setRating] = useState(0);
   const [review, setReview] = useState("");
@@ -42,6 +44,12 @@ const RatingScreen = () => {
     setRating(index);
   };
   const { driverId } = useSelector((state: RootState) => state.auth);
+  const { completeOrder } = useSocket(
+    driverId || "",
+    () => {},
+    () => {},
+    () => {}
+  ); //
 
   const handleSubmit = async () => {
     setIsLoading(true);
@@ -70,11 +78,10 @@ const RatingScreen = () => {
         "/ratings-reviews",
         requestData,
         {
-          // This will ensure axios does NOT reject on non-2xx status codes
-          validateStatus: () => true, // Always return true so axios doesn't throw on errors
+          validateStatus: () => true,
         }
       );
-      console.log("cehc k res data", response.data);
+      console.log("check response data", response.data);
 
       const { EC, EM, data } = response.data;
       if (EC === 0) {
@@ -85,7 +92,7 @@ const RatingScreen = () => {
           setTypeRating("CUSTOMER");
           return;
         }
-        dispatch(clearDriverProgressStage());
+        completeOrder(); // Call completeOrder
         navigation.navigate("Home", {});
       }
     } catch (error) {
@@ -147,11 +154,11 @@ const RatingScreen = () => {
           <FFButton
             variant="outline"
             onPress={() => {
+              completeOrder(); // Call completeOrder
               navigation.reset({
                 index: 0,
                 routes: [{ name: "Home", params: { screenIndex: 0 } }],
               });
-              dispatch(clearDriverProgressStage());
             }}
             style={styles.skipButton}
           >
