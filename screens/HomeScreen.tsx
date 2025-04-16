@@ -40,6 +40,8 @@ import { SidebarStackParamList } from "@/src/navigation/AppNavigator";
 import { Enum_TrackingInfo } from "@/src/types/Orders";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { Avatar } from "@/src/types/common";
+import io from "socket.io-client";
+import { BACKEND_URL } from "@/src/utils/constants";
 
 type HomeRouteProp = RouteProp<SidebarStackParamList, "Home">;
 type HomeSreenNavigationProp = StackNavigationProp<
@@ -63,18 +65,24 @@ const HomeScreen = () => {
   const [currentActiveLocation, setCurrentActiveLocation] =
     useState<PickupAndDropoffStage | null>(null);
   const [isResetSwipe, setIsResetSwipe] = useState(false);
-  const isUpdatingRef = useRef(false); // Theo dõi quá trình update
-  const [currentStage, setCurrentStage] = useState<Stage | null>();
+  const isUpdatingRef = useRef(false);
+  const [currentStage, setCurrentStage] = useState<Stage | null>(null);
   const dispatch = useDispatch();
-  const [isDisabledSwipe, setIsDisabledSwipe] = useState(false);
   const [swipeTextCurrentStage, setSwipeTextCurrentStage] =
     useState(`I'm ready`);
 
-  const { available_for_work, avatar } = useSelector(
+  const { available_for_work, avatar, accessToken } = useSelector(
     (state: RootState) => state.auth
   );
   const { stages, orders, id } = useSelector(
     (state: RootState) => state.currentDriverProgressStage
+  );
+
+  const { isWaitingForResponse, emitUpdateDriverProgress } = useSocket(
+    id || "",
+    () => {},
+    () => {},
+    () => {}
   );
 
   useEffect(() => {
@@ -87,40 +95,17 @@ const HomeScreen = () => {
   }, [dispatch]);
 
   const handleGoNow = async () => {
-    console.log(
-      "check current stage",
-      !currentStage?.state.startsWith("en_route_to_customer") ||
-        !currentStage.state.startsWith("completed"),
-      currentStage?.state,
-      currentStage
-    );
-
-    // if (
-    //   !currentStage?.state.startsWith("en_route_to_customer") ||
-    //   !currentStage.state.startsWith("delivery_complete")
-    // ) {
-    //   setModalDetails({
-    //     status: "ERROR",
-    //     title: "wtf",
-    //     desc: "You are not allowed to pickup at the moment, please finish picking up order before proceediing this action 😁.",
-    //   });
-    //   return;
-    // }
     setCurrentActiveLocation(selectedDestination);
   };
 
   useEffect(() => {
     if (!currentStage?.state.startsWith("driver_ready")) {
-      setIsDisabledSwipe(false);
+      // Swipe control handled by isWaitingForResponse
     }
     if (currentStage?.state.startsWith("waiting_for_pickup")) {
-      // setSelectedDestination(null);
-      // setCurrentActiveLocation(null);
       setSwipeTextCurrentStage(`I've arrived restaurant`);
     }
     if (currentStage?.state.startsWith("restaurant_pickup")) {
-      // setSelectedDestination(null);
-      // setCurrentActiveLocation(null);
       setSwipeTextCurrentStage(`I've picked up order`);
     }
     if (currentStage?.state.startsWith("en_route_to_customer")) {
@@ -131,69 +116,101 @@ const HomeScreen = () => {
   }, [currentStage]);
 
   const handleUpdateProgress = useCallback(async () => {
-    setIsDisabledSwipe(true);
-    if (stages[stages.length - 2].state.startsWith("en_route_to_customer")) {
-      if (currentStage?.state.startsWith("en_route_to_customer")) {
-        console.log("cos even lot vao day ko", stages[stages.length - 2].state);
+    if (isWaitingForResponse || isUpdatingRef.current) {
+      console.log("Swipe blocked: isWaitingForResponse or isUpdating", {
+        isWaitingForResponse,
+        isUpdating: isUpdatingRef.current,
+      });
+      return;
+    }
 
+    isUpdatingRef.current = true;
+    console.log("Starting updateDriverProgress with stageId:", id);
+
+    if (stages[stages.length - 2]?.state.startsWith("en_route_to_customer")) {
+      if (currentStage?.state.startsWith("en_route_to_customer")) {
         setModalDetails({
           status: "YESNO",
           title: "Are you sure?",
           desc: "Please confirm your delivery",
         });
+        isUpdatingRef.current = false;
         return;
       }
     }
-    // Tìm stage tiếp theo cần tăng (in_progress hoặc pending)
-    const nextStageIndex = stages.findIndex(
+
+    // Deduplicate stages and find the next stage
+    const uniqueStages = stages.reduce((acc, stage) => {
+      if (
+        !acc.find(
+          (s: Stage) => s.state === stage.state && s.status === stage.status
+        )
+      ) {
+        acc.push(stage);
+      }
+      return acc;
+    }, [] as Stage[]);
+    const nextStageIndex = uniqueStages.findIndex(
       (stage) => stage.status === "in_progress" || stage.status === "pending"
     );
-    const nextStage = nextStageIndex !== -1 ? stages[nextStageIndex] : null;
-    console.log("check next stage", currentStage);
+    const nextStage =
+      nextStageIndex !== -1 ? uniqueStages[nextStageIndex + 1] : null;
 
-    if (!nextStage || isUpdatingRef.current) {
-      console.log(
-        "Update bị ngăn: không tìm thấy stage tiếp theo hoặc đang cập nhật"
-      );
+    if (!nextStage) {
+      console.log("No next stage found", { uniqueStages });
+      isUpdatingRef.current = false;
       return;
     }
 
-    // Nếu stage hiện tại đã completed, không cần kiểm tra thêm
     if (nextStage.status === "completed") {
-      console.log("Stage tiếp theo đã completed, không cần emit");
+      console.log("Next stage already completed", { nextStage });
+      isUpdatingRef.current = false;
       return;
     }
-
-    isUpdatingRef.current = true;
 
     try {
-      if (emitUpdateDps) {
-        await emitUpdateDps({ stageId: id }); // Gửi thêm orderId nếu có
+      if (emitUpdateDriverProgress) {
+        console.log("Emitting updateDriverProgress with stageId:", id);
+        await emitUpdateDriverProgress({ stageId: id });
       }
       setIsResetSwipe(true);
       setTimeout(() => {
         setIsResetSwipe(false);
-        isUpdatingRef.current = false;
       }, 300);
-
-      // Cập nhật currentStage sau khi emit
       setCurrentStage(nextStage);
     } catch (error) {
-      isUpdatingRef.current = false;
+      console.error("Error updating progress:", error);
       setIsResetSwipe(false);
+    } finally {
+      isUpdatingRef.current = false; // Always reset isUpdating
     }
-  }, [id, emitUpdateDps, stages]); // Thêm stages vào dependency để cập nhật khi stages thay đổi
+  }, [
+    id,
+    emitUpdateDriverProgress,
+    stages,
+    isWaitingForResponse,
+    currentStage,
+  ]);
 
-  // Chỉ cập nhật currentStage ban đầu hoặc khi stages thay đổi
   useEffect(() => {
     if (stages.length > 0) {
+      const uniqueStages = stages.reduce((acc, stage) => {
+        if (
+          !acc.find(
+            (s: Stage) => s.state === stage.state && s.status === stage.status
+          )
+        ) {
+          acc.push(stage);
+        }
+        return acc;
+      }, [] as Stage[]);
       const activeStage =
-        stages.find(
+        uniqueStages.find(
           (stage) =>
             stage.status === "in_progress" || stage.status === "pending"
-        ) || stages[0];
+        ) || uniqueStages[0];
       if (!currentStage || currentStage.state !== activeStage.state) {
-        console.log("Cập nhật currentStage:", activeStage);
+        console.log("Updating currentStage:", activeStage);
         setCurrentStage(activeStage);
       }
     } else if (stages.length === 0 && currentStage) {
@@ -202,8 +219,8 @@ const HomeScreen = () => {
   }, [stages]);
 
   const handleFinishProgress = async () => {
-    if (emitUpdateDps) {
-      await emitUpdateDps({ stageId: id });
+    if (emitUpdateDriverProgress) {
+      await emitUpdateDriverProgress({ stageId: id });
     }
 
     const buildDataCustomer1 = filterPickupAndDropoffStages(
@@ -250,8 +267,6 @@ const HomeScreen = () => {
       openGoogleMaps(location);
     }
   };
-
-  console.log("cehkc dog stages", stages);
 
   return (
     <FFSafeAreaView>
@@ -364,13 +379,15 @@ const HomeScreen = () => {
                   </TouchableOpacity>
                   <View
                     style={{
-                      backgroundColor: isDisabledSwipe ? "e0e0e0" : "#0EB228",
+                      backgroundColor: isWaitingForResponse
+                        ? "#e0e0e0"
+                        : "#0EB228",
                     }}
                     className="overflow-hidden flex-1 relative my-4 rounded-lg "
                   >
                     <FFSwipe
                       reset={isResetSwipe}
-                      isDisabled={isDisabledSwipe}
+                      isDisabled={isWaitingForResponse}
                       onSwipe={handleUpdateProgress}
                       direction="right"
                     />
@@ -455,8 +472,8 @@ const HomeScreen = () => {
             style={{
               width: "100%",
               gap: 12,
-              flexDirection: "row", // Ensures buttons are in a row
-              justifyContent: "space-between", // Distributes space evenly
+              flexDirection: "row",
+              justifyContent: "space-between",
             }}
           >
             <TouchableOpacity
@@ -471,7 +488,6 @@ const HomeScreen = () => {
             <TouchableOpacity
               onPress={() => {
                 handleFinishProgress();
-                // setModalDetails({ status: "HIDDEN", desc: "", title: "" });
               }}
               className=" flex-1 items-center py-3 px-4 rounded-lg"
             >

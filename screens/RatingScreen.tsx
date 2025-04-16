@@ -147,7 +147,10 @@ const RatingScreen = () => {
           <FFButton
             variant="outline"
             onPress={() => {
-              navigation.navigate("Home", {});
+              navigation.reset({
+                index: 0,
+                routes: [{ name: "Home", params: { screenIndex: 0 } }],
+              });
               dispatch(clearDriverProgressStage());
             }}
             style={styles.skipButton}

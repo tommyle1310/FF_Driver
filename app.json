@@ -3,7 +3,10 @@
     "name": "FF_Driver",
     "slug": "ff-driver",
     "version": "1.0.0",
-    "platforms": ["ios", "android"],
+    "platforms": [
+      "ios",
+      "android"
+    ],
     "orientation": "portrait",
     "scheme": "myapp",
     "userInterfaceStyle": "automatic",
@@ -36,7 +39,7 @@
     },
     "extra": {
       "eas": {
-        "projectId": "0d9aa928-a930-4f51-9e27-28eb26697bfe"
+        "projectId": "77a60071-730e-4268-82cc-4fa1d9886cdf"
       }
     }
   },

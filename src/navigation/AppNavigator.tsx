@@ -252,10 +252,10 @@ const MainNavigator = () => {
         <View className="flex-row items-center gap-4">
           <View className="flex-row items-center gap-1">
             <FFText fontSize="sm" fontWeight="500">
-              Total:
+              Total Earns:
             </FFText>
             <FFText fontSize="sm" fontWeight="600" style={{ color: "#63c550" }}>
-              ${latestOrder?.total_amount}
+              ${latestOrder?.driver_earn}
             </FFText>
           </View>
           <View className="flex-row items-center gap-1">

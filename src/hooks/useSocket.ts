@@ -1,7 +1,6 @@
-// useSocket.ts
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Type_PushNotification_Order } from "../types/pushNotification";
-import { io, Socket } from "socket.io-client"; // Thêm Socket type để type rõ hơn
+import { io, Socket } from "socket.io-client";
 import { BACKEND_URL } from "../utils/constants";
 import { useDispatch, useSelector } from "../store/types";
 import { RootState } from "../store/store";
@@ -35,8 +34,9 @@ export const useSocket = (
       auth: `Bearer ${accessToken}`,
     },
   });
-  const lastResponseRef = useRef<string | null>(null); // Lưu dữ liệu cuối cùng để so sánh
-  const isInitialUpdateRef = useRef(true); // Cờ để cho phép cập nhật ban đầu sau driverAcceptOrder
+  const lastResponseRef = useRef<string | null>(null);
+  const isInitialUpdateRef = useRef(true);
+  const [isWaitingForResponse, setIsWaitingForResponse] = useState(false);
 
   useEffect(() => {
     if (!driverId) {
@@ -50,7 +50,7 @@ export const useSocket = (
 
     socket.on("notifyOrderStatus", (response) => {
       const buildDataToPushNotificationType: Type_PushNotification_Order = {
-        id: response?.id,
+        id: response?.orderId,
         customer_id: response?.customer_id,
         total_amount:
           response?.total_amount ?? response?.orderDetails?.total_amount,
@@ -85,8 +85,9 @@ export const useSocket = (
     socket.on("incomingOrderForDriver", (response) => {
       const responseData = response.data;
       const buildDataToPushNotificationType: Type_PushNotification_Order = {
-        id: responseData?.id,
+        id: responseData?.orderId,
         customer_id: responseData?.customer_id,
+        driver_earn: responseData?.driver_earn,
         total_amount:
           responseData?.total_amount ??
           responseData?.orderDetails?.total_amount,
@@ -119,10 +120,9 @@ export const useSocket = (
     });
 
     socket.on("driverStagesUpdated", (response) => {
-      console.log("hello workd", response);
-
+      console.log("driverStagesUpdated received:", response);
       const responseString = JSON.stringify(response);
-      // Cho phép cập nhật ban đầu sau driverAcceptOrder hoặc khi dữ liệu thay đổi
+      setIsWaitingForResponse(false); // Always reset waiting state
       if (
         isInitialUpdateRef.current ||
         lastResponseRef.current !== responseString
@@ -131,9 +131,9 @@ export const useSocket = (
         dispatch(setDriverProgressStage(response));
         dispatch(saveDriverProgressStageToAsyncStorage(response));
         lastResponseRef.current = responseString;
-        isInitialUpdateRef.current = false; // Chỉ cho phép cập nhật ban đầu một lần
+        isInitialUpdateRef.current = false;
       } else {
-        console.log("Bỏ qua driverStagesUpdated vì dữ liệu không đổi");
+        console.log("Skipping driverStagesUpdated dispatch: no data change");
       }
     });
 
@@ -143,7 +143,7 @@ export const useSocket = (
         setLatestOrder(response.order);
         setOrders((prevOrders) => [...prevOrders, response.order]);
         if (setIsShowToast) setIsShowToast(true);
-        isInitialUpdateRef.current = true; // Reset để cho phép nhận driverStagesUpdated sau driverAcceptOrder
+        isInitialUpdateRef.current = true;
       } else {
         console.error("Failed to accept order:", response.message);
         setLatestOrder(null);
@@ -152,6 +152,7 @@ export const useSocket = (
 
     socket.on("disconnect", () => {
       console.log("Disconnected from WebSocket server");
+      setIsWaitingForResponse(false); // Reset on disconnect
     });
 
     return () => {
@@ -180,6 +181,7 @@ export const useSocket = (
   };
 
   const emitUpdateDriverProgress = (data: any) => {
+    setIsWaitingForResponse(true);
     socket.emit("updateDriverProgress", data);
     console.log("Emitted updateDriverProgress with data:", data);
   };
@@ -188,5 +190,6 @@ export const useSocket = (
     socket,
     emitDriverAcceptOrder,
     emitUpdateDriverProgress,
+    isWaitingForResponse,
   };
 };

@@ -7,6 +7,10 @@ import { Avatar } from "@/src/types/common";
 import { PickupAndDropoffStage } from "@/src/utils/functions/filters";
 import FFBadge from "../../FFBadge";
 import FFAvatar from "../../FFAvatar";
+import { useSelector } from "@/src/store/types";
+import { RootState } from "@/src/store/store";
+import FFSeperator from "../../FFSeperator";
+import { colors } from "@/src/theme";
 
 interface AllStagesProps {
   stages: PickupAndDropoffStage[];
@@ -35,23 +39,32 @@ const AllStages: React.FC<AllStagesProps> = ({
     onChange(); // Gọi onChange để báo cho parent nếu cần
   };
 
+  const { total_earns, total_distance_travelled } = useSelector(
+    (state: RootState) => state.currentDriverProgressStage
+  );
+
   return (
     <View className="p-4 bg-white rounded-lg shadow-md">
       {/* Header Section */}
       <View style={{ marginBottom: 48 }}>
-        <View className="flex-row justify-between items-center mb-4">
-          <FFText className="text-lg font-bold">Total Earnings</FFText>
-          <FFText className="text-lg font-bold">$35.6</FFText>
+        <View className="flex-row justify-between">
+          <View className="flex-1 items-center mb-4">
+            <FFText fontWeight="400">Total Earnings</FFText>
+            <FFText style={{ color: colors.primary }}>${total_earns}</FFText>
+          </View>
+          <View className="flex-1 items-center mb-4">
+            <FFText fontWeight="400">Total orders</FFText>
+            <FFText style={{ color: colors.warning }}>
+              {stages.length === 2 ? 1 : stages.length === 4 ? 2 : 3}
+            </FFText>
+          </View>
+          <View className="flex-1 items-center mb-4">
+            <FFText fontWeight="400">Total distance:</FFText>
+            <FFText style={{ color: colors.info }}>
+              {total_distance_travelled}km
+            </FFText>
+          </View>
         </View>
-        <View className="flex-row justify-between items-center mb-4">
-          <FFText className="text-lg font-bold">Total orders</FFText>
-          <FFText className="text-lg font-bold">
-            {stages.length === 2 ? 1 : stages.length === 4 ? 2 : 3}
-          </FFText>
-        </View>
-        <FFText className="text-sm text-gray-500 mb-4">
-          Total distance: 478 km
-        </FFText>
       </View>
 
       {/* Stages List */}

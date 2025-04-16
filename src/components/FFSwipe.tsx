@@ -9,7 +9,7 @@ interface FFSwipeProps {
   onSwipe: () => void;
   direction: "left" | "right";
   reset?: boolean;
-  isDisabled?: boolean; // New optional prop
+  isDisabled?: boolean;
 }
 
 const FFSwipe: React.FC<FFSwipeProps> = ({
@@ -42,7 +42,7 @@ const FFSwipe: React.FC<FFSwipeProps> = ({
   }, [reset, translateX]);
 
   const onGestureEvent = (event: any) => {
-    if (isDisabled) return; // Disable gesture handling when disabled
+    if (isDisabled) return;
     const { translationX } = event.nativeEvent;
     if (swipedDirection || containerWidth === 0) return;
 
@@ -58,7 +58,7 @@ const FFSwipe: React.FC<FFSwipeProps> = ({
   };
 
   const onHandlerStateChange = (event: any) => {
-    if (isDisabled) return; // Disable state change handling when disabled
+    if (isDisabled) return;
     const { translationX, state } = event.nativeEvent;
     if (state === 5 && containerWidth > 0) {
       if (swipedDirection) return;
@@ -91,20 +91,20 @@ const FFSwipe: React.FC<FFSwipeProps> = ({
       <PanGestureHandler
         onGestureEvent={onGestureEvent}
         onHandlerStateChange={onHandlerStateChange}
-        enabled={!isDisabled} // Disable gesture handler when isDisabled is true
+        enabled={!isDisabled}
       >
         <Animated.View
           style={[
             styles.swipeableContainer,
             { transform: [{ translateX }] },
             swipeEdgeReached && styles.reachedEdge,
-            isDisabled && styles.disabled, // Apply disabled styles
+            isDisabled && styles.disabled,
           ]}
         >
           <IconFeather
             name="chevrons-right"
             size={32}
-            color={isDisabled ? "#888" : swipeEdgeReached ? "#111" : "#4caf50"} // Grey icon when disabled
+            color={isDisabled ? "#888" : swipeEdgeReached ? "#111" : "#4caf50"}
           />
         </Animated.View>
       </PanGestureHandler>
@@ -128,9 +128,9 @@ const styles = StyleSheet.create({
     backgroundColor: "#bbb",
   },
   disabled: {
-    backgroundColor: "#e0e0e0", // Grey background when disabled
+    backgroundColor: "#e0e0e0",
     borderColor: "#ccc",
-    opacity: 0.7, // Slightly transparent to indicate disabled state
+    opacity: 0.7,
   },
 });
 
