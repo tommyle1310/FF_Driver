@@ -247,7 +247,6 @@ const HomeScreen = () => {
       !currentStage ||
       currentStage.status === "completed"
     ) {
-      setCurrentActiveLocation(null);
       console.log("Swipe blocked", {
         isWaitingForResponse,
         isUpdating: isUpdatingRef.current,
@@ -255,7 +254,15 @@ const HomeScreen = () => {
         transactions_processed,
         currentStageStatus: currentStage?.status,
       });
+      return;
+    }
 
+    if (currentStage.state.startsWith("en_route_to_customer")) {
+      setModalDetails({
+        status: "YESNO",
+        title: "Confirm Delivery",
+        desc: "Have you delivered the order to the customer?",
+      });
       return;
     }
 
@@ -612,7 +619,7 @@ const HomeScreen = () => {
             <TouchableOpacity
               onPress={() => {
                 setIsProcessing(true);
-                handleUpdateProgress(); // Trigger stage update for delivery_complete
+                handleFinishProgress();
               }}
               className=" flex-1 items-center py-3 px-4 rounded-lg"
             >

@@ -9,7 +9,7 @@ import {
   clearDriverProgressStage,
 } from "../store/currentDriverProgressStageSlice";
 import { Type_PushNotification_Order } from "../types/pushNotification";
-import NetInfo from "@react-native-community/netinfo"; // Thêm để kiểm tra mạng
+import NetInfo from "@react-native-community/netinfo";
 
 interface Stage {
   state: string;
@@ -52,6 +52,7 @@ export const useSocket = (
   const reconnectAttemptsRef = useRef(0);
   const maxReconnectAttempts = 5;
   const reconnectDelay = 2000;
+  const [networkState, setNetworkState] = useState<boolean | null>(null);
 
   const reconnectSocket = () => {
     if (reconnectAttemptsRef.current >= maxReconnectAttempts) {
@@ -73,6 +74,10 @@ export const useSocket = (
       if (socketRef.current?.connected) {
         console.log("Socket already connected, skipping reconnect");
         reconnectAttemptsRef.current = 0;
+        return;
+      }
+      if (!networkState) {
+        console.log("No network connection, skipping reconnect");
         return;
       }
       setupSocket();
@@ -118,6 +123,8 @@ export const useSocket = (
       reconnection: false,
       query: { driverId },
       timeout: 20000,
+      pingTimeout: 30000,
+      pingInterval: 10000,
     });
   };
 
@@ -205,7 +212,6 @@ export const useSocket = (
         return;
       }
 
-      // Deduplicate stages, giữ stage mới nhất
       const uniqueStages = Object.values(
         data.stages.reduce((acc: { [key: string]: Stage }, stage: Stage) => {
           const key = stage.state;
@@ -226,6 +232,16 @@ export const useSocket = (
       });
 
       const filteredResponse = { ...data, stages: uniqueStages };
+      if (!filteredResponse.current_state || !filteredResponse.stages.length) {
+        console.warn(
+          "Invalid filteredResponse, skipping dispatch:",
+          filteredResponse
+        );
+        isProcessingRef.current = false;
+        processEventQueue();
+        return;
+      }
+
       const responseString = JSON.stringify(filteredResponse);
 
       if (
@@ -263,7 +279,7 @@ export const useSocket = (
     });
 
     socketRef.current.on("connect_error", (error) => {
-      console.error("WebSocket connection error:", error);
+      console.error("WebSocket connection error:", error.message);
       setIsSocketConnected(false);
       reconnectSocket();
     });
@@ -277,11 +293,16 @@ export const useSocket = (
 
     socketRef.current.on("incomingOrderForDriver", (response) => {
       const orderId = response.data.orderId;
-      if (processedOrderIds.current.has(orderId)) {
+      const orderStatus = response.data.status;
+
+      // Chỉ bỏ qua nếu đơn hàng đã được xử lý và trạng thái không thay đổi
+      if (
+        processedOrderIds.current.has(orderId) &&
+        orderStatus !== "PREPARING" // Cho phép hiển thị lại nếu trạng thái thay đổi
+      ) {
         console.log("Skipping duplicate incomingOrderForDriver:", orderId);
         return;
       }
-      processedOrderIds.current.add(orderId);
 
       console.log("Received incomingOrderForDriver:", response);
       const responseData = response.data;
@@ -296,6 +317,10 @@ export const useSocket = (
         order_items:
           responseData?.order_items ?? responseData?.orderDetails?.order_items,
       };
+
+      // Thêm orderId vào processedOrderIds chỉ khi hiển thị toast
+      processedOrderIds.current.add(orderId);
+
       setLatestOrder(buildDataToPushNotificationType);
       setOrders((prevOrders) => {
         const updatedOrders = prevOrders.map((order) =>
@@ -377,15 +402,19 @@ export const useSocket = (
           isInitialUpdateRef.current = true;
           dispatch(clearDriverProgressStage());
           setIsOrderCompleted(false);
+          // Xóa orderId khỏi processedOrderIds khi chấp nhận
+          processedOrderIds.current.delete(response.order.id);
         } else {
           console.error("Failed to accept order:", response.message);
           setLatestOrder(null);
+          // Xóa orderId nếu từ chối để cho phép nhận lại
+          processedOrderIds.current.delete(response.order?.id);
         }
       });
     }
 
-    socketRef.current.on("disconnect", () => {
-      console.log("Disconnected from WebSocket server");
+    socketRef.current.on("disconnect", (reason) => {
+      console.log("Disconnected from WebSocket server, reason:", reason);
       setIsSocketConnected(false);
       reconnectSocket();
     });
@@ -400,13 +429,16 @@ export const useSocket = (
     setupSocket();
     setupSocketListeners();
 
-    // Kiểm tra trạng thái mạng
     const unsubscribe = NetInfo.addEventListener((state) => {
       console.log("Network state:", state);
+      setNetworkState(state.isConnected);
       if (!state.isConnected && socketRef.current?.connected) {
+        console.log("Network lost, disconnecting socket");
         socketRef.current.disconnect();
         setIsSocketConnected(false);
       } else if (state.isConnected && !socketRef.current?.connected) {
+        console.log("Network restored, attempting reconnect");
+        reconnectAttemptsRef.current = 0;
         reconnectSocket();
       }
     });
@@ -448,7 +480,11 @@ export const useSocket = (
           resolve,
           reject,
         });
-        reconnectSocket();
+        if (networkState) {
+          reconnectSocket();
+        } else {
+          console.log("No network, waiting for network to reconnect");
+        }
       }
     });
   };
@@ -463,7 +499,9 @@ export const useSocket = (
           resolve,
           reject,
         });
-        reconnectSocket();
+        if (networkState) {
+          reconnectSocket();
+        }
       });
     }
 
@@ -514,6 +552,13 @@ export const useSocket = (
     }
   };
 
+  // Hàm để xóa orderId khi từ chối đơn hàng
+  const rejectOrder = (orderId: string) => {
+    console.log("Rejecting order, removing from processedOrderIds:", orderId);
+    processedOrderIds.current.delete(orderId);
+    if (setIsShowToast) setIsShowToast(false);
+  };
+
   return {
     socket: socketRef.current,
     emitDriverAcceptOrder,
@@ -521,5 +566,6 @@ export const useSocket = (
     isWaitingForResponse,
     isSocketConnected,
     completeOrder,
+    rejectOrder, // Thêm hàm để từ chối đơn hàng
   };
 };
