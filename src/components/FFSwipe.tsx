@@ -30,8 +30,10 @@ const FFSwipe: React.FC<FFSwipeProps> = ({
     setContainerWidth(width);
   };
 
+  // Reset the swipe state when reset prop is true
   useEffect(() => {
     if (reset) {
+      console.log("FFSwipe: Resetting swipe state");
       Animated.spring(translateX, {
         toValue: 0,
         useNativeDriver: true,
@@ -42,9 +44,15 @@ const FFSwipe: React.FC<FFSwipeProps> = ({
   }, [reset, translateX]);
 
   const onGestureEvent = (event: any) => {
-    if (isDisabled) return;
+    if (isDisabled || swipedDirection || containerWidth === 0) {
+      console.log("FFSwipe: Gesture blocked", {
+        isDisabled,
+        swipedDirection,
+        containerWidth,
+      });
+      return;
+    }
     const { translationX } = event.nativeEvent;
-    if (swipedDirection || containerWidth === 0) return;
 
     if (direction === "left") {
       translateX.setValue(
@@ -58,12 +66,17 @@ const FFSwipe: React.FC<FFSwipeProps> = ({
   };
 
   const onHandlerStateChange = (event: any) => {
-    if (isDisabled) return;
+    if (isDisabled || swipedDirection) {
+      console.log("FFSwipe: Handler state change blocked", {
+        isDisabled,
+        swipedDirection,
+      });
+      return;
+    }
     const { translationX, state } = event.nativeEvent;
     if (state === 5 && containerWidth > 0) {
-      if (swipedDirection) return;
-
       if (Math.abs(translationX) >= containerWidth - (SWIPER_WIDTH + 50)) {
+        console.log("FFSwipe: Swipe edge reached, triggering onSwipe");
         setSwipeEdgeReached(true);
         onSwipe();
 
@@ -77,6 +90,7 @@ const FFSwipe: React.FC<FFSwipeProps> = ({
 
         setSwipedDirection(direction);
       } else {
+        console.log("FFSwipe: Swipe not far enough, resetting position");
         setSwipeEdgeReached(false);
         Animated.spring(translateX, {
           toValue: 0,

@@ -1,3 +1,4 @@
+// HomeScreen.tsx
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { View, TouchableOpacity } from "react-native";
 import FFSafeAreaView from "@/src/components/FFSafeAreaView";
@@ -33,6 +34,8 @@ import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { SidebarStackParamList } from "@/src/navigation/AppNavigator";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { Avatar } from "@/src/types/common";
+import debounce from "lodash/debounce";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 type HomeRouteProp = RouteProp<SidebarStackParamList, "Home">;
 type HomeSreenNavigationProp = StackNavigationProp<
@@ -40,10 +43,17 @@ type HomeSreenNavigationProp = StackNavigationProp<
   "Home"
 >;
 
+const STAGE_ORDER = [
+  "driver_ready_order_1",
+  "waiting_for_pickup_order_1",
+  "restaurant_pickup_order_1",
+  "en_route_to_customer_order_1",
+  "delivery_complete_order_1",
+];
+
 const HomeScreen = () => {
   const navigation = useNavigation<HomeSreenNavigationProp>();
   const route = useRoute<HomeRouteProp>();
-  const { emitUpdateDps } = route.params;
   const [isShowSidebar, setIsShowSidebar] = useState(false);
   const [loading, setLoading] = useState(true);
   const [selectedDestination, setSelectedDestination] =
@@ -56,26 +66,32 @@ const HomeScreen = () => {
   const [currentActiveLocation, setCurrentActiveLocation] =
     useState<PickupAndDropoffStage | null>(null);
   const [isResetSwipe, setIsResetSwipe] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const isUpdatingRef = useRef(false);
   const [currentStage, setCurrentStage] = useState<Stage | null>(null);
-  const dispatch = useDispatch();
   const [swipeTextCurrentStage, setSwipeTextCurrentStage] =
     useState(`I'm ready`);
+  const pendingStageRef = useRef<Stage | null>(null);
 
-  const { available_for_work, avatar, accessToken } = useSelector(
+  const dispatch = useDispatch();
+  const { available_for_work, avatar, accessToken, userId } = useSelector(
     (state: RootState) => state.auth
   );
-  const { stages, orders, id } = useSelector(
+  const { stages, orders, id, transactions_processed } = useSelector(
     (state: RootState) => state.currentDriverProgressStage
   );
 
-  const { isWaitingForResponse, emitUpdateDriverProgress, completeOrder } =
-    useSocket(
-      id || "",
-      () => {},
-      () => {},
-      () => {}
-    );
+  const {
+    isWaitingForResponse,
+    emitUpdateDriverProgress,
+    completeOrder,
+    isSocketConnected,
+  } = useSocket(
+    userId || "",
+    () => {},
+    () => {},
+    () => {}
+  );
 
   useEffect(() => {
     const loadToken = async () => {
@@ -86,149 +102,206 @@ const HomeScreen = () => {
     loadToken();
   }, [dispatch]);
 
-  const handleGoNow = async () => {
-    setCurrentActiveLocation(selectedDestination);
-  };
-
-  useEffect(() => {
-    if (!currentStage?.state.startsWith("driver_ready")) {
-      // Swipe control handled by isWaitingForResponse
-    }
-    if (currentStage?.state.startsWith("waiting_for_pickup")) {
-      setSwipeTextCurrentStage(`I've arrived restaurant`);
-    }
-    if (currentStage?.state.startsWith("restaurant_pickup")) {
-      setSwipeTextCurrentStage(`I've picked up order`);
-    }
-    if (currentStage?.state.startsWith("en_route_to_customer")) {
-      setSelectedDestination(null);
-      setCurrentActiveLocation(null);
-      setSwipeTextCurrentStage(`I've arrived destination`);
-    }
-    if (currentStage?.state.startsWith("delivery_complete")) {
-      setSwipeTextCurrentStage(``); // Clear swipe text when delivery is complete
-    }
-  }, [currentStage]);
-
-  const handleUpdateProgress = useCallback(async () => {
-    if (isWaitingForResponse || isUpdatingRef.current) {
-      console.log("Swipe blocked: isWaitingForResponse or isUpdating", {
-        isWaitingForResponse,
-        isUpdating: isUpdatingRef.current,
-      });
+  // Function to update swipe text based on stage
+  const updateSwipeText = useCallback((stage: Stage | null) => {
+    console.log("Updating swipe text for stage:", stage?.state);
+    if (!stage) {
+      setSwipeTextCurrentStage("");
       return;
     }
+    switch (stage.state) {
+      case "driver_ready_order_1":
+        setSwipeTextCurrentStage("I'm ready");
+        break;
+      case "waiting_for_pickup_order_1":
+        setSwipeTextCurrentStage("I've arrived restaurant");
+        break;
+      case "restaurant_pickup_order_1":
+        setSwipeTextCurrentStage("I've picked up order");
+        break;
+      case "en_route_to_customer_order_1":
+        setSwipeTextCurrentStage("I've arrived destination");
+        setSelectedDestination(null);
+        setCurrentActiveLocation(null);
+        break;
+      case "delivery_complete_order_1":
+        setSwipeTextCurrentStage("Confirm delivery");
+        break;
+      default:
+        setSwipeTextCurrentStage("");
+    }
+  }, []);
 
-    isUpdatingRef.current = true;
-    console.log("Starting updateDriverProgress with stageId:", id);
-
-    // Check if current stage is en_route_to_customer
-    if (currentStage?.state.startsWith("en_route_to_customer")) {
+  // Update swipe text and modal when currentStage changes
+  useEffect(() => {
+    console.log("Current stage changed:", currentStage?.state);
+    updateSwipeText(currentStage);
+    if (
+      currentStage?.state === "delivery_complete_order_1" &&
+      currentStage?.status === "pending"
+    ) {
       setModalDetails({
         status: "YESNO",
-        title: "Are you sure?",
-        desc: "Please confirm your delivery",
+        title: "Confirm Delivery",
+        desc: "Have you delivered the order to the customer?",
       });
-      isUpdatingRef.current = false;
+    }
+  }, [currentStage, updateSwipeText]);
+
+  // Debounced setCurrentStage to avoid race conditions
+  const debouncedSetCurrentStage = useCallback(
+    debounce((stage: Stage | null) => {
+      console.log("Debounced updating currentStage to:", stage?.state);
+      setCurrentStage(stage);
+      setIsResetSwipe(true);
+      setTimeout(() => setIsResetSwipe(false), 100);
+    }, 300), // Reduced debounce time
+    []
+  );
+
+  // Process stages to determine the active stage
+  useEffect(() => {
+    console.log("Stages updated:", stages);
+    if (!stages?.length || transactions_processed) {
+      console.log("No stages or order completed, clearing currentStage");
+      debouncedSetCurrentStage(null);
+      setSwipeTextCurrentStage("");
+      setModalDetails({ status: "HIDDEN", title: "", desc: "" });
       return;
     }
 
-    // Deduplicate and sort stages by timestamp
-    const uniqueStages = stages
-      .reduce((acc, stage) => {
-        if (
-          !acc.find(
-            (s: Stage) =>
-              s.state === stage.state &&
-              s.status === stage.status &&
-              s.timestamp === stage.timestamp
-          )
-        ) {
-          acc.push(stage);
+    // Deduplicate stages by state and status, keeping the latest timestamp
+    const uniqueStages = Object.values(
+      stages.reduce((acc: { [key: string]: Stage }, stage: Stage) => {
+        const key = `${stage.state}_${stage.status}`;
+        if (!acc[key] || stage.timestamp > acc[key].timestamp) {
+          acc[key] = stage;
         }
         return acc;
-      }, [] as Stage[])
-      .sort((a, b) => a.timestamp - b.timestamp);
+      }, {})
+    ).sort((a: Stage, b: Stage) => {
+      return STAGE_ORDER.indexOf(a.state) - STAGE_ORDER.indexOf(b.state);
+    });
 
-    const nextStageIndex = uniqueStages.findIndex(
-      (stage) => stage.status === "in_progress" || stage.status === "pending"
+    console.log("Unique stages:", uniqueStages);
+
+    // Check if delivery is complete
+    const isDeliveryComplete = uniqueStages.some(
+      (s) => s.state === "delivery_complete_order_1" && s.status === "completed"
     );
-    const nextStage =
-      nextStageIndex !== -1 ? uniqueStages[nextStageIndex + 1] : null;
 
-    if (!nextStage) {
-      console.log("No next stage found", { uniqueStages });
-      isUpdatingRef.current = false;
+    if (isDeliveryComplete) {
+      console.log("Delivery complete, calling handleFinishProgress");
+      setCurrentActiveLocation(null);
+      handleFinishProgress();
       return;
     }
 
-    if (nextStage.status === "completed") {
-      console.log("Next stage already completed", { nextStage });
-      isUpdatingRef.current = false;
+    // Find the active stage (in_progress or pending)
+    let activeStage: Stage | null = null;
+    const inProgressStage = uniqueStages
+      .filter((s) => s.status === "in_progress")
+      .sort((a, b) => b.timestamp - a.timestamp)[0];
+
+    if (inProgressStage) {
+      activeStage = inProgressStage;
+    } else {
+      for (const stageState of STAGE_ORDER) {
+        const stage = uniqueStages
+          .filter((s) => s.state === stageState && s.status === "pending")
+          .sort((a, b) => b.timestamp - a.timestamp)[0];
+        if (stage) {
+          activeStage = stage;
+          break;
+        }
+      }
+    }
+
+    if (
+      activeStage &&
+      (!currentStage ||
+        currentStage.state !== activeStage.state ||
+        currentStage.status !== activeStage.status ||
+        currentStage.timestamp !== activeStage.timestamp)
+    ) {
+      console.log("Updating currentStage to:", activeStage);
+      debouncedSetCurrentStage(activeStage);
+    }
+  }, [stages, transactions_processed, debouncedSetCurrentStage]);
+
+  const handleUpdateProgress = useCallback(async () => {
+    console.log("handleUpdateProgress called", {
+      isWaitingForResponse,
+      isUpdating: isUpdatingRef.current,
+      isProcessing,
+      currentStage: currentStage?.state,
+      transactions_processed,
+      isSocketConnected,
+    });
+
+    if (
+      isWaitingForResponse ||
+      isUpdatingRef.current ||
+      isProcessing ||
+      transactions_processed ||
+      !currentStage ||
+      currentStage.status === "completed"
+    ) {
+      setCurrentActiveLocation(null);
+      console.log("Swipe blocked", {
+        isWaitingForResponse,
+        isUpdating: isUpdatingRef.current,
+        isProcessing,
+        transactions_processed,
+        currentStageStatus: currentStage?.status,
+      });
+
+      return;
+    }
+
+    if (!emitUpdateDriverProgress || !id) {
+      console.error("emitUpdateDriverProgress or id is missing");
+      setModalDetails({
+        status: "ERROR",
+        title: "Error",
+        desc: "Missing driver progress data. Please try again.",
+      });
       return;
     }
 
     try {
-      if (emitUpdateDriverProgress) {
-        console.log("Emitting updateDriverProgress with stageId:", id);
-        await emitUpdateDriverProgress({ stageId: id });
-      }
+      isUpdatingRef.current = true;
+      setIsProcessing(true);
+      console.log("Starting updateDriverProgress with stageId:", id);
+      await emitUpdateDriverProgress({ stageId: id });
       setIsResetSwipe(true);
-      setTimeout(() => {
-        setIsResetSwipe(false);
-      }, 300);
-      setCurrentStage(nextStage);
+      setTimeout(() => setIsResetSwipe(false), 100);
     } catch (error) {
       console.error("Error updating progress:", error);
-      setIsResetSwipe(false);
+      setModalDetails({
+        status: "ERROR",
+        title: "Connection Issue",
+        desc: isSocketConnected
+          ? "Failed to update progress. Please try again."
+          : "Network issue detected. Your action has been queued and will be processed when the connection is restored.",
+      });
     } finally {
+      console.log("Resetting isProcessing and isUpdatingRef");
       isUpdatingRef.current = false;
+      setIsProcessing(false);
     }
   }, [
     id,
     emitUpdateDriverProgress,
-    stages,
     isWaitingForResponse,
+    isProcessing,
     currentStage,
+    transactions_processed,
+    isSocketConnected,
   ]);
-
-  useEffect(() => {
-    if (stages.length > 0) {
-      // Deduplicate and sort stages by timestamp
-      const uniqueStages = stages
-        .reduce((acc, stage) => {
-          if (
-            !acc.find(
-              (s: Stage) =>
-                s.state === stage.state &&
-                s.status === stage.status &&
-                s.timestamp === stage.timestamp
-            )
-          ) {
-            acc.push(stage);
-          }
-          return acc;
-        }, [] as Stage[])
-        .sort((a, b) => a.timestamp - b.timestamp);
-
-      const activeStage =
-        uniqueStages.find(
-          (stage) =>
-            stage.status === "in_progress" || stage.status === "pending"
-        ) || uniqueStages[uniqueStages.length - 1];
-
-      if (!currentStage || currentStage.state !== activeStage.state) {
-        console.log("Updating currentStage:", activeStage);
-        setCurrentStage(activeStage);
-      }
-    } else if (stages.length === 0 && currentStage) {
-      setCurrentStage(null);
-    }
-  }, [stages]);
-
   const handleFinishProgress = async () => {
     try {
-      if (emitUpdateDriverProgress) {
+      if (emitUpdateDriverProgress && id) {
         console.log("Emitting final updateDriverProgress with stageId:", id);
         await emitUpdateDriverProgress({ stageId: id });
       }
@@ -237,7 +310,7 @@ const HomeScreen = () => {
         stages?.map((item) => ({
           ...item,
           address: item.details?.restaurantDetails?.address
-            ? item.details.restaurantDetails?.address
+            ? item.details.restaurantDetails.address
             : item.details?.customerDetails?.address?.[0],
         }))
       ).find((item) => item.type === "DROPOFF") as {
@@ -248,7 +321,7 @@ const HomeScreen = () => {
         stages?.map((item) => ({
           ...item,
           address: item.details?.restaurantDetails?.address
-            ? item.details.restaurantDetails?.address
+            ? item.details.restaurantDetails.address
             : item.details?.customerDetails?.address?.[0],
         }))
       ).find((item) => item.type === "PICKUP") as {
@@ -256,12 +329,22 @@ const HomeScreen = () => {
         avatar: Avatar;
       };
 
+      if (!orders[0]) {
+        console.error("No orders available");
+        setIsProcessing(false);
+        return;
+      }
+
+      await AsyncStorage.removeItem("driverProgressStage");
+      dispatch(clearDriverProgressStage());
       setCurrentActiveLocation(null);
-      setCurrentStage(null);
-      setIsResetSwipe(true);
-      setModalDetails({ status: "HIDDEN", desc: "", title: "" });
       setSelectedDestination(null);
+      setCurrentStage(null);
       setSwipeTextCurrentStage("");
+      setModalDetails({ status: "HIDDEN", desc: "", title: "" });
+      setIsResetSwipe(true);
+      setTimeout(() => setIsResetSwipe(false), 100);
+      setIsProcessing(false);
       completeOrder();
 
       navigation.navigate("Rating", {
@@ -271,6 +354,12 @@ const HomeScreen = () => {
       });
     } catch (error) {
       console.error("Error finishing progress:", error);
+      setIsProcessing(false);
+      setModalDetails({
+        status: "ERROR",
+        title: "Error",
+        desc: "Failed to complete order. Please try again.",
+      });
     }
   };
 
@@ -281,6 +370,19 @@ const HomeScreen = () => {
       openGoogleMaps(location);
     }
   };
+
+  const handleGoNow = async () => {
+    setCurrentActiveLocation(selectedDestination);
+  };
+
+  // Reset isProcessing when receiving driverStagesUpdated
+  useEffect(() => {
+    if (!isWaitingForResponse && isProcessing) {
+      console.log("Resetting isProcessing after driverStagesUpdated");
+      setIsProcessing(false);
+      isUpdatingRef.current = false;
+    }
+  }, [isWaitingForResponse, isProcessing]);
 
   return (
     <FFSafeAreaView>
@@ -393,9 +495,10 @@ const HomeScreen = () => {
                   </TouchableOpacity>
                   <View
                     style={{
-                      backgroundColor: isWaitingForResponse
-                        ? "#e0e0e0"
-                        : "#0EB228",
+                      backgroundColor:
+                        isWaitingForResponse || isProcessing
+                          ? "#e0e0e0"
+                          : "#0EB228",
                     }}
                     className="overflow-hidden flex-1 relative my-4 rounded-lg "
                   >
@@ -403,7 +506,9 @@ const HomeScreen = () => {
                       reset={isResetSwipe}
                       isDisabled={
                         isWaitingForResponse ||
-                        currentStage?.state.startsWith("delivery_complete")
+                        isProcessing ||
+                        currentStage?.status === "completed" ||
+                        transactions_processed
                       }
                       onSwipe={handleUpdateProgress}
                       direction="right"
@@ -435,7 +540,7 @@ const HomeScreen = () => {
                   stages?.map((item) => ({
                     ...item,
                     address: item.details?.restaurantDetails?.address
-                      ? item.details.restaurantDetails?.address
+                      ? item.details.restaurantDetails.address
                       : item.details?.customerDetails?.address?.[0],
                   }))
                 )}
@@ -497,6 +602,8 @@ const HomeScreen = () => {
               onPress={() => {
                 setModalDetails({ status: "HIDDEN", desc: "", title: "" });
                 setIsResetSwipe(true);
+                setTimeout(() => setIsResetSwipe(false), 100);
+                setIsProcessing(false);
               }}
               className=" flex-1 items-center py-3 px-4 rounded-lg"
             >
@@ -504,7 +611,8 @@ const HomeScreen = () => {
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => {
-                handleFinishProgress();
+                setIsProcessing(true);
+                handleUpdateProgress(); // Trigger stage update for delivery_complete
               }}
               className=" flex-1 items-center py-3 px-4 rounded-lg"
             >

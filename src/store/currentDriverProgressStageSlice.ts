@@ -59,8 +59,8 @@ export interface StageDetails {
   notes?: string;
   tip?: number;
   weather?: { temperature?: number; condition?: string };
-  customerDetails?: Customer; // Thêm customerDetails
-  restaurantDetails?: Restaurant; // Thêm restaurantDetails
+  customerDetails?: Customer;
+  restaurantDetails?: Restaurant;
 }
 
 export interface Stage {
@@ -127,6 +127,7 @@ export interface DriverProgressStageState {
   updated_at: number | null;
   total_earns: number | null;
   orders: Order[];
+  transactions_processed: boolean; // Thêm field này
 }
 
 // Khởi tạo state ban đầu
@@ -146,6 +147,7 @@ export const initialState: DriverProgressStageState = {
   updated_at: null,
   total_earns: null,
   orders: [],
+  transactions_processed: false, // Khởi tạo false
 };
 
 // AsyncThunk để load dữ liệu từ AsyncStorage
@@ -175,7 +177,6 @@ export const clearDriverProgressStage = createAsyncThunk(
   async (_, { dispatch }) => {
     await AsyncStorage.removeItem("currentDriverProgressStage");
     console.log("check clear sach");
-
     dispatch(clearState());
   }
 );
@@ -201,6 +202,7 @@ const currentDriverProgressStageSlice = createSlice({
         created_at,
         updated_at,
         orders,
+        transactions_processed, // Thêm field
       } = action.payload;
 
       // Filter duplicate stages
@@ -233,6 +235,7 @@ const currentDriverProgressStageSlice = createSlice({
       state.created_at = created_at;
       state.updated_at = updated_at;
       state.orders = orders;
+      state.transactions_processed = transactions_processed || false; // Cập nhật field
     },
     updateCurrentState: (state, action) => {
       state.current_state = action.payload;
@@ -259,7 +262,10 @@ const currentDriverProgressStageSlice = createSlice({
       state.stages = uniqueStages;
       state.updated_at = Math.floor(Date.now() / 1000);
     },
-    clearState: () => initialState,
+    clearState: () => ({
+      ...initialState,
+      transactions_processed: false, // Reset field
+    }),
   },
   extraReducers: (builder) => {
     builder
@@ -283,6 +289,7 @@ const currentDriverProgressStageSlice = createSlice({
               created_at,
               updated_at,
               orders,
+              transactions_processed, // Thêm field
             } = action.payload;
             // Filter duplicate stages
             const uniqueStages = stages.reduce((acc: Stage[], stage: Stage) => {
@@ -313,6 +320,7 @@ const currentDriverProgressStageSlice = createSlice({
             state.created_at = created_at;
             state.updated_at = updated_at;
             state.orders = orders;
+            state.transactions_processed = transactions_processed || false; // Cập nhật field
           }
         }
       )
@@ -335,6 +343,7 @@ const currentDriverProgressStageSlice = createSlice({
             created_at,
             updated_at,
             orders,
+            transactions_processed, // Thêm field
           } = action.payload;
           // Filter duplicate stages
           const uniqueStages = stages.reduce((acc: Stage[], stage: Stage) => {
@@ -365,9 +374,13 @@ const currentDriverProgressStageSlice = createSlice({
           state.created_at = created_at;
           state.updated_at = updated_at;
           state.orders = orders;
+          state.transactions_processed = transactions_processed || false; // Cập nhật field
         }
       )
-      .addCase(clearDriverProgressStage.fulfilled, () => initialState);
+      .addCase(clearDriverProgressStage.fulfilled, () => ({
+        ...initialState,
+        transactions_processed: false, // Reset field
+      }));
   },
 });
 
