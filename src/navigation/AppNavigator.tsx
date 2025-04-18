@@ -163,7 +163,7 @@ const MainNavigator = () => {
     });
     setIsShowToast(false);
   };
-
+  console.log("check toatol", latestOrder);
   return (
     <>
       <SidebarStack.Navigator initialRouteName="Home">
@@ -241,14 +241,15 @@ const MainNavigator = () => {
       </SidebarStack.Navigator>
       <Spinner isVisible={isLoading} isOverlay />
       <FFToast
+        title="Incoming Order"
         disabledClose
+        variant="SUCCESS"
         onAccept={handleAcceptOrder}
         onReject={() => setIsShowToast(false)}
         onClose={() => setIsShowToast(false)}
         visible={isShowToast}
         isApprovalType
       >
-        <FFText>Incoming Order</FFText>
         <View className="flex-row items-center gap-4">
           <View className="flex-row items-center gap-1">
             <FFText fontSize="sm" fontWeight="500">
