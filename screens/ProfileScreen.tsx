@@ -15,6 +15,9 @@ import FFText from "@/src/components/FFText";
 import IconMaterialIcons from "react-native-vector-icons/MaterialIcons";
 import IconMaterialCommunityIcons from "react-native-vector-icons/MaterialCommunityIcons";
 import FFAvatar from "@/src/components/FFAvatar";
+import theme from "@/src/theme";
+import FFModal from "@/src/components/FFModal";
+
 type ProfileSreenNavigationProp = StackNavigationProp<
   SidebarStackParamList,
   "Profile"
@@ -67,6 +70,9 @@ const ProfileScreen = () => {
   const [profileData, setProfileData] = useState<Props_ProfileData | null>(
     null
   );
+  const [reviewsData, setReviewsData] = useState<any>(null);
+  const [showErrorModal, setShowErrorModal] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
     const fetchProfileData = async () => {
@@ -114,6 +120,28 @@ const ProfileScreen = () => {
     }
   }, [profileData]);
 
+  useEffect(() => {
+    const fetchReviews = async () => {
+      try {
+        const response = await axiosInstance.get(
+          `/drivers/${driverId}/ratings-reviews`
+        );
+        const { EC, EM, data } = response.data;
+        console.log("check response", response.data);
+        if (EC === 0) {
+          setReviewsData(data);
+        } else {
+          setErrorMessage(EM);
+          setShowErrorModal(true);
+        }
+      } catch (error) {
+        setErrorMessage("Error fetching reviews");
+        setShowErrorModal(true);
+      }
+    };
+    fetchReviews();
+  }, [driverId]);
+
   console.log("Check profile data", email, phone);
 
   return (
@@ -137,7 +165,9 @@ const ProfileScreen = () => {
                   <View className="p-1 rounded-full bg-[#cdcd0c]">
                     <IconAntDesign name="star" size={12} color="#fff" />
                   </View>
-                  <FFText>5.0</FFText>
+                  <FFText>
+                    {reviewsData?.average_delivery_rating?.toFixed(1) || "0.0"}
+                  </FFText>
                   <FFText fontSize="sm" fontWeight="400">
                     Ratings
                   </FFText>
@@ -153,9 +183,9 @@ const ProfileScreen = () => {
                       color="#fff"
                     />
                   </View>
-                  <FFText>5.0</FFText>
+                  <FFText>{reviewsData?.total_reviews || 0}</FFText>
                   <FFText fontSize="sm" fontWeight="400">
-                    Total Orders
+                    Total Reviews
                   </FFText>
                 </View>
                 <View
@@ -188,69 +218,32 @@ const ProfileScreen = () => {
               <FlatList
                 horizontal
                 className="py-2"
-                data={[
-                  {
-                    id: "1",
-                    reviewer: {
-                      avatar: { url: "url_to_avatar_1", key: "avatar_key_1" },
-                      first_name: "Doraemon",
-                      last_name: "Nobi",
-                    },
-                    rating: 4.2,
-                    review: "Banh ran cholesterol",
-                    updated_at: "1 days ago",
-                    images: [
-                      { url: "url_to_image_1", key: "image_key_1" },
-                      { url: "url_to_image_2", key: "image_key_2" },
-                    ],
-                  },
-                  {
-                    id: "2",
-                    reviewer: {
-                      avatar: { url: "url_to_avatar_2", key: "avatar_key_2" },
-                      first_name: "Nobita",
-                      last_name: "Nobi",
-                    },
-                    rating: 4.5,
-                    review: "Great service, very satisfied!",
-                    updated_at: "2 days ago",
-                    images: [
-                      { url: "url_to_image_3", key: "image_key_3" },
-                      { url: "url_to_image_4", key: "image_key_4" },
-                    ],
-                  },
-                  {
-                    id: "3",
-                    reviewer: {
-                      avatar: { url: "url_to_avatar_3", key: "avatar_key_3" },
-                      first_name: "Nobita",
-                      last_name: "Nobi",
-                    },
-                    rating: 3.8,
-                    review: "Good, but can be improved.",
-                    updated_at: "3 days ago",
-                    images: [
-                      { url: "url_to_image_5", key: "image_key_5" },
-                      { url: "url_to_image_6", key: "image_key_6" },
-                    ],
-                  },
-                ]}
-                renderItem={({ item }: { item: ReviewItem }) => (
+                data={reviewsData?.reviews || []}
+                renderItem={({ item }) => (
                   <View
                     style={{ elevation: 3, maxWidth: 200 }}
                     className="flex-1 p-4 gap-2 items-center rounded-lg bg-white"
                   >
-                    <View className="flex-row justify-start w-full  items-center gap-2">
-                      <FFAvatar size={40} />
+                    <View className="flex-row justify-start w-full items-center gap-2">
+                      {item.reviewer?.avatar ? (
+                        <Image
+                          source={{ uri: item.reviewer.avatar.url }}
+                          className="w-10 h-10 rounded-full"
+                        />
+                      ) : (
+                        <FFAvatar size={40} />
+                      )}
                       <FFText>
-                        {item.reviewer.first_name} {item.reviewer.last_name}
+                        {item.reviewer
+                          ? `${item.reviewer.first_name} ${item.reviewer.last_name}`
+                          : "Anonymous"}
                       </FFText>
                     </View>
                     <View className="w-full flex-row justify-between items-center">
                       <View className="flex-row items-center gap-1">
                         <IconAntDesign name="star" size={12} color="#4d9c39" />
                         <FFText fontWeight="400" fontSize="sm">
-                          {item.rating}
+                          {item.delivery_rating}
                         </FFText>
                       </View>
                       <FFText
@@ -258,19 +251,23 @@ const ProfileScreen = () => {
                         fontSize="sm"
                         style={{ color: "#aaa" }}
                       >
-                        {item.updated_at}
+                        {new Date(item.created_at * 1000).toLocaleDateString()}
                       </FFText>
                     </View>
-                    <FFText
-                      fontSize="sm"
-                      fontWeight="500"
-                      style={{ textAlign: "left" }}
-                    >
-                      {item.review}
-                    </FFText>
+                    <View style={{ width: "100%" }}>
+                      <FFText
+                        fontSize="sm"
+                        fontWeight="500"
+                        style={{ textAlign: "left" }}
+                      >
+                        {item.delivery_review ||
+                          item.food_review ||
+                          "No review text"}
+                      </FFText>
+                    </View>
                   </View>
                 )}
-                keyExtractor={(item: any) => item.id}
+                keyExtractor={(item) => item.id}
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={{ gap: 8 }}
               />
@@ -289,6 +286,23 @@ const ProfileScreen = () => {
           />
         )}
       </View>
+      <FFModal
+        visible={showErrorModal}
+        onClose={() => setShowErrorModal(false)}
+      >
+        <View className="p-4 gap-4">
+          <FFText fontSize="lg" fontWeight="600" className="text-center">
+            Error
+          </FFText>
+          <FFText className="text-center">{errorMessage}</FFText>
+          <TouchableOpacity
+            onPress={() => setShowErrorModal(false)}
+            className="bg-[#4d9c39] p-3 rounded-lg items-center"
+          >
+            <FFText style={{ color: "#fff" }}>OK</FFText>
+          </TouchableOpacity>
+        </View>
+      </FFModal>
     </FFSafeAreaView>
   );
 };

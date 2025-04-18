@@ -19,6 +19,7 @@ import Spinner from "@/src/components/FFSpinner";
 import { DriverProgressStageState } from "@/src/store/currentDriverProgressStageSlice";
 import {
   formatEpochToDate,
+  formatMinutesToHoursAndMinutes,
   limitMaxCharacters,
   limitMaxWords,
 } from "@/src/utils/functions";
@@ -168,7 +169,11 @@ const TrackHistoryScreen = () => {
                 </View>
                 <View className="flex-row items-center gap-2">
                   <IconFeather name="clock" />
-                  <FFText fontSize="sm">{item?.actual_time_spent}m</FFText>
+                  <FFText fontSize="sm">
+                    {formatMinutesToHoursAndMinutes(
+                      item?.actual_time_spent || 0
+                    )}
+                  </FFText>
                 </View>
               </View>
             </View>

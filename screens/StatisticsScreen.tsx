@@ -42,8 +42,22 @@ const StatisticsScreen = () => {
   const { driverId } = useSelector((state: RootState) => state.auth);
 
   const [isLoading, setIsLoading] = useState(false);
-  const [startDate, setStartDate] = useState(new Date());
-  const [endDate, setEndDate] = useState(new Date());
+  const [startDate, setStartDate] = useState(() => {
+    const now = new Date();
+    const day = now.getDay();
+    const diff = now.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
+    const start = new Date(now.setDate(diff));
+    start.setHours(0, 0, 0, 0);
+    return start;
+  });
+  const [endDate, setEndDate] = useState(() => {
+    const now = new Date();
+    const day = now.getDay();
+    const diff = now.getDate() - day + (day === 0 ? 0 : 7); // Adjust when day is Sunday
+    const end = new Date(now.setDate(diff));
+    end.setHours(23, 59, 59, 999);
+    return end;
+  });
   const [showStartPicker, setShowStartPicker] = useState(false);
   const [showEndPicker, setShowEndPicker] = useState(false);
   const [tempStartMonth, setTempStartMonth] = useState(startDate.getMonth());
@@ -161,8 +175,11 @@ const StatisticsScreen = () => {
   // Trong StatisticsScreen
   const getChartLabels = () => {
     return statsRecords.map((record) => {
-      const date = new Date(parseInt(record.period_start) * 1000); // Chuyển epoch sang Date
-      return date.toLocaleDateString("en-US", { weekday: "short" }); // Lấy tên ngày trong tuần (Mon, Tue, ...)
+      const date = new Date(parseInt(record.period_start) * 1000);
+      return date.toLocaleDateString("en-VN", {
+        month: "numeric",
+        day: "numeric",
+      });
     });
   };
 

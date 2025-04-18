@@ -1,5 +1,5 @@
 import React from "react";
-import { View, StyleSheet, Dimensions, Text } from "react-native";
+import { View, StyleSheet, Dimensions, Text, ScrollView } from "react-native";
 import { useTheme } from "../hooks/useTheme";
 import FFButton from "./FFButton";
 
@@ -7,7 +7,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CHART_HEIGHT = 200; // Chiều cao cố định cho biểu đồ
 const BAR_WIDTH = 10; // Độ rộng của mỗi cột
 const BAR_SPACING = 20; // Khoảng cách giữa các cột
-const Y_AXIS_WIDTH = 30; // Chiều rộng của trục Y
+const Y_AXIS_WIDTH = 40; // Chiều rộng của trục Y
 
 interface FFBarChartProps {
   data: number[]; // Mảng dữ liệu
@@ -62,36 +62,43 @@ const FFBarChart: React.FC<FFBarChartProps> = ({
             <Text
               key={index}
               style={[styles.yLabel, { color: currentTheme.text }]}
+              numberOfLines={1}
             >
               {value.toFixed(2)} {/* Hiển thị 2 chữ số thập phân */}
             </Text>
           ))}
         </View>
 
-        {/* Các cột và trục X */}
-        <View style={styles.chartContainer}>
-          {validData.map((value, index) => {
-            // Tính chiều cao cột dựa trên giá trị và tỷ lệ với CHART_HEIGHT
-            const barHeight = (value / maxValue) * (CHART_HEIGHT - 20); // Trừ 20 để chừa chỗ cho nhãn trục X
-            return (
-              <View key={index} style={styles.barWrapper}>
-                <View
-                  style={[
-                    styles.bar,
-                    {
-                      height: barHeight < 1 ? 1 : barHeight, // Đảm bảo cột tối thiểu 1px để thấy được
-                      backgroundColor: currentTheme.barColor,
-                      width: BAR_WIDTH,
-                    },
-                  ]}
-                />
-                <Text style={[styles.xLabel, { color: currentTheme.text }]}>
-                  {validLabels[index]}
-                </Text>
-              </View>
-            );
-          })}
-        </View>
+        {/* Scrollable chart area */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+        >
+          <View style={styles.chartContainer}>
+            {validData.map((value, index) => {
+              // Tính chiều cao cột dựa trên giá trị và tỷ lệ với CHART_HEIGHT
+              const barHeight = (value / maxValue) * (CHART_HEIGHT - 20); // Trừ 20 để chừa chỗ cho nhãn trục X
+              return (
+                <View key={index} style={styles.barWrapper}>
+                  <View
+                    style={[
+                      styles.bar,
+                      {
+                        height: barHeight < 1 ? 1 : barHeight, // Đảm bảo cột tối thiểu 1px để thấy được
+                        backgroundColor: currentTheme.barColor,
+                        width: BAR_WIDTH,
+                      },
+                    ]}
+                  />
+                  <Text style={[styles.xLabel, { color: currentTheme.text }]}>
+                    {validLabels[index]}
+                  </Text>
+                </View>
+              );
+            })}
+          </View>
+        </ScrollView>
       </View>
       <View className="w-full">
         <FFButton className="w-full">View Details</FFButton>
@@ -114,13 +121,17 @@ const styles = StyleSheet.create({
   yLabel: {
     fontSize: 12,
     textAlign: "right",
+    width: Y_AXIS_WIDTH,
+  },
+  scrollContent: {
+    flexGrow: 1,
   },
   chartContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
     height: CHART_HEIGHT,
     alignItems: "flex-end",
-    flex: 1,
+    paddingRight: 20,
   },
   barWrapper: {
     alignItems: "center",

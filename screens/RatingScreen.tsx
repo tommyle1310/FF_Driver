@@ -69,8 +69,8 @@ const RatingScreen = () => {
         order_id: orderId,
         food_rating: rating,
         delivery_rating: rating,
-        delivery_review: undefined,
         food_review: review,
+        delivery_review: review,
       };
       console.log("Rating submitted", requestData);
 
@@ -92,8 +92,10 @@ const RatingScreen = () => {
           setTypeRating("CUSTOMER");
           return;
         }
-        completeOrder(); // Call completeOrder
+        completeOrder();
         navigation.navigate("Home", {});
+      } else {
+        console.error("Error submitting rating:", EM);
       }
     } catch (error) {
       console.error("Error submitting rating", error);

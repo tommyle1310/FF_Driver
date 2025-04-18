@@ -20,6 +20,7 @@ import Spinner from "@/src/components/FFSpinner";
 import {
   formatEpochToDate,
   formatEpochToDateTime,
+  formatMinutesToHoursAndMinutes,
 } from "@/src/utils/functions";
 import FFSkeleton from "@/src/components/FFSkeleton";
 import {
@@ -90,8 +91,6 @@ const OrderHistoryDetailsScreen = () => {
     }
   };
 
-  console.log("cehck dps", dps);
-
   return (
     <FFSafeAreaView>
       <ScrollView>
@@ -140,7 +139,9 @@ const OrderHistoryDetailsScreen = () => {
                 />
                 <FFJBRowItem
                   leftItem="Duration"
-                  rightItem={`${dps?.actual_time_spent}m`}
+                  rightItem={`${formatMinutesToHoursAndMinutes(
+                    dps?.actual_time_spent || 0
+                  )}`}
                   leftItemCss={{}}
                   rightItemCss={{ fontWeight: "600" }}
                 />

@@ -52,6 +52,7 @@ export function formatEpochToDate(epochTimestamp: number): string {
   // Trả về định dạng dd/mm/yyyy
   return `${day}/${month}/${year}`;
 }
+
 export function formatEpochToDateTime(epochTimestamp: number): string {
   // Kiểm tra xem timestamp là giây (10 chữ số) hay mili giây (13 chữ số)
   const timestampInMs =
@@ -72,4 +73,13 @@ export function formatEpochToDateTime(epochTimestamp: number): string {
 
   // Trả về định dạng hh:mm dd/mm/yyyy
   return `${hours}:${minutes} ${day}/${month}/${year}`;
+}
+
+export function formatMinutesToHoursAndMinutes(minutes: number): string {
+  if (minutes < 60) {
+    return `${minutes}m`;
+  }
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  return `${hours}h ${remainingMinutes}m`;
 }
