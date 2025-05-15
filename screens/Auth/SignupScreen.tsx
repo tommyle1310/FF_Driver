@@ -4,17 +4,27 @@ import { useNavigation } from "@react-navigation/native";
 import FFAuthForm from "./FFAuthForm";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { LinearGradient } from "expo-linear-gradient";
-import { AuthStackParamList, RootStackParamList } from "@/src/navigation/AppNavigator";
+import {
+  AuthStackParamList,
+  RootStackParamList,
+} from "@/src/navigation/AppNavigator";
 import axiosInstance from "@/src/utils/axiosConfig";
 import { useDispatch } from "@/src/store/types";
 import { setAuthState } from "@/src/store/authSlice";
 import FFModal from "@/src/components/FFModal";
 import FFText from "@/src/components/FFText";
-import { TextInput, TouchableOpacity, View, Text } from "react-native";
+import {
+  TextInput,
+  TouchableOpacity,
+  View,
+  Text,
+  ScrollView,
+} from "react-native";
 import IconIonicon from "react-native-vector-icons/Ionicons";
 
 import FFButton from "@/src/components/FFButton";
 import Spinner from "@/src/components/FFSpinner";
+import { spacing } from "@/src/theme";
 
 type SignupScreenNavigationProp = StackNavigationProp<
   AuthStackParamList,
@@ -34,49 +44,51 @@ const Signup = () => {
   const [isOpenVerificationModal, setIsOpenVerificationModal] =
     useState<boolean>(false);
 
-  const handleSignupSubmit = (email: string, password: string) => {
-    // Set loading to true when starting the request
+  const handleSignupSubmit = async (basicInfo: any, vehicleInfo: any) => {
     setLoading(true);
+    setEmail(basicInfo.email);
 
-    // Request body
-    const requestBody = {
-      email: email,
-      password: password,
-    };
-
-    // Make the POST request
-    axiosInstance
-      .post("/auth/register-driver", requestBody, {
-        validateStatus: () => true, // Always return true so axios doesn't throw on errors
-      })
-      .then((response) => {
-        // Set loading to false once the response is received
-        setLoading(false);
-
-        if (response.data) {
-          const { EC, EM } = response.data; // Access EC directly
-
-
-          if (EC === 0) {
-            // Success
-            setEmail(email); // Ensure email state is set
-            setIsOpenVerificationModal(true); // Open the verification modal
-          } else {
-            // Handle error based on EC (optional)
-            setError(EM);
-          }
-        } else {
-          // If there is no data or the response is malformed
-          setError("Something went wrong. Please try again.");
+    try {
+      // Step 1: Register driver with basic info
+      const registerResponse = await axiosInstance.post(
+        "/auth/register-driver",
+        basicInfo,
+        {
+          validateStatus: () => true,
         }
-      })
-      .catch((error) => {
-        // Set loading to false if there's an error
-        setLoading(false);
+      );
+      console.log("cehck data", registerResponse.data);
 
-        // Handle the error (e.g., network error)
-        setError("Network error. Please try again later.");
-      });
+      if (registerResponse.data && registerResponse.data.EC === 0) {
+        // If registration successful and we have vehicle info
+        if (vehicleInfo && registerResponse.data.data.id) {
+          // Step 2: Update driver with vehicle info
+          const updateResponse = await axiosInstance.patch(
+            `/drivers/${registerResponse.data.data.id}`,
+            vehicleInfo,
+            {
+              validateStatus: () => true,
+            }
+          );
+
+          if (updateResponse.data && updateResponse.data.EC !== 0) {
+            setError(
+              updateResponse.data.EM || "Failed to update vehicle information"
+            );
+            setLoading(false);
+            return;
+          }
+        }
+
+        setIsOpenVerificationModal(true);
+      } else {
+        setError(registerResponse.data?.EM || "Registration failed");
+      }
+    } catch (error) {
+      setError("Network error. Please try again later.");
+    }
+
+    setLoading(false);
   };
 
   const handleSubmitVerificationCode = () => {
@@ -125,12 +137,14 @@ const Signup = () => {
           isOverlay={true}
           overlayColor="rgba(0, 0, 0, 0.5)"
         />
-        <FFAuthForm
-          isSignUp={true}
-          onSubmit={handleSignupSubmit}
-          navigation={navigation}
-          error={error}
-        />
+        <ScrollView style={{ width: "116%", padding: spacing.lg }}>
+          <FFAuthForm
+            isSignUp={true}
+            onSubmit={handleSignupSubmit}
+            navigation={navigation}
+            error={error}
+          />
+        </ScrollView>
       </LinearGradient>
 
       <FFModal
@@ -183,16 +197,19 @@ const Signup = () => {
               size={30}
               className="text-center"
             />
-         <View>
-             <Text className="text-lg font-bold text-center">
-              Your email is verified
-            </Text>
-            <Text className="text-sm text-gray-500">
-              Thank you for joining us at Flashfood! We're excited to have you
-              on board and hope you have a wonderful experience with us!
-            </Text>
-         </View>
-            <TouchableOpacity onPress={() => navigation.navigate('Login')} className="flex-row gap-1 items-center justify-center">
+            <View>
+              <Text className="text-lg font-bold text-center">
+                Your email is verified
+              </Text>
+              <Text className="text-sm text-gray-500">
+                Thank you for joining us at Flashfood! We're excited to have you
+                on board and hope you have a wonderful experience with us!
+              </Text>
+            </View>
+            <TouchableOpacity
+              onPress={() => navigation.navigate("Login")}
+              className="flex-row gap-1 items-center justify-center"
+            >
               <Text className="text-[#a140e1] text-underline text-center font-semibold text-lg">
                 Go to Login
               </Text>

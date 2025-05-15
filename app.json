@@ -3,10 +3,7 @@
     "name": "FF_Driver",
     "slug": "ff-driver",
     "version": "1.0.0",
-    "platforms": [
-      "ios",
-      "android"
-    ],
+    "platforms": ["ios", "android"],
     "orientation": "portrait",
     "scheme": "myapp",
     "userInterfaceStyle": "automatic",
@@ -32,7 +29,9 @@
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
         }
-      ]
+      ],
+      "expo-router",
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true
@@ -41,10 +40,10 @@
       "eas": {
         "projectId": "77a60071-730e-4268-82cc-4fa1d9886cdf"
       }
+    },
+    "updates": {
+      "enabled": true,
+      "checkAutomatically": "ON_LOAD"
     }
-  },
-  "updates": {
-    "enabled": true,
-    "checkAutomatically": "ON_LOAD"
   }
 }
