@@ -30,15 +30,17 @@ export const toggleAvailability = createAsyncThunk<
       const driverId = getState().auth.driverId; // Get driverId from auth state
       const response = await axiosInstance.patch(
         `/drivers/${driverId}/availability`,
+        { available_for_work: !getState().auth.available_for_work },
         {
           validateStatus: () => true, // Always return true so axios doesn't throw on errors
         }
       );
 
       const { EC, EM } = response.data;
+      console.log('check reéponresdaâ', response.data)
       if (EC === 0) {
         const newAvailableForWork = Boolean(
-          response.data.data.available_for_work
+          !getState().auth.available_for_work
         );
 
         // Get current state and include all required properties

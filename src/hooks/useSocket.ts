@@ -53,11 +53,29 @@ export const useSocket = (
   const maxReconnectAttempts = 5;
   const reconnectDelay = 2000;
   const [networkState, setNetworkState] = useState<boolean | null>(null);
+  
+  // Thêm các ref để tránh tạo socket nhiều lần
+  const isConnectingRef = useRef(false);
+  const connectionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastConnectionAttemptRef = useRef<number>(0);
 
   const reconnectSocket = () => {
+    // Tránh reconnect quá nhanh
+    const now = Date.now();
+    if (now - lastConnectionAttemptRef.current < 1000) {
+      console.log("Reconnect attempt too soon, skipping");
+      return;
+    }
+    lastConnectionAttemptRef.current = now;
+
     if (reconnectAttemptsRef.current >= maxReconnectAttempts) {
       console.error("Max reconnection attempts reached");
       setIsSocketConnected(false);
+      return;
+    }
+
+    if (isConnectingRef.current) {
+      console.log("Already attempting to connect, skipping");
       return;
     }
 
@@ -70,21 +88,30 @@ export const useSocket = (
       `Attempting to reconnect (attempt ${reconnectAttemptsRef.current}) in ${delay}ms`
     );
 
-    setTimeout(() => {
+    if (connectionTimeoutRef.current) {
+      clearTimeout(connectionTimeoutRef.current);
+    }
+
+    connectionTimeoutRef.current = setTimeout(() => {
       if (socketRef.current?.connected) {
         console.log("Socket already connected, skipping reconnect");
         reconnectAttemptsRef.current = 0;
+        isConnectingRef.current = false;
         return;
       }
       if (!networkState) {
         console.log("No network connection, skipping reconnect");
+        isConnectingRef.current = false;
         return;
       }
+      
+      isConnectingRef.current = true;
       setupSocket();
       if (socketRef.current) {
         socketRef.current.connect();
         setupSocketListeners();
       }
+      isConnectingRef.current = false;
     }, delay);
   };
 
@@ -111,39 +138,48 @@ export const useSocket = (
         console.log("Socket already connected, skipping setup");
         return;
       }
+      // Cleanup existing socket properly
+      socketRef.current.removeAllListeners();
       socketRef.current.disconnect();
       socketRef.current = null;
     }
 
+    console.log("Creating new socket connection");
     socketRef.current = io(`${BACKEND_URL}/driver`, {
       transports: ["websocket"],
       extraHeaders: {
         auth: `Bearer ${accessToken}`,
       },
-      reconnection: false,
+      reconnection: false, // Tự quản lý reconnection
       query: { driverId },
       timeout: 20000,
-      pingTimeout: 30000,
-      pingInterval: 10000,
+      pingTimeout: 60000, // Tăng timeout
+      pingInterval: 25000, // Tăng interval
+      forceNew: true, // Force tạo connection mới
     });
   };
 
   const cleanupSocketListeners = () => {
     if (socketRef.current) {
       console.log("Cleaning up socket listeners");
-      socketRef.current.off("connect");
-      socketRef.current.off("connect_error");
-      socketRef.current.off("reconnect");
-      socketRef.current.off("incomingOrderForDriver");
-      socketRef.current.off("notifyOrderStatus");
-      socketRef.current.off("driverStagesUpdated");
-      socketRef.current.off("driverAcceptOrder");
-      socketRef.current.off("disconnect");
-      if (!socketRef.current.connected) {
+      socketRef.current.removeAllListeners();
+      if (socketRef.current.connected) {
         socketRef.current.disconnect();
       }
       socketRef.current = null;
     }
+    
+    // Clear timeouts
+    if (connectionTimeoutRef.current) {
+      clearTimeout(connectionTimeoutRef.current);
+      connectionTimeoutRef.current = null;
+    }
+    if (responseTimeoutRef.current) {
+      clearTimeout(responseTimeoutRef.current);
+      responseTimeoutRef.current = null;
+    }
+    
+    isConnectingRef.current = false;
   };
 
   const processEmitQueue = () => {
@@ -272,6 +308,7 @@ export const useSocket = (
       console.log("Connected to WebSocket server");
       setIsSocketConnected(true);
       reconnectAttemptsRef.current = 0;
+      isConnectingRef.current = false;
       eventQueueRef.current = [];
       processedEventIds.current.clear();
       setIsWaitingForResponse(false);
@@ -281,13 +318,22 @@ export const useSocket = (
     socketRef.current.on("connect_error", (error) => {
       console.error("WebSocket connection error:", error.message);
       setIsSocketConnected(false);
-      reconnectSocket();
+      isConnectingRef.current = false;
+      
+      // Không reconnect ngay lập tức nếu có lỗi auth
+      if (error.message.includes('auth') || error.message.includes('unauthorized')) {
+        console.error("Authentication error, stopping reconnection");
+        return;
+      }
+      
+      setTimeout(() => reconnectSocket(), 3000);
     });
 
     socketRef.current.on("reconnect", () => {
       console.log("Reconnected to WebSocket server");
       setIsSocketConnected(true);
       reconnectAttemptsRef.current = 0;
+      isConnectingRef.current = false;
       processEmitQueue();
     });
 
@@ -295,10 +341,9 @@ export const useSocket = (
       const orderId = response.data.orderId;
       const orderStatus = response.data.status;
 
-      // Chỉ bỏ qua nếu đơn hàng đã được xử lý và trạng thái không thay đổi
       if (
         processedOrderIds.current.has(orderId) &&
-        orderStatus !== "PREPARING" // Cho phép hiển thị lại nếu trạng thái thay đổi
+        orderStatus !== "PREPARING"
       ) {
         console.log("Skipping duplicate incomingOrderForDriver:", orderId);
         return;
@@ -318,7 +363,6 @@ export const useSocket = (
           responseData?.order_items ?? responseData?.orderDetails?.order_items,
       };
 
-      // Thêm orderId vào processedOrderIds chỉ khi hiển thị toast
       processedOrderIds.current.add(orderId);
 
       setLatestOrder(buildDataToPushNotificationType);
@@ -402,12 +446,10 @@ export const useSocket = (
           isInitialUpdateRef.current = true;
           dispatch(clearDriverProgressStage());
           setIsOrderCompleted(false);
-          // Xóa orderId khỏi processedOrderIds khi chấp nhận
           processedOrderIds.current.delete(response.order.id);
         } else {
           console.error("Failed to accept order:", response.message);
           setLatestOrder(null);
-          // Xóa orderId nếu từ chối để cho phép nhận lại
           processedOrderIds.current.delete(response.order?.id);
         }
       });
@@ -416,7 +458,12 @@ export const useSocket = (
     socketRef.current.on("disconnect", (reason) => {
       console.log("Disconnected from WebSocket server, reason:", reason);
       setIsSocketConnected(false);
-      reconnectSocket();
+      isConnectingRef.current = false;
+      
+      // Chỉ reconnect nếu không phải do client disconnect
+      if (reason !== "io client disconnect") {
+        setTimeout(() => reconnectSocket(), 2000);
+      }
     });
   };
 
@@ -431,25 +478,23 @@ export const useSocket = (
 
     const unsubscribe = NetInfo.addEventListener((state) => {
       console.log("Network state:", state);
+      const wasConnected = networkState;
       setNetworkState(state.isConnected);
+      
       if (!state.isConnected && socketRef.current?.connected) {
         console.log("Network lost, disconnecting socket");
         socketRef.current.disconnect();
         setIsSocketConnected(false);
-      } else if (state.isConnected && !socketRef.current?.connected) {
+      } else if (state.isConnected && wasConnected === false && !socketRef.current?.connected) {
         console.log("Network restored, attempting reconnect");
         reconnectAttemptsRef.current = 0;
-        reconnectSocket();
+        setTimeout(() => reconnectSocket(), 1000);
       }
     });
 
     return () => {
       console.log("Cleaning up socket listeners on unmount");
       cleanupSocketListeners();
-      if (responseTimeoutRef.current) {
-        clearTimeout(responseTimeoutRef.current);
-      }
-      unsubscribe();
     };
   }, [driverId, accessToken]);
 
@@ -543,16 +588,8 @@ export const useSocket = (
     emitQueueRef.current = [];
     processedEventIds.current.clear();
     processedOrderIds.current.clear();
-    if (responseTimeoutRef.current) {
-      clearTimeout(responseTimeoutRef.current);
-    }
-    if (socketRef.current) {
-      socketRef.current.disconnect();
-      socketRef.current = null;
-    }
   };
 
-  // Hàm để xóa orderId khi từ chối đơn hàng
   const rejectOrder = (orderId: string) => {
     console.log("Rejecting order, removing from processedOrderIds:", orderId);
     processedOrderIds.current.delete(orderId);
@@ -566,6 +603,6 @@ export const useSocket = (
     isWaitingForResponse,
     isSocketConnected,
     completeOrder,
-    rejectOrder, // Thêm hàm để từ chối đơn hàng
+    rejectOrder,
   };
 };

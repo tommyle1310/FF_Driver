@@ -41,7 +41,7 @@ const OrderHistoryDetailsScreen = () => {
   };
   const [isLoading, setIsLoading] = useState(false);
   const [dps, setDps] = useState<DriverProgressStageState>();
-
+  console.log('chekc here ',         dps?.stages?.[3]?.details)
   const checkpoints = [
     {
       status: "Started",

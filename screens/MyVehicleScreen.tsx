@@ -124,12 +124,12 @@ const MyVehicleScreen = () => {
   const dispatch = useDispatch();
   const navigation = useNavigation<MyVehicleScreenNavigationProp>();
   const [isUpdateStatus, setIsUpdateStatus] = useState<boolean>(false);
-  const [licensePlate, setLicensePlate] = useState<string>("");
-  const [brand, setBrand] = useState<string>("");
-  const [model, setModel] = useState<string>("");
-  const [color, setColor] = useState<string>("");
-  const [owner, setOwner] = useState<string>("");
-  const [year, setYear] = useState<string>("0");
+  const [licensePlate, setLicensePlate] = useState<string>("51D2 - 99421");
+  const [brand, setBrand] = useState<string>("Honda");
+  const [model, setModel] = useState<string>("WinnerX");
+  const [color, setColor] = useState<string>("Red");
+  const [owner, setOwner] = useState<string>("Tommy Teo");
+  const [year, setYear] = useState<string>("2020");
   const [modalStatusDetails, setModalStatusDetails] = useState<{
     status: "SUCCESS" | "FAILED" | "HIDDEN";
     details?: string;
@@ -407,14 +407,10 @@ const MyVehicleScreen = () => {
           ) : (
             <CoralTourCarousel
               imageUrls={[
-                vehicle?.images[vehicle?.images?.length - 4].url ??
-                  IMAGE_LINKS.DEFAULT_LOGO,
-                vehicle?.images[vehicle?.images?.length - 3].url ??
-                  IMAGE_LINKS.DEFAULT_LOGO,
-                vehicle?.images[vehicle?.images?.length - 2].url ??
-                  IMAGE_LINKS.DEFAULT_LOGO,
-                vehicle?.images[vehicle?.images?.length - 1].url ??
-                  IMAGE_LINKS.DEFAULT_LOGO,
+                vehicle?.images?.[vehicle?.images?.length - 4]?.url ?? IMAGE_LINKS.DEFAULT_LOGO,
+                vehicle?.images?.[vehicle?.images?.length - 3]?.url ?? IMAGE_LINKS.DEFAULT_LOGO,
+                vehicle?.images?.[vehicle?.images?.length - 2]?.url ?? IMAGE_LINKS.DEFAULT_LOGO,
+                vehicle?.images?.[vehicle?.images?.length - 1]?.url ?? IMAGE_LINKS.DEFAULT_LOGO,
               ]}
             />
           )}

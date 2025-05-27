@@ -163,7 +163,6 @@ const MainNavigator = () => {
     });
     setIsShowToast(false);
   };
-  console.log("check toatol", latestOrder);
   return (
     <>
       <SidebarStack.Navigator initialRouteName="Home">
