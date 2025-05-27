@@ -1,8 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { io, Socket } from "socket.io-client";
-import { BACKEND_URL } from "../utils/constants";
-import { useDispatch, useSelector } from "../store/types";
-import { RootState } from "../store/store";
+import { useDispatch, useSelector } from "react-redux";
+import type { AppDispatch, RootState } from "../store/store";
 import {
   saveDriverProgressStageToAsyncStorage,
   setDriverProgressStage,
@@ -10,6 +8,7 @@ import {
 } from "../store/currentDriverProgressStageSlice";
 import { Type_PushNotification_Order } from "../types/pushNotification";
 import NetInfo from "@react-native-community/netinfo";
+import SocketManager from "./SocketManager";
 
 interface Stage {
   state: string;
@@ -21,22 +20,19 @@ interface Stage {
 
 export const useSocket = (
   driverId: string,
-  setOrders: React.Dispatch<
-    React.SetStateAction<Type_PushNotification_Order[]>
-  >,
+  setOrders: React.Dispatch<React.SetStateAction<Type_PushNotification_Order[]>>,
   sendPushNotification: (order: Type_PushNotification_Order) => void,
   setLatestOrder: React.Dispatch<
     React.SetStateAction<Type_PushNotification_Order | null>
   >,
   setIsShowToast?: React.Dispatch<React.SetStateAction<boolean>>
 ) => {
-  const { accessToken } = useSelector((state: RootState) => state.auth);
+  const { accessToken, userId } = useSelector((state: RootState) => state.auth);
   const { transactions_processed } = useSelector(
     (state: RootState) => state.currentDriverProgressStage
   );
-  const dispatch = useDispatch();
-  const socketRef = useRef<Socket | null>(null);
-  const lastResponseRef = useRef<string | null>(null);
+  const dispatch: AppDispatch = useDispatch();
+  const lastResponseRef = useRef<string | undefined>(undefined); // Fix typing
   const responseTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isInitialUpdateRef = useRef(true);
   const [isWaitingForResponse, setIsWaitingForResponse] = useState(false);
@@ -49,71 +45,6 @@ export const useSocket = (
   const processedEventIds = useRef<Map<string, number>>(new Map());
   const processedOrderIds = useRef<Set<string>>(new Set());
   const [isSocketConnected, setIsSocketConnected] = useState(false);
-  const reconnectAttemptsRef = useRef(0);
-  const maxReconnectAttempts = 5;
-  const reconnectDelay = 2000;
-  const [networkState, setNetworkState] = useState<boolean | null>(null);
-  
-  // Thêm các ref để tránh tạo socket nhiều lần
-  const isConnectingRef = useRef(false);
-  const connectionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const lastConnectionAttemptRef = useRef<number>(0);
-
-  const reconnectSocket = () => {
-    // Tránh reconnect quá nhanh
-    const now = Date.now();
-    if (now - lastConnectionAttemptRef.current < 1000) {
-      console.log("Reconnect attempt too soon, skipping");
-      return;
-    }
-    lastConnectionAttemptRef.current = now;
-
-    if (reconnectAttemptsRef.current >= maxReconnectAttempts) {
-      console.error("Max reconnection attempts reached");
-      setIsSocketConnected(false);
-      return;
-    }
-
-    if (isConnectingRef.current) {
-      console.log("Already attempting to connect, skipping");
-      return;
-    }
-
-    reconnectAttemptsRef.current += 1;
-    const delay = Math.min(
-      reconnectDelay * Math.pow(2, reconnectAttemptsRef.current - 1),
-      16000
-    );
-    console.log(
-      `Attempting to reconnect (attempt ${reconnectAttemptsRef.current}) in ${delay}ms`
-    );
-
-    if (connectionTimeoutRef.current) {
-      clearTimeout(connectionTimeoutRef.current);
-    }
-
-    connectionTimeoutRef.current = setTimeout(() => {
-      if (socketRef.current?.connected) {
-        console.log("Socket already connected, skipping reconnect");
-        reconnectAttemptsRef.current = 0;
-        isConnectingRef.current = false;
-        return;
-      }
-      if (!networkState) {
-        console.log("No network connection, skipping reconnect");
-        isConnectingRef.current = false;
-        return;
-      }
-      
-      isConnectingRef.current = true;
-      setupSocket();
-      if (socketRef.current) {
-        socketRef.current.connect();
-        setupSocketListeners();
-      }
-      isConnectingRef.current = false;
-    }, delay);
-  };
 
   const resetResponseTimeout = () => {
     if (responseTimeoutRef.current) {
@@ -126,70 +57,15 @@ export const useSocket = (
     }, 10000);
   };
 
-  const setupSocket = () => {
-    if (!driverId || !accessToken) {
-      console.log("Missing driverId or accessToken, skipping socket setup");
-      return;
-    }
-
-    if (socketRef.current) {
-      console.log("Socket instance exists, checking state");
-      if (socketRef.current.connected) {
-        console.log("Socket already connected, skipping setup");
-        return;
-      }
-      // Cleanup existing socket properly
-      socketRef.current.removeAllListeners();
-      socketRef.current.disconnect();
-      socketRef.current = null;
-    }
-
-    console.log("Creating new socket connection");
-    socketRef.current = io(`${BACKEND_URL}/driver`, {
-      transports: ["websocket"],
-      extraHeaders: {
-        auth: `Bearer ${accessToken}`,
-      },
-      reconnection: false, // Tự quản lý reconnection
-      query: { driverId },
-      timeout: 20000,
-      pingTimeout: 60000, // Tăng timeout
-      pingInterval: 25000, // Tăng interval
-      forceNew: true, // Force tạo connection mới
-    });
-  };
-
-  const cleanupSocketListeners = () => {
-    if (socketRef.current) {
-      console.log("Cleaning up socket listeners");
-      socketRef.current.removeAllListeners();
-      if (socketRef.current.connected) {
-        socketRef.current.disconnect();
-      }
-      socketRef.current = null;
-    }
-    
-    // Clear timeouts
-    if (connectionTimeoutRef.current) {
-      clearTimeout(connectionTimeoutRef.current);
-      connectionTimeoutRef.current = null;
-    }
-    if (responseTimeoutRef.current) {
-      clearTimeout(responseTimeoutRef.current);
-      responseTimeoutRef.current = null;
-    }
-    
-    isConnectingRef.current = false;
-  };
-
   const processEmitQueue = () => {
-    if (!socketRef.current?.connected || emitQueueRef.current.length === 0)
+    if (!SocketManager.isConnected() || emitQueueRef.current.length === 0) {
       return;
+    }
 
-    const { event, data, resolve, reject } = emitQueueRef.current.shift()!;
+    const { event, data, resolve, reject } = emitQueueRef.current.shift()!; // Add data
     console.log(`Processing queued emit: ${event}`, data);
 
-    socketRef.current!.emit(event, data, (response: any) => {
+    SocketManager.emit(event, data, (response: any) => {
       console.log(`${event} response:`, response);
       if (response.error) {
         console.error(`Error in ${event}:`, response.error);
@@ -248,7 +124,7 @@ export const useSocket = (
         return;
       }
 
-      const uniqueStages = Object.values(
+      const uniqueStages = Object.values<Stage>(
         data.stages.reduce((acc: { [key: string]: Stage }, stage: Stage) => {
           const key = stage.state;
           if (!acc[key] || acc[key].timestamp < stage.timestamp) {
@@ -301,43 +177,42 @@ export const useSocket = (
     processEventQueue();
   };
 
-  const setupSocketListeners = () => {
-    if (!socketRef.current) return;
+  useEffect(() => {
+    if (!driverId || !accessToken) {
+      console.log("Missing driverId or accessToken, cleaning up socket");
+      SocketManager.cleanup();
+      return;
+    }
 
-    socketRef.current.on("connect", () => {
-      console.log("Connected to WebSocket server");
+    console.log(
+      `Initializing SocketManager with driverId: ${driverId}, userId: ${userId}, token: ${accessToken}`
+    );
+    SocketManager.initialize(driverId, accessToken, userId);
+
+    const handleConnect = () => {
+      console.log("Socket connected");
       setIsSocketConnected(true);
-      reconnectAttemptsRef.current = 0;
-      isConnectingRef.current = false;
       eventQueueRef.current = [];
       processedEventIds.current.clear();
       setIsWaitingForResponse(false);
       processEmitQueue();
-    });
+    };
 
-    socketRef.current.on("connect_error", (error) => {
-      console.error("WebSocket connection error:", error.message);
+    const handleConnectError = (error: any) => {
+      console.error("Socket connect error:", {
+        message: error.message,
+        description: error.description,
+        context: error.context,
+      });
       setIsSocketConnected(false);
-      isConnectingRef.current = false;
-      
-      // Không reconnect ngay lập tức nếu có lỗi auth
-      if (error.message.includes('auth') || error.message.includes('unauthorized')) {
-        console.error("Authentication error, stopping reconnection");
-        return;
-      }
-      
-      setTimeout(() => reconnectSocket(), 3000);
-    });
+    };
 
-    socketRef.current.on("reconnect", () => {
-      console.log("Reconnected to WebSocket server");
-      setIsSocketConnected(true);
-      reconnectAttemptsRef.current = 0;
-      isConnectingRef.current = false;
-      processEmitQueue();
-    });
+    const handleDisconnect = (reason: string) => {
+      console.log("Socket disconnected, reason:", reason);
+      setIsSocketConnected(false);
+    };
 
-    socketRef.current.on("incomingOrderForDriver", (response) => {
+    const handleIncomingOrder = (response: any) => {
       const orderId = response.data.orderId;
       const orderStatus = response.data.status;
 
@@ -351,7 +226,7 @@ export const useSocket = (
 
       console.log("Received incomingOrderForDriver:", response);
       const responseData = response.data;
-      const buildDataToPushNotificationType: Type_PushNotification_Order = {
+      const buildDataToPushNotification: Type_PushNotification_Order = {
         id: responseData?.orderId,
         customer_id: responseData?.customer_id,
         driver_earn: responseData?.driver_earn,
@@ -360,143 +235,130 @@ export const useSocket = (
           responseData?.orderDetails?.total_amount,
         status: responseData?.status,
         order_items:
-          responseData?.order_items ?? responseData?.orderDetails?.order_items,
+          responseData?.order_items ?? responseData?.orderDetails?.order_items ?? [],
       };
 
       processedOrderIds.current.add(orderId);
 
-      setLatestOrder(buildDataToPushNotificationType);
+      setLatestOrder(buildDataToPushNotification);
       setOrders((prevOrders) => {
         const updatedOrders = prevOrders.map((order) =>
-          order.id === buildDataToPushNotificationType.id
-            ? buildDataToPushNotificationType
+          order.id === buildDataToPushNotification.id
+            ? buildDataToPushNotification
             : order
         );
         if (
           !updatedOrders.some(
-            (order) => order.id === buildDataToPushNotificationType.id
+            (order) => order.id === buildDataToPushNotification.id
           )
         ) {
-          updatedOrders.push(buildDataToPushNotificationType);
+          updatedOrders.push(buildDataToPushNotification);
         }
         return updatedOrders;
       });
       if (setIsShowToast) setIsShowToast(true);
-      sendPushNotification(buildDataToPushNotificationType);
+      sendPushNotification(buildDataToPushNotification);
       setIsOrderCompleted(false);
       dispatch(clearDriverProgressStage());
       eventQueueRef.current = [];
       processedEventIds.current.clear();
-      lastResponseRef.current = null;
+      lastResponseRef.current = undefined;
       isInitialUpdateRef.current = true;
-    });
+    };
 
-    if (!isOrderCompleted) {
-      socketRef.current.on("notifyOrderStatus", (response) => {
-        const buildDataToPushNotificationType: Type_PushNotification_Order = {
-          id: response?.orderId,
-          customer_id: response?.customer_id,
-          total_amount:
-            response?.total_amount ?? response?.orderDetails?.total_amount,
-          status: response?.status,
-          order_items:
-            response?.order_items ?? response?.orderDetails?.order_items,
-        };
-        console.log(
-          "Received notifyOrderStatus:",
-          buildDataToPushNotificationType
+    const handleNotifyOrderStatus = (response: any) => {
+      const buildDataToPushNotification: Type_PushNotification_Order = {
+        id: response?.orderId,
+        customer_id: response?.customer_id,
+        total_amount:
+          response?.total_amount ?? response?.orderDetails?.total_amount,
+        status: response?.status,
+        order_items:
+          response?.order_items ?? response?.orderDetails?.order_items ?? [],
+      };
+      console.log("Received notifyOrderStatus:", buildDataToPushNotification);
+      setLatestOrder(buildDataToPushNotification);
+      setOrders((prevOrders) => {
+        const updatedOrders = prevOrders.map((order) =>
+          order.id === buildDataToPushNotification.id
+            ? buildDataToPushNotification
+            : order
         );
-        setLatestOrder(buildDataToPushNotificationType);
-        setOrders((prevOrders) => {
-          const updatedOrders = prevOrders.map((order) =>
-            order.id === buildDataToPushNotificationType.id
-              ? buildDataToPushNotificationType
-              : order
-          );
-          if (
-            !updatedOrders.some(
-              (order) => order.id === buildDataToPushNotificationType.id
-            )
-          ) {
-            updatedOrders.push(buildDataToPushNotificationType);
-          }
-          return updatedOrders;
-        });
-        if (setIsShowToast) setIsShowToast(true);
-        sendPushNotification(buildDataToPushNotificationType);
-      });
-
-      socketRef.current.on("driverStagesUpdated", (response) => {
-        const eventId = `${response.id}_${response.updated_at}`;
-        console.log("Received driverStagesUpdated:", { eventId, response });
-        eventQueueRef.current.push({
-          event: "driverStagesUpdated",
-          data: response,
-          id: eventId,
-        });
-        processEventQueue();
-      });
-
-      socketRef.current.on("driverAcceptOrder", (response) => {
-        if (response.success) {
-          console.log("Order accepted successfully", response.order);
-          setLatestOrder(response.order);
-          setOrders((prevOrders) => [...prevOrders, response.order]);
-          if (setIsShowToast) setIsShowToast(true);
-          isInitialUpdateRef.current = true;
-          dispatch(clearDriverProgressStage());
-          setIsOrderCompleted(false);
-          processedOrderIds.current.delete(response.order.id);
-        } else {
-          console.error("Failed to accept order:", response.message);
-          setLatestOrder(null);
-          processedOrderIds.current.delete(response.order?.id);
+        if (
+          !updatedOrders.some(
+            (order) => order.id === buildDataToPushNotification.id
+          )
+        ) {
+          updatedOrders.push(buildDataToPushNotification);
         }
+        return updatedOrders;
       });
-    }
+      if (setIsShowToast) setIsShowToast(true);
+      sendPushNotification(buildDataToPushNotification);
+    };
 
-    socketRef.current.on("disconnect", (reason) => {
-      console.log("Disconnected from WebSocket server, reason:", reason);
-      setIsSocketConnected(false);
-      isConnectingRef.current = false;
-      
-      // Chỉ reconnect nếu không phải do client disconnect
-      if (reason !== "io client disconnect") {
-        setTimeout(() => reconnectSocket(), 2000);
+    const handleDriverStagesUpdated = (response: any) => {
+      const eventId = `${response.id}_${response.updated_at}`;
+      console.log("Received driverStagesUpdated:", { eventId, response });
+      eventQueueRef.current.push({
+        event: "driverStagesUpdated",
+        data: response,
+        id: eventId,
+      });
+      processEventQueue();
+    };
+
+    const handleDriverAcceptOrder = (response: any) => {
+      if (response.success) {
+        console.log("Order accepted successfully", response.order);
+        setLatestOrder(response.order);
+        setOrders((prevOrders) => [...prevOrders, response.order]);
+        if (setIsShowToast) setIsShowToast(true);
+        isInitialUpdateRef.current = true;
+        dispatch(clearDriverProgressStage());
+        setIsOrderCompleted(false);
+        processedOrderIds.current.delete(response.order.id);
+      } else {
+        console.error("Failed to accept order:", response.message);
+        setLatestOrder(null);
+        processedOrderIds.current.delete(response.order?.id);
       }
-    });
-  };
+    };
 
-  useEffect(() => {
-    if (!driverId || !accessToken) {
-      console.log("Missing driverId or accessToken");
-      return;
+    SocketManager.on("connect", handleConnect);
+    SocketManager.on("connect_error", handleConnectError);
+    SocketManager.on("disconnect", handleDisconnect);
+    SocketManager.on("incomingOrderForDriver", handleIncomingOrder);
+    if (!isOrderCompleted) {
+      SocketManager.on("notifyOrderStatus", handleNotifyOrderStatus);
+      SocketManager.on("driverStagesUpdated", handleDriverStagesUpdated);
+      SocketManager.on("driverAcceptOrder", handleDriverAcceptOrder);
     }
-
-    setupSocket();
-    setupSocketListeners();
 
     const unsubscribe = NetInfo.addEventListener((state) => {
       console.log("Network state:", state);
-      const wasConnected = networkState;
-      setNetworkState(state.isConnected);
-      
-      if (!state.isConnected && socketRef.current?.connected) {
-        console.log("Network lost, disconnecting socket");
-        socketRef.current.disconnect();
+      if (!state.isConnected || !state.isInternetReachable) {
+        console.log("Network or internet lost, disconnecting socket");
+        SocketManager.disconnect();
         setIsSocketConnected(false);
-      } else if (state.isConnected && wasConnected === false && !socketRef.current?.connected) {
-        console.log("Network restored, attempting reconnect");
-        reconnectAttemptsRef.current = 0;
-        setTimeout(() => reconnectSocket(), 1000);
       }
     });
 
     return () => {
-      console.log("Cleaning up socket listeners on unmount");
-      cleanupSocketListeners();
+      console.log("Cleaning up socket listeners in useSocket");
+      SocketManager.off("connect", handleConnect);
+      SocketManager.off("connect_error", handleConnectError);
+      SocketManager.off("disconnect", handleDisconnect);
+      SocketManager.off("incomingOrderForDriver", handleIncomingOrder);
+      SocketManager.off("notifyOrderStatus", handleNotifyOrderStatus);
+      SocketManager.off("driverStagesUpdated", handleDriverStagesUpdated);
+      SocketManager.off("driverAcceptOrder", handleDriverAcceptOrder);
+      unsubscribe();
+      if (responseTimeoutRef.current) {
+        clearTimeout(responseTimeoutRef.current);
+      }
     };
-  }, [driverId, accessToken]);
+  }, [driverId, accessToken, userId, isOrderCompleted]);
 
   const emitDriverAcceptOrder = (data: {
     driverId: string;
@@ -504,9 +366,9 @@ export const useSocket = (
     restaurantLocation?: { lat: number; lng: number };
   }) => {
     return new Promise((resolve, reject) => {
-      if (socketRef.current && socketRef.current.connected) {
+      if (SocketManager.isConnected()) {
         console.log("Emitted driverAcceptOrder with data:", data);
-        socketRef.current.emit("driverAcceptOrder", data, (response: any) => {
+        SocketManager.emit("driverAcceptOrder", data, (response: any) => {
           if (response.error) {
             console.error("Error in driverAcceptOrder:", response.error);
             reject(new Error(response.error));
@@ -525,17 +387,12 @@ export const useSocket = (
           resolve,
           reject,
         });
-        if (networkState) {
-          reconnectSocket();
-        } else {
-          console.log("No network, waiting for network to reconnect");
-        }
       }
     });
   };
 
-  const emitUpdateDriverProgress = async (data: any) => {
-    if (!socketRef.current?.connected) {
+  const emitUpdateDriverProgress = async (data: any): Promise<void> => {
+    if (!SocketManager.isConnected()) {
       console.warn("Socket not connected, queuing emitUpdateDriverProgress");
       return new Promise((resolve, reject) => {
         emitQueueRef.current.push({
@@ -544,9 +401,6 @@ export const useSocket = (
           resolve,
           reject,
         });
-        if (networkState) {
-          reconnectSocket();
-        }
       });
     }
 
@@ -556,7 +410,7 @@ export const useSocket = (
     setIsWaitingForResponse(true);
     resetResponseTimeout();
     return new Promise((resolve, reject) => {
-      socketRef.current!.emit("updateDriverProgress", data, (response: any) => {
+      SocketManager.emit("updateDriverProgress", data, (response: any) => {
         console.log("updateDriverProgress response:", response);
         if (response.error) {
           console.error("Error in updateDriverProgress:", response.error);
@@ -576,12 +430,11 @@ export const useSocket = (
     });
   };
 
-  const completeOrder = () => {
+  const handleCompleteOrder = () => {
     console.log("Completing order, cleaning up socket and state");
     setIsOrderCompleted(true);
-    cleanupSocketListeners();
     dispatch(clearDriverProgressStage());
-    lastResponseRef.current = null;
+    lastResponseRef.current = undefined;
     isInitialUpdateRef.current = true;
     setIsWaitingForResponse(false);
     eventQueueRef.current = [];
@@ -590,19 +443,19 @@ export const useSocket = (
     processedOrderIds.current.clear();
   };
 
-  const rejectOrder = (orderId: string) => {
+  const handleRejectOrder = (orderId: string) => {
     console.log("Rejecting order, removing from processedOrderIds:", orderId);
     processedOrderIds.current.delete(orderId);
     if (setIsShowToast) setIsShowToast(false);
   };
 
   return {
-    socket: socketRef.current,
+    socket: SocketManager,
     emitDriverAcceptOrder,
     emitUpdateDriverProgress,
     isWaitingForResponse,
     isSocketConnected,
-    completeOrder,
-    rejectOrder,
+    handleCompleteOrder,
+    handleRejectOrder,
   };
 };
