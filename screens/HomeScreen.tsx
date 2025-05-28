@@ -84,7 +84,7 @@ const HomeScreen = () => {
   const {
     isWaitingForResponse,
     emitUpdateDriverProgress,
-    completeOrder,
+    handleCompleteOrder,
     isSocketConnected,
   } = useSocket(
     userId || "",
@@ -352,7 +352,7 @@ const HomeScreen = () => {
       setIsResetSwipe(true);
       setTimeout(() => setIsResetSwipe(false), 100);
       setIsProcessing(false);
-      completeOrder();
+      handleCompleteOrder();
 
       navigation.navigate("Rating", {
         customer1: buildDataCustomer1,
@@ -555,13 +555,7 @@ const HomeScreen = () => {
             )
           ) : (
             <>
-              <View className="border-b-2 border-gray-300 flex-row items-center justify-between p-2 px-6">
-                <FFAvatar />
-                <FFText style={{ textAlign: "center", margin: 10 }}>
-                  You're {available_for_work ? "Online" : "Offline"}
-                </FFText>
-                <FFAvatar />
-              </View>
+          
 
               {!available_for_work && (
                 <View className="overflow-hidden mx-6 my-4 rounded-lg bg-[#0EB228]">
@@ -573,6 +567,19 @@ const HomeScreen = () => {
                     }}
                     direction="right"
                   />
+                      <FFText
+                      fontWeight="400"
+                      style={{
+                        position: "absolute",
+                        top: 0,
+                        bottom: 0,
+                        marginTop: 12,
+                        marginLeft: 64,
+                        color: "#fff",
+                      }}
+                    >
+                      {'Swipe to start receiving orders'}
+                    </FFText>
                 </View>
               )}
             </>
