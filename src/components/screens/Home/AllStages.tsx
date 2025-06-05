@@ -17,8 +17,8 @@ interface AllStagesProps {
   onCall: (contactNumber: string) => void;
   onChange: () => void;
   handleGoNow?: () => void;
-  selectedDestination: PickupAndDropoffStage | null; // Prop để biết stage nào đang được chọn
-  setSelectedDestination: (stage: PickupAndDropoffStage | null) => void; // Prop để set stage được chọn
+  selectedDestination: PickupAndDropoffStage | null;
+  setSelectedDestination: (stage: PickupAndDropoffStage | null) => void;
 }
 
 const AllStages: React.FC<AllStagesProps> = ({
@@ -43,6 +43,9 @@ const AllStages: React.FC<AllStagesProps> = ({
     (state: RootState) => state.currentDriverProgressStage
   );
 
+  // Calculate total orders based on unique order IDs in stages
+  const totalOrders = Math.ceil(stages.length / 2); // 2 stages (PICKUP, DROPOFF) per order
+
   return (
     <View className="p-4 bg-white rounded-lg shadow-md">
       {/* Header Section */}
@@ -50,18 +53,18 @@ const AllStages: React.FC<AllStagesProps> = ({
         <View className="flex-row justify-between">
           <View className="flex-1 items-center mb-4">
             <FFText fontWeight="400">Total Earnings</FFText>
-            <FFText style={{ color: colors.primary }}>${total_earns}</FFText>
+            <FFText style={{ color: colors.primary }}>
+              ${total_earns || 0}
+            </FFText>
           </View>
           <View className="flex-1 items-center mb-4">
             <FFText fontWeight="400">Total orders</FFText>
-            <FFText style={{ color: colors.warning }}>
-              {stages.length === 2 ? 1 : stages.length === 4 ? 2 : 3}
-            </FFText>
+            <FFText style={{ color: colors.warning }}>{totalOrders}</FFText>
           </View>
           <View className="flex-1 items-center mb-4">
             <FFText fontWeight="400">Total distance:</FFText>
             <FFText style={{ color: colors.info }}>
-              {total_distance_travelled}km
+              {total_distance_travelled || 0}km
             </FFText>
           </View>
         </View>
@@ -125,7 +128,7 @@ const AllStages: React.FC<AllStagesProps> = ({
 
       {/* Go Now Button */}
       <FFButton
-        variant={selectedDestination ? "primary" : "disabled"} // Chuyển variant dựa trên selectedDestination
+        variant={selectedDestination ? "primary" : "disabled"}
         style={{ marginTop: 64 }}
         className="w-full"
         onPress={handleGoNow}

@@ -5,6 +5,8 @@ import {
   saveDriverProgressStageToAsyncStorage,
   setDriverProgressStage,
   clearDriverProgressStage,
+  updateStages,
+  initialState,
 } from "../store/currentDriverProgressStageSlice";
 import { Type_PushNotification_Order } from "../types/pushNotification";
 import NetInfo from "@react-native-community/netinfo";
@@ -18,9 +20,17 @@ interface Stage {
   duration?: number;
 }
 
+interface SocketResponse {
+  success: boolean;
+  message?: string;
+  error?: string;
+}
+
 export const useSocket = (
   driverId: string,
-  setOrders: React.Dispatch<React.SetStateAction<Type_PushNotification_Order[]>>,
+  setOrders: React.Dispatch<
+    React.SetStateAction<Type_PushNotification_Order[]>
+  >,
   sendPushNotification: (order: Type_PushNotification_Order) => void,
   setLatestOrder: React.Dispatch<
     React.SetStateAction<Type_PushNotification_Order | null>
@@ -28,11 +38,11 @@ export const useSocket = (
   setIsShowToast?: React.Dispatch<React.SetStateAction<boolean>>
 ) => {
   const { accessToken, userId } = useSelector((state: RootState) => state.auth);
-  const { transactions_processed } = useSelector(
+  const { transactions_processed, stages, orders } = useSelector(
     (state: RootState) => state.currentDriverProgressStage
   );
   const dispatch: AppDispatch = useDispatch();
-  const lastResponseRef = useRef<string | undefined>(undefined); // Fix typing
+  const lastResponseRef = useRef<string | undefined>(undefined);
   const responseTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isInitialUpdateRef = useRef(true);
   const [isWaitingForResponse, setIsWaitingForResponse] = useState(false);
@@ -62,10 +72,10 @@ export const useSocket = (
       return;
     }
 
-    const { event, data, resolve, reject } = emitQueueRef.current.shift()!; // Add data
+    const { event, data, resolve, reject } = emitQueueRef.current.shift()!;
     console.log(`Processing queued emit: ${event}`, data);
 
-    SocketManager.emit(event, data, (response: any) => {
+    SocketManager.emit(event, data, (response: SocketResponse) => {
       console.log(`${event} response:`, response);
       if (response.error) {
         console.error(`Error in ${event}:`, response.error);
@@ -110,15 +120,13 @@ export const useSocket = (
         clearTimeout(responseTimeoutRef.current);
       }
 
-      if (
-        data.transactions_processed ||
-        transactions_processed ||
-        isOrderCompleted
-      ) {
+      if (transactions_processed || isOrderCompleted) {
         console.log(
           "Order completed or marked as completed, skipping driverStagesUpdated"
         );
-        dispatch(clearDriverProgressStage());
+        if (stages.length === 0) {
+          dispatch(clearDriverProgressStage());
+        }
         isProcessingRef.current = false;
         processEventQueue();
         return;
@@ -133,14 +141,26 @@ export const useSocket = (
           return acc;
         }, {})
       ).sort((a: Stage, b: Stage) => {
-        const order = [
-          "driver_ready_order_1",
-          "waiting_for_pickup_order_1",
-          "restaurant_pickup_order_1",
-          "en_route_to_customer_order_1",
-          "delivery_complete_order_1",
-        ];
-        return order.indexOf(a.state) - order.indexOf(b.state);
+        const aOrder = parseInt(a.state.split("_order_")[1] || "1");
+        const bOrder = parseInt(b.state.split("_order_")[1] || "1");
+        const aBase = a.state.split("_order_")[0];
+        const bBase = b.state.split("_order_")[0];
+        const stageOrder =
+          [
+            "driver_ready",
+            "waiting_for_pickup",
+            "restaurant_pickup",
+            "en_route_to_customer",
+            "delivery_complete",
+          ].indexOf(aBase) -
+          [
+            "driver_ready",
+            "waiting_for_pickup",
+            "restaurant_pickup",
+            "en_route_to_customer",
+            "delivery_complete",
+          ].indexOf(bBase);
+        return stageOrder !== 0 ? stageOrder : aOrder - bOrder;
       });
 
       const filteredResponse = { ...data, stages: uniqueStages };
@@ -187,7 +207,7 @@ export const useSocket = (
     console.log(
       `Initializing SocketManager with driverId: ${driverId}, userId: ${userId}, token: ${accessToken}`
     );
-    SocketManager.initialize(driverId, accessToken, userId ?? '');
+    SocketManager.initialize(driverId, accessToken, userId ?? "");
 
     const handleConnect = () => {
       console.log("Socket connected");
@@ -235,7 +255,9 @@ export const useSocket = (
           responseData?.orderDetails?.total_amount,
         status: responseData?.status,
         order_items:
-          responseData?.order_items ?? responseData?.orderDetails?.order_items ?? [],
+          responseData?.order_items ??
+          responseData?.orderDetails?.order_items ??
+          [],
       };
 
       processedOrderIds.current.add(orderId);
@@ -391,7 +413,9 @@ export const useSocket = (
     });
   };
 
-  const emitUpdateDriverProgress = async (data: any): Promise<void> => {
+  const emitUpdateDriverProgress = async (
+    data: any
+  ): Promise<SocketResponse> => {
     if (!SocketManager.isConnected()) {
       console.warn("Socket not connected, queuing emitUpdateDriverProgress");
       return new Promise((resolve, reject) => {
@@ -410,30 +434,80 @@ export const useSocket = (
     setIsWaitingForResponse(true);
     resetResponseTimeout();
     return new Promise((resolve, reject) => {
-      SocketManager.emit("updateDriverProgress", data, (response: any) => {
-        console.log("updateDriverProgress response:", response);
-        if (response.error) {
-          console.error("Error in updateDriverProgress:", response.error);
-          setIsWaitingForResponse(false);
-          if (responseTimeoutRef.current) {
-            clearTimeout(responseTimeoutRef.current);
+      SocketManager.emit(
+        "updateDriverProgress",
+        data,
+        (response: SocketResponse) => {
+          console.log("updateDriverProgress response:", response);
+          if (response.error) {
+            console.error("Error in updateDriverProgress:", response.error);
+            setIsWaitingForResponse(false);
+            if (responseTimeoutRef.current) {
+              clearTimeout(responseTimeoutRef.current);
+            }
+            reject(new Error(response.error));
+          } else {
+            setIsWaitingForResponse(false);
+            if (responseTimeoutRef.current) {
+              clearTimeout(responseTimeoutRef.current);
+            }
+            resolve(response);
           }
-          reject(new Error(response.error));
-        } else {
-          setIsWaitingForResponse(false);
-          if (responseTimeoutRef.current) {
-            clearTimeout(responseTimeoutRef.current);
-          }
-          resolve(response);
         }
-      });
+      );
     });
   };
 
-  const handleCompleteOrder = () => {
-    console.log("Completing order, cleaning up socket and state");
+  const handleCompleteOrder = (orderId?: string) => {
+    console.log("Completing order:", orderId);
+    if (orderId) {
+      // Filter out stages and orders for the completed order
+      const remainingStages = stages.filter(
+        (stage) => !stage.state.includes(`order_${orderId}`)
+      );
+      const remainingOrders = orders.filter(
+        (order) => !order.id.includes(orderId)
+      );
+
+      if (remainingStages.length > 0) {
+        // Update stages and orders, keep state for remaining orders
+        console.log(
+          "Remaining stages after completing order:",
+          remainingStages
+        );
+        dispatch(updateStages(remainingStages));
+        dispatch(
+          setDriverProgressStage({
+            ...initialState,
+            stages: remainingStages,
+            orders: remainingOrders,
+            id: stages[0]?.state,
+            driver_id: userId,
+            transactions_processed: false,
+          })
+        );
+        dispatch(
+          saveDriverProgressStageToAsyncStorage({
+            ...initialState,
+            stages: remainingStages,
+            orders: remainingOrders,
+            id: stages[0]?.state,
+            driver_id: userId,
+            transactions_processed: false,
+          })
+        );
+      } else {
+        // No remaining orders, clear state
+        console.log("No remaining orders, clearing state");
+        dispatch(clearDriverProgressStage());
+      }
+    } else {
+      // Fallback: clear all if no orderId provided (for single-order case)
+      console.log("No orderId provided, clearing all state");
+      dispatch(clearDriverProgressStage());
+    }
+
     setIsOrderCompleted(true);
-    dispatch(clearDriverProgressStage());
     lastResponseRef.current = undefined;
     isInitialUpdateRef.current = true;
     setIsWaitingForResponse(false);
