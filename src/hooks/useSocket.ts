@@ -187,7 +187,7 @@ export const useSocket = (
     console.log(
       `Initializing SocketManager with driverId: ${driverId}, userId: ${userId}, token: ${accessToken}`
     );
-    SocketManager.initialize(driverId, accessToken, userId);
+    SocketManager.initialize(driverId, accessToken, userId ?? '');
 
     const handleConnect = () => {
       console.log("Socket connected");

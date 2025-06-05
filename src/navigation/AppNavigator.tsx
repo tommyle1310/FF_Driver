@@ -119,158 +119,159 @@ export type ScreenNames =
   | "ChangePassword"
   | "FChat";
 
-  const MainNavigator = () => {
-    const { driverId } = useSelector((state: RootState) => state.auth);
-    const [selectedLocation] = useState({
-      lat: 10.826411,
-      lng: 106.617353,
+const MainNavigator = () => {
+  const { driverId } = useSelector((state: RootState) => state.auth);
+  const [selectedLocation] = useState({
+    lat: 10.826411,
+    lng: 106.617353,
+  });
+  const { emitDriverAcceptOrder } = useSocket(
+    driverId || "",
+    () => {},
+    () => {},
+    () => {}
+  );
+  const [latestOrder, setLatestOrder] =
+    useState<Type_PushNotification_Order | null>(null);
+  const [orders, setOrders] = useState<Type_PushNotification_Order[]>([]);
+  const [isShowToast, setIsShowToast] = useState(false);
+  const { expoPushToken } = usePushNotifications();
+  const [isLoading, setIsLoading] = useState(false);
+  const pushToken = expoPushToken as unknown as { data: string };
+
+  const sendPushNotification = (order: Type_PushNotification_Order) => {
+    console.log("Sending push notification:", {
+      order,
+      expoPushToken: pushToken,
     });
-    const {
-      emitDriverAcceptOrder
-    } = useSocket(
-      driverId || "",
-      () => {},
-      () => {},
-      () => {}
-    );
-    const [latestOrder, setLatestOrder] =
-      useState<Type_PushNotification_Order | null>(null);
-    const [orders, setOrders] = useState<Type_PushNotification_Order[]>([]);
-    const [isShowToast, setIsShowToast] = useState(false);
-    const { expoPushToken } = usePushNotifications();
-    const [isLoading, setIsLoading] = useState(false);
-    const pushToken = expoPushToken as unknown as { data: string };
-  
-    const sendPushNotification = (order: Type_PushNotification_Order) => {
-      console.log("Sending push notification:", { order, expoPushToken: pushToken });
-      // Implement push notification logic
-    };
-  
-    return (
-      <SocketProvider
-        driverId={driverId ?? "FF_DRI_63b92bcb-c9ce-4331-b87f-0919f71887a1"} // Use FF_DRI_
-        setOrders={setOrders}
-        sendPushNotification={sendPushNotification}
-        setLatestOrder={setLatestOrder}
-        setIsShowToast={setIsShowToast}
-      >
-        <SidebarStack.Navigator initialRouteName="Home">
-          <SidebarStack.Screen
-            name="Home"
-            component={HomeScreen}
-            options={{ headerShown: false }}
-          />
-          <SidebarStack.Screen
-            options={{ headerShown: false }}
-            name="MyTasks"
-            component={MyTasksScreen}
-          />
-          <SidebarStack.Screen
-            options={{ headerShown: false }}
-            name="Rating"
-            component={RatingScreen}
-          />
-          <SidebarStack.Screen
-            options={{ headerShown: false }}
-            name="TrackHistory"
-            component={TrackHistoryScreen}
-          />
-          <SidebarStack.Screen
-            options={{ headerShown: false }}
-            name="ChangePassword"
-            component={ChangePasswordScreen}
-          />
-          <SidebarStack.Screen
-            options={{ headerShown: false }}
-            name="Statistics"
-            component={StatisticsScreen}
-          />
-          <SidebarStack.Screen
-            options={{ headerShown: false }}
-            name="OrderHistoryDetails"
-            component={OrderHistoryDetailsScreen}
-          />
-          <SidebarStack.Screen
-            options={{ headerShown: false }}
-            name="Notifications"
-            component={NotificationsScreen}
-          />
-          <SidebarStack.Screen
-            options={{ headerShown: false }}
-            name="Profile"
-            component={ProfileScreen}
-          />
-          <SidebarStack.Screen
-            options={{ headerShown: false }}
-            name="MyWallet"
-            component={MyWalletScreen}
-          />
-          <SidebarStack.Screen
-            options={{ headerShown: false }}
-            name="MyVehicles"
-            component={MyVehicleScreen}
-          />
-          <SidebarStack.Screen
-            options={{ headerShown: false }}
-            name="SupportCenter"
-            component={SupportCenterScreen}
-          />
-          <SidebarStack.Screen
-            options={{ headerShown: false }}
-            name="FChat"
-            component={FChatScreen}
-          />
-          <SidebarStack.Screen
-            options={{ headerShown: false }}
-            name="Settings"
-            component={SettingsScreen}
-          />
-        </SidebarStack.Navigator>
-        <Spinner isVisible={isLoading} isOverlay />
-        <FFToast
-          title="Incoming Order"
-          disabledClose
-          variant="SUCCESS"
-          onAccept={() => {
-            if (!latestOrder || !driverId) return;
-            setIsLoading(true);
-            // Handle accept via useSocketContext in HomeScreen
-            console.log("Accept order triggered", {
-              orderId: latestOrder.id,
-              driverId,
-              restaurantLocation: selectedLocation,
-            });
-            emitDriverAcceptOrder({driverId, orderId: latestOrder?.id})
-            setIsLoading(false);
-            setIsShowToast(false);
-          }}
-          onReject={() => setIsShowToast(false)}
-          onClose={() => setIsShowToast(false)}
-          visible={isShowToast}
-          isApprovalType
-        >
-          <View className="flex-row items-center gap-4">
-            <View className="flex-row items-center gap-1">
-              <FFText fontSize="sm" fontWeight="500">
-                Total Earns:
-              </FFText>
-              <FFText fontSize="sm" fontWeight="600" style={{ color: "#63c550" }}>
-                ${latestOrder?.driver_earn ?? 0}
-              </FFText>
-            </View>
-            <View className="flex-row items-center gap-1">
-              <FFText fontSize="sm" fontWeight="600">
-                {latestOrder?.order_items?.length || 0}
-              </FFText>
-              <FFText fontSize="sm" fontWeight="500" style={{ color: "#63c550" }}>
-                items
-              </FFText>
-            </View>
-          </View>
-        </FFToast>
-      </SocketProvider>
-    );
+    // Implement push notification logic
   };
+
+  return (
+    <SocketProvider
+      driverId={driverId ?? "FF_DRI_63b92bcb-c9ce-4331-b87f-0919f71887a1"} // Use FF_DRI_
+      setOrders={setOrders}
+      sendPushNotification={sendPushNotification}
+      setLatestOrder={setLatestOrder}
+      setIsShowToast={setIsShowToast}
+    >
+      <SidebarStack.Navigator initialRouteName="Home">
+        <SidebarStack.Screen
+          name="Home"
+          component={HomeScreen}
+          options={{ headerShown: false }}
+        />
+        <SidebarStack.Screen
+          options={{ headerShown: false }}
+          name="MyTasks"
+          component={MyTasksScreen}
+        />
+        <SidebarStack.Screen
+          options={{ headerShown: false }}
+          name="Rating"
+          component={RatingScreen}
+        />
+        <SidebarStack.Screen
+          options={{ headerShown: false }}
+          name="TrackHistory"
+          component={TrackHistoryScreen}
+        />
+        <SidebarStack.Screen
+          options={{ headerShown: false }}
+          name="ChangePassword"
+          component={ChangePasswordScreen}
+        />
+        <SidebarStack.Screen
+          options={{ headerShown: false }}
+          name="Statistics"
+          component={StatisticsScreen}
+        />
+        <SidebarStack.Screen
+          options={{ headerShown: false }}
+          name="OrderHistoryDetails"
+          component={OrderHistoryDetailsScreen}
+        />
+        <SidebarStack.Screen
+          options={{ headerShown: false }}
+          name="Notifications"
+          component={NotificationsScreen}
+        />
+        <SidebarStack.Screen
+          options={{ headerShown: false }}
+          name="Profile"
+          component={ProfileScreen}
+        />
+        <SidebarStack.Screen
+          options={{ headerShown: false }}
+          name="MyWallet"
+          component={MyWalletScreen}
+        />
+        <SidebarStack.Screen
+          options={{ headerShown: false }}
+          name="MyVehicles"
+          component={MyVehicleScreen}
+        />
+        <SidebarStack.Screen
+          options={{ headerShown: false }}
+          name="SupportCenter"
+          component={SupportCenterScreen}
+        />
+        <SidebarStack.Screen
+          options={{ headerShown: false }}
+          name="FChat"
+          component={FChatScreen}
+        />
+        <SidebarStack.Screen
+          options={{ headerShown: false }}
+          name="Settings"
+          component={SettingsScreen}
+        />
+      </SidebarStack.Navigator>
+      <Spinner isVisible={isLoading} isOverlay />
+      <FFToast
+        title="Incoming Order"
+        disabledClose
+        variant="SUCCESS"
+        onAccept={() => {
+          if (!latestOrder || !driverId) return;
+          setIsLoading(true);
+          // Handle accept via useSocketContext in HomeScreen
+          console.log("Accept order triggered", {
+            orderId: latestOrder.id,
+            driverId,
+            restaurantLocation: selectedLocation,
+          });
+          emitDriverAcceptOrder({ driverId, orderId: latestOrder?.id });
+          setIsLoading(false);
+          setIsShowToast(false);
+        }}
+        onReject={() => setIsShowToast(false)}
+        onClose={() => setIsShowToast(false)}
+        visible={isShowToast}
+        isApprovalType
+      >
+        <View className="flex-row items-center gap-4">
+          <View className="flex-row items-center gap-1">
+            <FFText fontSize="sm" fontWeight="500">
+              Total Earns:
+            </FFText>
+            <FFText fontSize="sm" fontWeight="600" style={{ color: "#63c550" }}>
+              ${latestOrder?.driver_earn?.toFixed(2) ?? 0}
+            </FFText>
+          </View>
+          <View className="flex-row items-center gap-1">
+            <FFText fontSize="sm" fontWeight="600">
+              {latestOrder?.order_items?.length || 0}
+            </FFText>
+            <FFText fontSize="sm" fontWeight="500" style={{ color: "#63c550" }}>
+              items
+            </FFText>
+          </View>
+        </View>
+      </FFToast>
+    </SocketProvider>
+  );
+};
 
 interface Order {
   id: string;

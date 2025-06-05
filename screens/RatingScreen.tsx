@@ -18,7 +18,10 @@ import { StackNavigationProp } from "@react-navigation/stack";
 import FFAvatar from "@/src/components/FFAvatar";
 import Spinner from "@/src/components/FFSpinner";
 import { SidebarStackParamList } from "@/src/navigation/AppNavigator";
-import { clearDriverProgressStage } from "@/src/store/currentDriverProgressStageSlice";
+import {
+  clearDriverProgressStage,
+  clearState,
+} from "@/src/store/currentDriverProgressStageSlice";
 import { useSocket } from "@/src/hooks/useSocket";
 
 type RatingScreenRouteProp = RouteProp<SidebarStackParamList, "Rating">;
@@ -44,12 +47,12 @@ const RatingScreen = () => {
     setRating(index);
   };
   const { driverId } = useSelector((state: RootState) => state.auth);
-  const { completeOrder } = useSocket(
-    driverId || "",
-    () => {},
-    () => {},
-    () => {}
-  ); //
+  // const { completeOrder } = useSocket(
+  //   driverId || "",
+  //   () => {},
+  //   () => {},
+  //   () => {}
+  // ); //
 
   const handleSubmit = async () => {
     setIsLoading(true);
@@ -92,7 +95,8 @@ const RatingScreen = () => {
           setTypeRating("CUSTOMER");
           return;
         }
-        completeOrder();
+        dispatch(clearDriverProgressStage());
+        dispatch(clearState());
         navigation.navigate("Home", {});
       } else {
         console.error("Error submitting rating:", EM);
@@ -156,7 +160,8 @@ const RatingScreen = () => {
           <FFButton
             variant="outline"
             onPress={() => {
-              completeOrder(); // Call completeOrder
+              dispatch(clearDriverProgressStage());
+              dispatch(clearState());
               navigation.reset({
                 index: 0,
                 routes: [{ name: "Home", params: { screenIndex: 0 } }],

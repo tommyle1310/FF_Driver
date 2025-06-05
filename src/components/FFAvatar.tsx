@@ -7,14 +7,15 @@ import {
   ViewStyle,
 } from "react-native";
 import React from "react";
-import FFText from "./FFText"; // Assuming FFText is a custom component
+import FFText from "./FFText";
+import { IMAGE_LINKS } from "../assets/imageLinks";
 
 type FFAvatarProps = {
-  size?: number; // Optional size, default is 60
-  avatar?: string; // Avatar URL
-  onPress?: () => void; // Optional onPress function for the avatar click
-  style?: StyleProp<ViewStyle>; // Accepting the style prop
-  rounded?: "full" | "sm" | "md" | "lg"; // Optional border radius type: full, sm, md, lg
+  size?: number;
+  avatar?: string;
+  onPress?: () => void;
+  style?: StyleProp<ViewStyle>;
+  rounded?: "full" | "sm" | "md" | "lg";
 };
 
 const FFAvatar = ({
@@ -22,14 +23,14 @@ const FFAvatar = ({
   avatar,
   onPress = () => {},
   style,
-  rounded = "full", // Default to full (circle)
+  rounded = "full",
 }: FFAvatarProps) => {
   // Map for rounded options
   const roundedMap = {
-    full: 9999, // Circle
-    sm: 8, // Small corner radius
-    md: 16, // Medium corner radius
-    lg: 24, // Large corner radius
+    full: 9999,
+    sm: 8,
+    md: 16,
+    lg: 24,
   };
 
   // Determine the border radius based on the prop
@@ -42,26 +43,16 @@ const FFAvatar = ({
         {
           width: size,
           height: size,
-          borderRadius: radius, // Apply the border radius
-          overflow: "hidden", // Ensures the image is clipped to the radius
+          borderRadius: radius,
+          overflow: "hidden",
         },
-        !avatar ? { backgroundColor: "#efcb13" } : {}, // Use a fallback background if no avatar
-        style, // Apply the custom style passed as a prop
+        style,
       ]}
     >
-      {avatar ? (
-        <Image
-          source={{ uri: avatar }} // Set the avatar URL as the image source
-          style={{ width: "100%", height: "100%" }} // Ensure the image fills the entire container
-        />
-      ) : (
-        <View
-          style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
-        >
-          {/* Placeholder or fallback content, such as a letter or icon */}
-          <FFText style={{ color: "#fff" }}>F</FFText>
-        </View>
-      )}
+      <Image
+        source={{ uri: avatar || IMAGE_LINKS.DEFAULT_LOGO }}
+        style={{ width: "100%", height: "100%" }}
+      />
     </Pressable>
   );
 };

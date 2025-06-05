@@ -1,4 +1,3 @@
-// HomeScreen.tsx
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { View, TouchableOpacity } from "react-native";
 import FFSafeAreaView from "@/src/components/FFSafeAreaView";
@@ -72,6 +71,8 @@ const HomeScreen = () => {
   const [swipeTextCurrentStage, setSwipeTextCurrentStage] =
     useState(`I'm ready`);
   const pendingStageRef = useRef<Stage | null>(null);
+  const hasFinishedProgressRef = useRef(false);
+  const lastProcessedStageRef = useRef<string | null>(null);
 
   const dispatch = useDispatch();
   const { available_for_work, avatar, accessToken, userId } = useSelector(
@@ -155,7 +156,7 @@ const HomeScreen = () => {
       setCurrentStage(stage);
       setIsResetSwipe(true);
       setTimeout(() => setIsResetSwipe(false), 100);
-    }, 300), // Reduced debounce time
+    }, 300),
     []
   );
 
@@ -167,6 +168,8 @@ const HomeScreen = () => {
       debouncedSetCurrentStage(null);
       setSwipeTextCurrentStage("");
       setModalDetails({ status: "HIDDEN", title: "", desc: "" });
+      hasFinishedProgressRef.current = false;
+      lastProcessedStageRef.current = null;
       return;
     }
 
@@ -186,12 +189,15 @@ const HomeScreen = () => {
     console.log("Unique stages:", uniqueStages);
 
     // Check if delivery is complete
-    const isDeliveryComplete = uniqueStages.some(
+    const deliveryCompleteStage = uniqueStages.find(
       (s) => s.state === "delivery_complete_order_1" && s.status === "completed"
     );
 
-    if (isDeliveryComplete) {
-      console.log("Delivery complete, calling handleFinishProgress");
+    if (
+      deliveryCompleteStage &&
+      lastProcessedStageRef.current !== deliveryCompleteStage.state
+    ) {
+      lastProcessedStageRef.current = deliveryCompleteStage.state;
       setCurrentActiveLocation(null);
       handleFinishProgress();
       return;
@@ -306,8 +312,16 @@ const HomeScreen = () => {
     transactions_processed,
     isSocketConnected,
   ]);
+
   const handleFinishProgress = async () => {
+    if (hasFinishedProgressRef.current) {
+      console.log("handleFinishProgress already executed, skipping");
+      return;
+    }
+
     try {
+      hasFinishedProgressRef.current = true;
+      setIsProcessing(true);
       if (emitUpdateDriverProgress && id) {
         console.log("Emitting final updateDriverProgress with stageId:", id);
         await emitUpdateDriverProgress({ stageId: id });
@@ -351,7 +365,6 @@ const HomeScreen = () => {
       setModalDetails({ status: "HIDDEN", desc: "", title: "" });
       setIsResetSwipe(true);
       setTimeout(() => setIsResetSwipe(false), 100);
-      setIsProcessing(false);
       handleCompleteOrder();
 
       navigation.navigate("Rating", {
@@ -361,12 +374,13 @@ const HomeScreen = () => {
       });
     } catch (error) {
       console.error("Error finishing progress:", error);
-      setIsProcessing(false);
       setModalDetails({
         status: "ERROR",
         title: "Error",
         desc: "Failed to complete order. Please try again.",
       });
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -555,8 +569,6 @@ const HomeScreen = () => {
             )
           ) : (
             <>
-          
-
               {!available_for_work && (
                 <View className="overflow-hidden mx-6 my-4 rounded-lg bg-[#0EB228]">
                   <FFSwipe
@@ -567,19 +579,19 @@ const HomeScreen = () => {
                     }}
                     direction="right"
                   />
-                      <FFText
-                      fontWeight="400"
-                      style={{
-                        position: "absolute",
-                        top: 0,
-                        bottom: 0,
-                        marginTop: 12,
-                        marginLeft: 64,
-                        color: "#fff",
-                      }}
-                    >
-                      {'Swipe to start receiving orders'}
-                    </FFText>
+                  <FFText
+                    fontWeight="400"
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      bottom: 0,
+                      marginTop: 12,
+                      marginLeft: 64,
+                      color: "#fff",
+                    }}
+                  >
+                    {"Swipe to start receiving orders"}
+                  </FFText>
                 </View>
               )}
             </>
@@ -625,6 +637,7 @@ const HomeScreen = () => {
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => {
+                setModalDetails({ status: "HIDDEN", desc: "", title: "" });
                 setIsProcessing(true);
                 handleFinishProgress();
               }}
