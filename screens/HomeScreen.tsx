@@ -71,6 +71,7 @@ const HomeScreen = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const isUpdatingRef = useRef(false);
   const isCompletingOrderRef = useRef(false);
+  const completedOrderIds = useRef<Set<string>>(new Set());
   const [currentStage, setCurrentStage] = useState<Stage | null>(null);
   const [swipeTextCurrentStage, setSwipeTextCurrentStage] =
     useState(`I'm ready`);
@@ -150,6 +151,32 @@ const HomeScreen = () => {
     }
 
     console.log("Current stage changed:", currentStage?.state);
+
+    // FORCE UPDATE swipe text immediately based on currentStage
+    if (currentStage) {
+      let newSwipeText = "";
+      if (currentStage.state.startsWith("driver_ready")) {
+        newSwipeText = "I'm ready";
+      } else if (currentStage.state.startsWith("waiting_for_pickup")) {
+        newSwipeText = "I've arrived restaurant";
+      } else if (currentStage.state.startsWith("restaurant_pickup")) {
+        newSwipeText = "I've picked up the order";
+      } else if (currentStage.state.startsWith("en_route_to_customer")) {
+        newSwipeText = "I've arrived customer";
+      } else if (currentStage.state.startsWith("delivery_complete")) {
+        newSwipeText = "Confirm delivery";
+      }
+
+      if (newSwipeText && newSwipeText !== swipeTextCurrentStage) {
+        console.log("=== FORCE UPDATING SWIPE TEXT ===", {
+          from: swipeTextCurrentStage,
+          to: newSwipeText,
+          stage: currentStage.state,
+        });
+        setSwipeTextCurrentStage(newSwipeText);
+      }
+    }
+
     updateSwipeText(currentStage);
     if (
       currentStage?.state.startsWith("delivery_complete") &&
@@ -161,7 +188,7 @@ const HomeScreen = () => {
         desc: "Have you delivered the order to the customer?",
       });
     }
-  }, [currentStage, updateSwipeText]);
+  }, [currentStage, updateSwipeText, swipeTextCurrentStage]);
 
   const debouncedSetCurrentStage = useCallback(
     debounce((stage: Stage | null) => {
@@ -178,6 +205,28 @@ const HomeScreen = () => {
     if (isCompletingOrderRef.current) {
       console.log("SKIPPING useEffect - order completion in progress");
       return;
+    }
+
+    // SKIP if stages contain completed orders that should be filtered
+    if (completedOrderIds.current && completedOrderIds.current.size > 0) {
+      const hasCompletedOrderStages = stages.some((stage) => {
+        const orderId = stage.state.split("_order_")[1];
+        return completedOrderIds.current.has(orderId);
+      });
+
+      if (hasCompletedOrderStages) {
+        console.log("SKIPPING useEffect - stages contain completed orders");
+        debugLogger.warn("HomeScreen", "SKIPPING_USEEFFECT_COMPLETED_ORDERS", {
+          completedOrderIds: Array.from(completedOrderIds.current),
+          stagesWithCompletedOrders: stages
+            .filter((stage) => {
+              const orderId = stage.state.split("_order_")[1];
+              return completedOrderIds.current.has(orderId);
+            })
+            .map((s) => s.state),
+        });
+        return;
+      }
     }
 
     console.log("Stages updated:", stages);
@@ -402,10 +451,15 @@ const HomeScreen = () => {
         // FIRST: Block useEffect and socket updates to prevent override
         console.log("=== BLOCKING USEEFFECT AND SOCKET UPDATES ===");
         isCompletingOrderRef.current = true;
+
+        // Add to completed orders to prevent restore
+        completedOrderIds.current.add(currentOrderId);
+        console.log("=== ADDED TO COMPLETED ORDERS ===", currentOrderId);
+
         await debugLogger.info("HomeScreen", "BLOCKING_SOCKET_UPDATES", {
           duration: 5000,
         });
-        blockSocketUpdatesTemporarily(5000); // Block for 5 seconds
+        blockSocketUpdatesTemporarily(30000); // Block for 30 seconds
 
         // SECOND: Update UI immediately - don't wait for server
         console.log("=== UPDATING UI IMMEDIATELY FOR BETTER UX ===");
@@ -439,6 +493,25 @@ const HomeScreen = () => {
         await debugLogger.info("HomeScreen", "REDUX_STAGES_UPDATED", {
           newStagesCount: filteredStages.length,
         });
+
+        // Calculate remaining orders
+        const remainingOrders = orders.filter(
+          (order) => order.id !== `FF_ORDER_${currentOrderId}`
+        );
+
+        // FORCE CLEAR AsyncStorage to prevent restore
+        await AsyncStorage.setItem(
+          "currentDriverProgressStage",
+          JSON.stringify({
+            stages: filteredStages,
+            orders: remainingOrders,
+            id: id,
+            driver_id: userId,
+            transactions_processed: false,
+            // Preserve other fields but with filtered stages
+          })
+        );
+        console.log("=== FORCE UPDATED ASYNCSTORAGE ===");
 
         // Update local state immediately
         handleCompleteOrder(currentOrderId);
@@ -479,10 +552,57 @@ const HomeScreen = () => {
 
         console.log("=== UI UPDATED IMMEDIATELY ===");
 
-        // Unblock useEffect after UI is updated
+        // Unblock useEffect after UI is updated and force currentStage update
         setTimeout(() => {
           console.log("=== UNBLOCKING USEEFFECT ===");
           isCompletingOrderRef.current = false;
+
+          // Force update currentStage to first pending stage of remaining order
+          const firstPendingStage = filteredStages
+            .filter((s) => s.status === "pending")
+            .sort((a, b) => {
+              const aOrder = parseInt(a.state.split("_order_")[1] || "1");
+              const bOrder = parseInt(b.state.split("_order_")[1] || "1");
+              const aBase = a.state.split("_order_")[0];
+              const bBase = b.state.split("_order_")[0];
+              const stageOrder =
+                STAGE_ORDER.indexOf(aBase) - STAGE_ORDER.indexOf(bBase);
+              return stageOrder !== 0 ? stageOrder : aOrder - bOrder;
+            })[0];
+
+          if (firstPendingStage) {
+            console.log(
+              "=== FORCE SETTING CURRENT STAGE ===",
+              firstPendingStage.state
+            );
+            setCurrentStage(firstPendingStage);
+
+            // Force update swipe text based on stage
+            if (firstPendingStage.state.startsWith("driver_ready")) {
+              setSwipeTextCurrentStage("I'm ready");
+            } else if (
+              firstPendingStage.state.startsWith("waiting_for_pickup")
+            ) {
+              setSwipeTextCurrentStage("I've arrived restaurant");
+            } else if (
+              firstPendingStage.state.startsWith("restaurant_pickup")
+            ) {
+              setSwipeTextCurrentStage("I've picked up the order");
+            } else if (
+              firstPendingStage.state.startsWith("en_route_to_customer")
+            ) {
+              setSwipeTextCurrentStage("I've arrived customer");
+            } else if (
+              firstPendingStage.state.startsWith("delivery_complete")
+            ) {
+              setSwipeTextCurrentStage("Confirm delivery");
+            }
+
+            console.log(
+              "=== FORCE UPDATED SWIPE TEXT ===",
+              swipeTextCurrentStage
+            );
+          }
         }, 1000); // Unblock after 1 second
 
         // SECOND: Emit to server in background (don't await)
@@ -873,12 +993,18 @@ const HomeScreen = () => {
                 onCall={() => {}}
                 onChange={() => {}}
                 stages={filterPickupAndDropoffStages(
-                  stages?.map((item) => ({
-                    ...item,
-                    address: item.details?.restaurantDetails?.address
-                      ? item.details.restaurantDetails.address
-                      : item.details?.customerDetails?.address?.[0],
-                  }))
+                  stages
+                    ?.filter((stage) => {
+                      // Filter out completed orders
+                      const orderId = stage.state.split("_order_")[1];
+                      return !completedOrderIds.current.has(orderId);
+                    })
+                    ?.map((item) => ({
+                      ...item,
+                      address: item.details?.restaurantDetails?.address
+                        ? item.details.restaurantDetails.address
+                        : item.details?.customerDetails?.address?.[0],
+                    }))
                 )}
               />
             )

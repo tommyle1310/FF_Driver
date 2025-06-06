@@ -1,4 +1,5 @@
 import { io, Socket } from "socket.io-client";
+import { IP_ADDRESS } from "../utils/constants";
 
 class SocketManager {
   private socket: Socket | null = null;
@@ -12,11 +13,14 @@ class SocketManager {
 
   initialize(driverId: string, token: string, userId: string) {
     if (!driverId || !token || !userId) {
-      console.error("Cannot initialize SocketManager: Missing driverId, token, or userId", {
-        driverId,
-        token,
-        userId,
-      });
+      console.error(
+        "Cannot initialize SocketManager: Missing driverId, token, or userId",
+        {
+          driverId,
+          token,
+          userId,
+        }
+      );
       return;
     }
 
@@ -47,8 +51,11 @@ class SocketManager {
     this.reconnectAttempts = 0;
 
     console.log(`Creating new socket connection for driverId: ${driverId}`);
-    console.log("'ws://192.168.1.8:1310/driver':", 'ws://192.168.1.8:1310/driver');
-    this.socket = io('ws://192.168.1.8:1310/driver', {
+    console.log(
+      `ws://${IP_ADDRESS.NEAR}:1310/driver`,
+      `ws://${IP_ADDRESS.NEAR}:1310/driver`
+    );
+    this.socket = io(`ws://${IP_ADDRESS.NEAR}:1310/driver`, {
       auth: { token }, // Keep for compatibility
       extraHeaders: {
         auth: `Bearer ${token}`, // Match backend expectation
@@ -120,7 +127,7 @@ class SocketManager {
       console.log(
         `Creating new socket connection for driverId: ${this.driverId}`
       );
-      this.socket = io('ws://192.168.1.8:1310/driver', {
+      this.socket = io("ws://192.168.1.8:1310/driver", {
         auth: { token: this.token },
         extraHeaders: {
           auth: `Bearer ${this.token}`,
@@ -185,7 +192,9 @@ class SocketManager {
 
   off(event: string, callback?: (data: any) => void) {
     if (!this.socket) {
-      console.log(`Cannot remove listener for ${event}: Socket not initialized`);
+      console.log(
+        `Cannot remove listener for ${event}: Socket not initialized`
+      );
       return;
     }
     if (callback) {

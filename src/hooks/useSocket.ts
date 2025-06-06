@@ -278,6 +278,55 @@ export const useSocket = (
 
       const responseString = JSON.stringify(filteredResponse);
 
+      // Skip dispatch if incoming data contains completed orders that we already removed locally
+      if (completedOrderIds.current.size > 0) {
+        const incomingCompletedStages = uniqueStages.filter((stage) => {
+          const orderId = stage.state.split("_order_")[1];
+          return completedOrderIds.current.has(orderId);
+        });
+
+        if (incomingCompletedStages.length > 0) {
+          console.log(
+            "SKIPPING dispatch - server sending completed order stages:",
+            {
+              completedOrderIds: Array.from(completedOrderIds.current),
+              incomingCompletedStages: incomingCompletedStages.map(
+                (s) => s.state
+              ),
+              reason: "Server has stale data with completed orders",
+            }
+          );
+          debugLogger.warn("useSocket", "SKIPPING_DISPATCH_STALE_SERVER_DATA", {
+            completedOrderIds: Array.from(completedOrderIds.current),
+            incomingCompletedStages: incomingCompletedStages.map(
+              (s) => s.state
+            ),
+            totalIncomingStages: uniqueStages.length,
+          });
+          isProcessingRef.current = false;
+          processEventQueue();
+          return;
+        }
+      }
+
+      // Skip dispatch if we have fewer stages than current (order completion in progress)
+      if (stages.length > 0 && uniqueStages.length < stages.length) {
+        console.log("SKIPPING dispatch - order completion detected:", {
+          currentStages: stages.length,
+          incomingStages: uniqueStages.length,
+          reason: "Local order completion in progress",
+        });
+        debugLogger.warn("useSocket", "SKIPPING_DISPATCH_ORDER_COMPLETION", {
+          currentStages: stages.length,
+          incomingStages: uniqueStages.length,
+          currentStageStates: stages.map((s) => s.state),
+          incomingStageStates: uniqueStages.map((s) => s.state),
+        });
+        isProcessingRef.current = false;
+        processEventQueue();
+        return;
+      }
+
       if (
         isInitialUpdateRef.current ||
         lastResponseRef.current !== responseString
