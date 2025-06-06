@@ -21,6 +21,7 @@ import { RootState } from "../store/store";
 import FFToggle from "./FFToggle";
 import { loadTokenFromAsyncStorage } from "../store/authSlice";
 import { toggleAvailability } from "../store/availabilitySlice";
+import DebugLogExporter from "./DebugLogExporter";
 // import {  RootStackParamList,  } from "../navigation/AppNavigator";
 
 type NavigationProp = StackNavigationProp<any, "Main">;
@@ -161,6 +162,9 @@ const FFSidebar = ({
                   <FFText style={{ fontSize: 16 }}>{item.title}</FFText>
                 </TouchableOpacity>
               ))}
+
+              {/* Debug Log Exporter - Only show in development */}
+              {__DEV__ && <DebugLogExporter />}
             </View>
           </Animated.View>
         </TouchableWithoutFeedback>

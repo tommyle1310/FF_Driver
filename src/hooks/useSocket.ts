@@ -6,10 +6,10 @@ import {
   setDriverProgressStage,
   clearDriverProgressStage,
   updateStages,
-  initialState,
 } from "../store/currentDriverProgressStageSlice";
 import { Type_PushNotification_Order } from "../types/pushNotification";
 import NetInfo from "@react-native-community/netinfo";
+import { debugLogger } from "../utils/debugLogger";
 import SocketManager from "./SocketManager";
 
 interface Stage {
@@ -38,15 +38,32 @@ export const useSocket = (
   setIsShowToast?: React.Dispatch<React.SetStateAction<boolean>>
 ) => {
   const { accessToken, userId } = useSelector((state: RootState) => state.auth);
-  const { transactions_processed, stages, orders } = useSelector(
-    (state: RootState) => state.currentDriverProgressStage
-  );
+  const {
+    transactions_processed,
+    stages,
+    orders,
+    id,
+    current_state,
+    previous_state,
+    next_state,
+    estimated_time_remaining,
+    actual_time_spent,
+    total_distance_travelled,
+    total_tips,
+    total_earns,
+    events,
+    created_at,
+    updated_at,
+  } = useSelector((state: RootState) => state.currentDriverProgressStage);
   const dispatch: AppDispatch = useDispatch();
   const lastResponseRef = useRef<string | undefined>(undefined);
   const responseTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isInitialUpdateRef = useRef(true);
   const [isWaitingForResponse, setIsWaitingForResponse] = useState(false);
   const [isOrderCompleted, setIsOrderCompleted] = useState(false);
+  const completedOrderIds = useRef<Set<string>>(new Set());
+  const blockSocketUpdates = useRef<boolean>(false);
+  const blockTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const eventQueueRef = useRef<{ event: string; data: any; id: string }[]>([]);
   const emitQueueRef = useRef<
     { event: string; data: any; resolve: Function; reject: Function }[]
@@ -97,19 +114,49 @@ export const useSocket = (
     isProcessingRef.current = true;
     const { event, data, id } = eventQueueRef.current.shift()!;
 
-    const eventKey = `${data.id}_${data.updated_at}`;
-    const lastUpdatedAt = processedEventIds.current.get(data.id);
+    // Only check for duplicates if we have proper id and updated_at
+    if (data.id && data.updated_at) {
+      const eventKey = `${data.id}_${data.updated_at}`;
+      const lastUpdatedAt = processedEventIds.current.get(data.id);
 
-    if (lastUpdatedAt && lastUpdatedAt >= data.updated_at) {
-      console.log("Skipping duplicate or older event:", eventKey);
-      isProcessingRef.current = false;
-      processEventQueue();
-      return;
+      if (lastUpdatedAt && lastUpdatedAt >= data.updated_at) {
+        console.log("Skipping duplicate or older event:", eventKey);
+        isProcessingRef.current = false;
+        processEventQueue();
+        return;
+      }
+
+      processedEventIds.current.set(data.id, data.updated_at);
+    } else {
+      console.log("Processing event without id/updated_at:", id);
     }
 
-    processedEventIds.current.set(data.id, data.updated_at);
-
     if (event === "driverStagesUpdated") {
+      // Skip if this is just an order status update without stages
+      if (
+        !data.stages ||
+        !Array.isArray(data.stages) ||
+        data.stages.length === 0
+      ) {
+        console.log("Skipping driverStagesUpdated without stages data:", id);
+        isProcessingRef.current = false;
+        processEventQueue();
+        return;
+      }
+
+      // Skip if socket updates are blocked (during order completion)
+      if (blockSocketUpdates.current) {
+        console.log("Blocking socket update during order completion:", id);
+        debugLogger.warn("useSocket", "SOCKET_UPDATE_BLOCKED", {
+          eventId: id,
+          stageCount: data.stages?.length,
+          reason: "Order completion in progress",
+        });
+        isProcessingRef.current = false;
+        processEventQueue();
+        return;
+      }
+
       console.log("Processing driverStagesUpdated:", {
         eventId: id,
         stageCount: data.stages.length,
@@ -132,7 +179,7 @@ export const useSocket = (
         return;
       }
 
-      const uniqueStages = Object.values<Stage>(
+      let uniqueStages = Object.values<Stage>(
         data.stages.reduce((acc: { [key: string]: Stage }, stage: Stage) => {
           const key = stage.state;
           if (!acc[key] || acc[key].timestamp < stage.timestamp) {
@@ -162,6 +209,61 @@ export const useSocket = (
           ].indexOf(bBase);
         return stageOrder !== 0 ? stageOrder : aOrder - bOrder;
       });
+
+      // Check if any delivery_complete stage just changed to "completed"
+      const newlyCompletedOrders = uniqueStages
+        .filter(
+          (stage) =>
+            stage.state.startsWith("delivery_complete_order_") &&
+            stage.status === "completed"
+        )
+        .map((stage) => stage.state.split("_order_")[1]);
+
+      if (newlyCompletedOrders.length > 0) {
+        console.log("Detected newly completed orders:", newlyCompletedOrders);
+        debugLogger.info("useSocket", "NEWLY_COMPLETED_ORDERS_DETECTED", {
+          completedOrders: newlyCompletedOrders,
+          totalStagesBefore: uniqueStages.length,
+        });
+
+        // Add to completed orders and filter them out
+        newlyCompletedOrders.forEach((orderId) => {
+          completedOrderIds.current.add(orderId);
+          console.log(`Order ${orderId} marked as completed`);
+        });
+
+        // Filter out stages from completed orders
+        const stagesBeforeFilter = uniqueStages.map((s) => ({
+          state: s.state,
+          status: s.status,
+        }));
+        uniqueStages = uniqueStages.filter((stage) => {
+          const orderId = stage.state.split("_order_")[1];
+          const isCompleted = completedOrderIds.current.has(orderId);
+          if (isCompleted) {
+            console.log(
+              `Filtering out stage ${stage.state} from completed order ${orderId}`
+            );
+          }
+          return !isCompleted;
+        });
+        const stagesAfterFilter = uniqueStages.map((s) => ({
+          state: s.state,
+          status: s.status,
+        }));
+
+        console.log(
+          "Stages after filtering completed orders:",
+          uniqueStages.length
+        );
+
+        debugLogger.info("useSocket", "STAGES_FILTERED_BY_COMPLETION", {
+          stagesBeforeFilter,
+          stagesAfterFilter,
+          filteredCount: uniqueStages.length,
+          completedOrders: Array.from(completedOrderIds.current),
+        });
+      }
 
       const filteredResponse = { ...data, stages: uniqueStages };
       if (!filteredResponse.current_state || !filteredResponse.stages.length) {
@@ -286,6 +388,7 @@ export const useSocket = (
       processedEventIds.current.clear();
       lastResponseRef.current = undefined;
       isInitialUpdateRef.current = true;
+      completedOrderIds.current.clear(); // Clear completed orders for new session
     };
 
     const handleNotifyOrderStatus = (response: any) => {
@@ -320,11 +423,28 @@ export const useSocket = (
     };
 
     const handleDriverStagesUpdated = (response: any) => {
-      const eventId = `${response.id}_${response.updated_at}`;
+      // Handle different response formats
+      let eventId;
+      let eventData;
+
+      if (response.id && response.updated_at) {
+        // Full driver progress stage update
+        eventId = `${response.id}_${response.updated_at}`;
+        eventData = response;
+      } else if (response.orderId) {
+        // Order status update - create unique ID
+        eventId = `${response.orderId}_${Date.now()}`;
+        eventData = response;
+      } else {
+        // Fallback for unknown format
+        eventId = `unknown_${Date.now()}`;
+        eventData = response;
+      }
+
       console.log("Received driverStagesUpdated:", { eventId, response });
       eventQueueRef.current.push({
         event: "driverStagesUpdated",
-        data: response,
+        data: eventData,
         id: eventId,
       });
       processEventQueue();
@@ -351,11 +471,9 @@ export const useSocket = (
     SocketManager.on("connect_error", handleConnectError);
     SocketManager.on("disconnect", handleDisconnect);
     SocketManager.on("incomingOrderForDriver", handleIncomingOrder);
-    if (!isOrderCompleted) {
-      SocketManager.on("notifyOrderStatus", handleNotifyOrderStatus);
-      SocketManager.on("driverStagesUpdated", handleDriverStagesUpdated);
-      SocketManager.on("driverAcceptOrder", handleDriverAcceptOrder);
-    }
+    SocketManager.on("notifyOrderStatus", handleNotifyOrderStatus);
+    SocketManager.on("driverStagesUpdated", handleDriverStagesUpdated);
+    SocketManager.on("driverAcceptOrder", handleDriverAcceptOrder);
 
     const unsubscribe = NetInfo.addEventListener((state) => {
       console.log("Network state:", state);
@@ -416,6 +534,15 @@ export const useSocket = (
   const emitUpdateDriverProgress = async (
     data: any
   ): Promise<SocketResponse> => {
+    console.log(
+      "emitUpdateDriverProgress - Socket connected:",
+      SocketManager.isConnected()
+    );
+    console.log(
+      "emitUpdateDriverProgress - isSocketConnected state:",
+      isSocketConnected
+    );
+
     if (!SocketManager.isConnected()) {
       console.warn("Socket not connected, queuing emitUpdateDriverProgress");
       return new Promise((resolve, reject) => {
@@ -458,9 +585,32 @@ export const useSocket = (
     });
   };
 
+  const blockSocketUpdatesTemporarily = (duration: number = 3000) => {
+    console.log("Blocking socket updates for", duration, "ms");
+    blockSocketUpdates.current = true;
+
+    if (blockTimeoutRef.current) {
+      clearTimeout(blockTimeoutRef.current);
+    }
+
+    blockTimeoutRef.current = setTimeout(() => {
+      console.log("Unblocking socket updates");
+      blockSocketUpdates.current = false;
+      blockTimeoutRef.current = null;
+    }, duration);
+  };
+
   const handleCompleteOrder = (orderId?: string) => {
-    console.log("Completing order:", orderId);
+    console.log("=== HANDLE COMPLETE ORDER:", orderId, "===");
     if (orderId) {
+      // Add to completed orders set to prevent restoration
+      completedOrderIds.current.add(orderId);
+      console.log("Added to completed orders:", orderId);
+      console.log(
+        "All completed orders:",
+        Array.from(completedOrderIds.current)
+      );
+
       // Filter out stages and orders for the completed order
       const remainingStages = stages.filter(
         (stage) => !stage.state.includes(`order_${orderId}`)
@@ -469,33 +619,59 @@ export const useSocket = (
         (order) => !order.id.includes(orderId)
       );
 
+      console.log("Original stages count:", stages.length);
+      console.log("Remaining stages count:", remainingStages.length);
+      console.log("Completed orderId:", orderId);
+
       if (remainingStages.length > 0) {
         // Update stages and orders, keep state for remaining orders
         console.log(
           "Remaining stages after completing order:",
           remainingStages
         );
+
+        // Get current driver progress stage data to preserve
+        const currentDPS = {
+          id: id, // PRESERVE original driver progress stage ID
+          driver_id: userId,
+          current_state:
+            remainingStages.find((s) => s.status === "in_progress")?.state ||
+            remainingStages[0]?.state,
+          previous_state: previous_state,
+          stages: remainingStages,
+          orders: remainingOrders,
+          next_state: next_state,
+          estimated_time_remaining: estimated_time_remaining,
+          actual_time_spent: actual_time_spent,
+          total_distance_travelled: total_distance_travelled, // PRESERVE
+          total_tips: total_tips, // PRESERVE
+          total_earns: total_earns, // PRESERVE
+          events: events || [],
+          created_at: created_at,
+          updated_at: Math.floor(Date.now() / 1000),
+          transactions_processed: false,
+        };
+
+        console.log("Preserving driver progress stage data:", {
+          id: currentDPS.id,
+          total_earns: currentDPS.total_earns,
+          total_distance_travelled: currentDPS.total_distance_travelled,
+          total_tips: currentDPS.total_tips,
+        });
+
         dispatch(updateStages(remainingStages));
-        dispatch(
-          setDriverProgressStage({
-            ...initialState,
-            stages: remainingStages,
-            orders: remainingOrders,
-            id: stages[0]?.state,
-            driver_id: userId,
-            transactions_processed: false,
-          })
-        );
-        dispatch(
-          saveDriverProgressStageToAsyncStorage({
-            ...initialState,
-            stages: remainingStages,
-            orders: remainingOrders,
-            id: stages[0]?.state,
-            driver_id: userId,
-            transactions_processed: false,
-          })
-        );
+        dispatch(setDriverProgressStage(currentDPS));
+        dispatch(saveDriverProgressStageToAsyncStorage(currentDPS));
+
+        // Don't set isOrderCompleted to true if there are remaining orders
+        console.log("Multiple orders: not setting isOrderCompleted to true");
+
+        // Reset some flags but keep socket active for remaining orders
+        lastResponseRef.current = undefined;
+        isInitialUpdateRef.current = true;
+        setIsWaitingForResponse(false);
+
+        return;
       } else {
         // No remaining orders, clear state
         console.log("No remaining orders, clearing state");
@@ -515,6 +691,7 @@ export const useSocket = (
     emitQueueRef.current = [];
     processedEventIds.current.clear();
     processedOrderIds.current.clear();
+    completedOrderIds.current.clear(); // Clear completed orders when all done
   };
 
   const handleRejectOrder = (orderId: string) => {
@@ -531,5 +708,6 @@ export const useSocket = (
     isSocketConnected,
     handleCompleteOrder,
     handleRejectOrder,
+    blockSocketUpdatesTemporarily,
   };
 };
