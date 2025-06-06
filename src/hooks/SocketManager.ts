@@ -52,10 +52,10 @@ class SocketManager {
 
     console.log(`Creating new socket connection for driverId: ${driverId}`);
     console.log(
-      `ws://${IP_ADDRESS.NEAR}:1310/driver`,
-      `ws://${IP_ADDRESS.NEAR}:1310/driver`
+      `ws://${IP_ADDRESS.HOME_1}:1310/driver`,
+      `ws://${IP_ADDRESS.HOME_1}:1310/driver`
     );
-    this.socket = io(`ws://${IP_ADDRESS.NEAR}:1310/driver`, {
+    this.socket = io(`ws://${IP_ADDRESS.HOME_1}:1310/driver`, {
       auth: { token }, // Keep for compatibility
       extraHeaders: {
         auth: `Bearer ${token}`, // Match backend expectation

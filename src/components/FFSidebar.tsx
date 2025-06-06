@@ -164,7 +164,7 @@ const FFSidebar = ({
               ))}
 
               {/* Debug Log Exporter - Only show in development */}
-              {__DEV__ && <DebugLogExporter />}
+              {/* {__DEV__ && <DebugLogExporter />} */}
             </View>
           </Animated.View>
         </TouchableWithoutFeedback>
