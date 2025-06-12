@@ -38,6 +38,7 @@ import debounce from "lodash/debounce";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { debugLogger } from "@/src/utils/debugLogger";
 import DebugLogExporter from "@/src/components/DebugLogExporter";
+import { colors, typography } from "@/src/theme";
 
 type HomeRouteProp = RouteProp<SidebarStackParamList, "Home">;
 type HomeSreenNavigationProp = StackNavigationProp<
@@ -932,7 +933,7 @@ const HomeScreen = () => {
                 >
                   <TouchableOpacity
                     style={{
-                      backgroundColor: "#fff",
+                      backgroundColor: colors.textSecondary,
                       width: 50,
                       height: 50,
                       justifyContent: "center",
@@ -941,12 +942,16 @@ const HomeScreen = () => {
                       borderColor: "#ddd",
                       borderRadius: 9999,
                     }}
-                    onPress={() => {}}
+                    onPress={() => {
+                      // Reset to default state
+                      setCurrentActiveLocation(null);
+                      setSelectedDestination(null);
+                    }}
                   >
-                    <FontAwesome6
-                      name="exclamation-triangle"
-                      size={20}
-                      color={"#cf3719"}
+                    <Ionicons
+                      name="return-up-back"
+                      size={32}
+                      color={colors.white}
                     />
                   </TouchableOpacity>
                   <View
@@ -992,6 +997,15 @@ const HomeScreen = () => {
                 setSelectedDestination={setSelectedDestination}
                 onCall={() => {}}
                 onChange={() => {}}
+                swipeText={swipeTextCurrentStage}
+                onSwipe={handleUpdateProgress}
+                isSwipeDisabled={
+                  isWaitingForResponse ||
+                  isProcessing ||
+                  currentStage?.status === "completed" ||
+                  transactions_processed
+                }
+                resetSwipe={isResetSwipe}
                 stages={filterPickupAndDropoffStages(
                   stages
                     ?.filter((stage) => {

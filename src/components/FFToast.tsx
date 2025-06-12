@@ -24,6 +24,7 @@ interface FFToastProps {
   children: React.ReactNode; // Includes detailed content and buttons for isApprovalType
   onAccept?: () => void;
   onReject?: () => void;
+  onTimeout?: () => void; // Callback when timeout duration is exceeded
 }
 
 const FFToast: React.FC<FFToastProps> = ({
@@ -32,11 +33,12 @@ const FFToast: React.FC<FFToastProps> = ({
   disabledClose = false,
   variant = "INFO",
   isApprovalType = false,
-  duration = 100000,
+  duration = 90000,
   title,
   children,
   onAccept,
   onReject,
+  onTimeout,
 }) => {
   const { theme } = useTheme();
   const [show, setShow] = useState(visible);
@@ -85,6 +87,11 @@ const FFToast: React.FC<FFToastProps> = ({
       }).start();
 
       const timeout = setTimeout(() => {
+        // Call onTimeout callback if provided before closing
+        if (onTimeout) {
+          onTimeout();
+        }
+
         Animated.timing(slideAnim, {
           toValue: -120,
           duration: 300,
@@ -99,7 +106,7 @@ const FFToast: React.FC<FFToastProps> = ({
       setShow(false);
       setIsExpanded(false);
     }
-  }, [visible, slideAnim, duration, onClose]);
+  }, [visible, slideAnim, duration, onClose, onTimeout]);
 
   // Expand/Collapse animation
   useEffect(() => {
@@ -171,7 +178,7 @@ const FFToast: React.FC<FFToastProps> = ({
             >
               <FFButton
                 variant="outline"
-                className="w-full"
+                onPress={onReject}
                 style={{ flex: 1 }}
               >
                 Reject
@@ -179,7 +186,6 @@ const FFToast: React.FC<FFToastProps> = ({
               <FFButton
                 onPress={onAccept}
                 variant="primary"
-                className="w-full"
                 style={{ flex: 1 }}
               >
                 Accept
@@ -188,16 +194,6 @@ const FFToast: React.FC<FFToastProps> = ({
           </Animated.View>
         </View>
       </Pressable>
-
-      {/* {!disabledClose && (
-        <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-          <IconIonicon
-            name="close"
-            size={20}
-            color={theme === "light" ? "#666" : "#ccc"}
-          />
-        </TouchableOpacity>
-      )} */}
     </Animated.View>
   );
 };

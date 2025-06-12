@@ -17,7 +17,13 @@ const ReadonlyProfileComponents = ({
   phone: string;
   dateJoined?: string;
 }) => {
-  const { avatar } = useSelector((state: RootState) => state.auth);
+  const {
+    avatar,
+    first_name,
+    last_name,
+    email: reduxEmail,
+    contact_phone,
+  } = useSelector((state: RootState) => state.auth);
 
   return (
     <View
@@ -27,9 +33,11 @@ const ReadonlyProfileComponents = ({
       <View className="flex-row justify-between gap-4">
         <FFAvatar avatar={avatar?.url} />
         <View className="flex-1">
-          <FFText fontSize="lg">Tommy Teo</FFText>
-          <FFText fontWeight="400" style={{ color: "#aaa" }}>
-            abc@gmail.com
+          <FFText fontSize="lg">
+            {last_name} {first_name}
+          </FFText>
+          <FFText fontWeight="400" style={{ color: "#aaa", fontSize: 14 }}>
+            {reduxEmail}
           </FFText>
         </View>
         <TouchableOpacity
@@ -51,7 +59,9 @@ const ReadonlyProfileComponents = ({
         <FFText style={{ color: "#aaa" }} fontWeight="400">
           Phone Number:
         </FFText>
-        <FFText fontWeight="400">(+84) 707171164</FFText>
+        <FFText fontWeight="400">
+          {phone ?? contact_phone?.[0]?.number ?? ""}
+        </FFText>
       </View>
       <View className="flex-row gap-2 items-center">
         <FFText style={{ color: "#aaa" }} fontWeight="400">

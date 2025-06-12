@@ -30,7 +30,9 @@ type LogoutSreenNavigationProp = StackNavigationProp<
 const SettingsScreen = () => {
   const navigation = useNavigation<LogoutSreenNavigationProp>();
   const dispatch = useDispatch();
-  const { avatar } = useSelector((state: RootState) => state.auth);
+  const { avatar, first_name, last_name } = useSelector(
+    (state: RootState) => state.auth
+  );
   const { "Account Settings": data_account_setting, More: data_more } =
     useSettingData();
 
@@ -57,7 +59,9 @@ const SettingsScreen = () => {
               {/* Profile Section */}
               <View style={styles.profileSection}>
                 <FFAvatar size={40} avatar={avatar?.url} />
-                <FFText>Tommy Bua</FFText>
+                <FFText>
+                  {last_name} {first_name}
+                </FFText>
               </View>
 
               {/* Account Settings Section */}

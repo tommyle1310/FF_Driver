@@ -1,15 +1,15 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { View, TouchableOpacity } from "react-native";
 import FFText from "@/src/components/FFText";
 import FFButton from "@/src/components/FFButton";
 import { Ionicons } from "@expo/vector-icons";
-import { Avatar } from "@/src/types/common";
 import { PickupAndDropoffStage } from "@/src/utils/functions/filters";
 import FFBadge from "../../FFBadge";
 import FFAvatar from "../../FFAvatar";
 import { useSelector } from "@/src/store/types";
 import { RootState } from "@/src/store/store";
 import FFSeperator from "../../FFSeperator";
+import FFSwipe from "../../FFSwipe";
 import { colors } from "@/src/theme";
 
 interface AllStagesProps {
@@ -19,6 +19,11 @@ interface AllStagesProps {
   handleGoNow?: () => void;
   selectedDestination: PickupAndDropoffStage | null;
   setSelectedDestination: (stage: PickupAndDropoffStage | null) => void;
+  // FFSwipe related props
+  swipeText?: string;
+  onSwipe?: () => void;
+  isSwipeDisabled?: boolean;
+  resetSwipe?: boolean;
 }
 
 const AllStages: React.FC<AllStagesProps> = ({
@@ -28,6 +33,10 @@ const AllStages: React.FC<AllStagesProps> = ({
   selectedDestination,
   handleGoNow,
   setSelectedDestination,
+  swipeText = "",
+  onSwipe,
+  isSwipeDisabled = false,
+  resetSwipe = false,
 }) => {
   // Hàm xử lý khi chọn stage
   const handleSelectStage = (stage: PickupAndDropoffStage) => {
@@ -38,6 +47,11 @@ const AllStages: React.FC<AllStagesProps> = ({
     }
     onChange(); // Gọi onChange để báo cho parent nếu cần
   };
+
+  useEffect(() => {
+    if (!handleGoNow) return;
+    handleGoNow();
+  }, [selectedDestination]);
 
   const { total_earns, total_distance_travelled } = useSelector(
     (state: RootState) => state.currentDriverProgressStage
@@ -71,7 +85,7 @@ const AllStages: React.FC<AllStagesProps> = ({
       </View>
 
       {/* Stages List */}
-      {stages.map((stage, index) => (
+      {stages.map((stage) => (
         <TouchableOpacity
           style={{
             borderWidth: 1,
@@ -126,15 +140,49 @@ const AllStages: React.FC<AllStagesProps> = ({
         </TouchableOpacity>
       ))}
 
-      {/* Go Now Button */}
-      <FFButton
-        variant={selectedDestination ? "primary" : "disabled"}
-        style={{ marginTop: 64 }}
-        className="w-full"
-        onPress={handleGoNow}
-      >
-        Go Now
-      </FFButton>
+      {/* FFSeperator and FFSwipe Section */}
+      <View style={{ marginTop: 32 }}>
+        <FFSeperator />
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 12,
+            marginTop: 12,
+          }}
+        >
+          <View
+            style={{
+              backgroundColor: isSwipeDisabled ? "#e0e0e0" : "#0EB228",
+            }}
+            className="overflow-hidden flex-1 relative my-4 rounded-lg"
+          >
+            {onSwipe && (
+              <>
+                <FFSwipe
+                  reset={resetSwipe}
+                  isDisabled={isSwipeDisabled}
+                  onSwipe={onSwipe}
+                  direction="right"
+                />
+                <FFText
+                  fontWeight="400"
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    bottom: 0,
+                    marginTop: 12,
+                    marginLeft: 64,
+                    color: "#fff",
+                  }}
+                >
+                  {swipeText}
+                </FFText>
+              </>
+            )}
+          </View>
+        </View>
+      </View>
     </View>
   );
 };
