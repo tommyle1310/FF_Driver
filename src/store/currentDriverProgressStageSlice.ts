@@ -121,13 +121,14 @@ export interface DriverProgressStageState {
   estimated_time_remaining: number | null;
   actual_time_spent: number | null;
   total_distance_travelled: number | null;
-  total_tips: number | null;
+  total_tips: number;
   events: Event[];
   created_at: number | null;
   updated_at: number | null;
   total_earns: number | null;
   orders: Order[];
-  transactions_processed: boolean; // Thêm field này
+  transactions_processed: boolean;
+  processed_tip_ids: string[]; // Track processed tip IDs // Thêm field này
 }
 
 // Khởi tạo state ban đầu
@@ -141,13 +142,14 @@ export const initialState: DriverProgressStageState = {
   estimated_time_remaining: null,
   actual_time_spent: null,
   total_distance_travelled: null,
-  total_tips: null,
+  total_tips: 0,
   events: [],
   created_at: null,
   updated_at: null,
   total_earns: null,
   orders: [],
   transactions_processed: false, // Khởi tạo false
+  processed_tip_ids: [], // Track processed tip IDs to prevent duplicates
 };
 
 // AsyncThunk để load dữ liệu từ AsyncStorage
@@ -181,6 +183,17 @@ export const clearDriverProgressStage = createAsyncThunk(
   }
 );
 
+// Helper function to safely parse total_tips from server (handles both string and number)
+const parseTotalTips = (value: any): number => {
+  if (typeof value === "number") {
+    return value;
+  } else if (typeof value === "string") {
+    const parsed = parseFloat(value);
+    return isNaN(parsed) ? 0 : parsed;
+  }
+  return 0;
+};
+
 const currentDriverProgressStageSlice = createSlice({
   name: "currentDriverProgressStage",
   initialState,
@@ -203,6 +216,7 @@ const currentDriverProgressStageSlice = createSlice({
         updated_at,
         orders,
         transactions_processed, // Thêm field
+        processed_tip_ids, // Add new field
       } = action.payload;
 
       // Filter duplicate stages
@@ -230,12 +244,13 @@ const currentDriverProgressStageSlice = createSlice({
       state.estimated_time_remaining = estimated_time_remaining;
       state.actual_time_spent = actual_time_spent;
       state.total_distance_travelled = total_distance_travelled;
-      state.total_tips = total_tips;
+      state.total_tips = parseTotalTips(total_tips);
       state.events = events;
       state.created_at = created_at;
       state.updated_at = updated_at;
       state.orders = orders;
       state.transactions_processed = transactions_processed || false; // Cập nhật field
+      state.processed_tip_ids = processed_tip_ids || []; // Initialize if not provided
     },
     updateCurrentState: (state, action) => {
       state.current_state = action.payload;
@@ -265,7 +280,35 @@ const currentDriverProgressStageSlice = createSlice({
     clearState: () => ({
       ...initialState,
       transactions_processed: false, // Reset field
+      processed_tip_ids: [], // Reset tip tracking
     }),
+    updateTotalTips: (state, action) => {
+      // action.payload should be { tipAmount, orderId, tipTime } for deduplication
+      const { tipAmount, orderId, tipTime } = action.payload;
+      const tipId = `${orderId}_${tipTime}`;
+
+      // Check if this tip has already been processed
+      if (state.processed_tip_ids.includes(tipId)) {
+        console.log("🚫 Duplicate tip detected, skipping:", tipId);
+        return;
+      }
+
+      const parsedTipAmount = parseTotalTips(tipAmount);
+      const previousTips = state.total_tips || 0;
+      const newTotalTips = previousTips + parsedTipAmount;
+
+      console.log("🎯 updateTotalTips called:", {
+        tipId,
+        tipAmount,
+        parsedTipAmount,
+        previousTips,
+        newTotalTips,
+      });
+
+      state.total_tips = newTotalTips;
+      state.processed_tip_ids.push(tipId);
+      state.updated_at = Math.floor(Date.now() / 1000);
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -315,7 +358,7 @@ const currentDriverProgressStageSlice = createSlice({
             state.estimated_time_remaining = estimated_time_remaining;
             state.actual_time_spent = actual_time_spent;
             state.total_distance_travelled = total_distance_travelled;
-            state.total_tips = total_tips;
+            state.total_tips = parseTotalTips(total_tips);
             state.events = events;
             state.created_at = created_at;
             state.updated_at = updated_at;
@@ -369,7 +412,7 @@ const currentDriverProgressStageSlice = createSlice({
           state.estimated_time_remaining = estimated_time_remaining;
           state.actual_time_spent = actual_time_spent;
           state.total_distance_travelled = total_distance_travelled;
-          state.total_tips = total_tips;
+          state.total_tips = parseTotalTips(total_tips);
           state.events = events;
           state.created_at = created_at;
           state.updated_at = updated_at;
@@ -390,6 +433,7 @@ export const {
   updateCurrentState,
   updateStages,
   clearState,
+  updateTotalTips,
 } = currentDriverProgressStageSlice.actions;
 
 // Export reducer

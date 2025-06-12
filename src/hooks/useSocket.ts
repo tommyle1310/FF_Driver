@@ -6,6 +6,7 @@ import {
   setDriverProgressStage,
   clearDriverProgressStage,
   updateStages,
+  updateTotalTips,
 } from "../store/currentDriverProgressStageSlice";
 import { Type_PushNotification_Order } from "../types/pushNotification";
 import NetInfo from "@react-native-community/netinfo";
@@ -26,6 +27,23 @@ interface SocketResponse {
   error?: string;
 }
 
+export interface TipReceivedData {
+  orderId: string;
+  tipAmount: number;
+  tipTime: number;
+  totalTips: number;
+  orderDetails: {
+    id: string;
+    customer_id: string;
+    restaurant_id: string;
+    status: string;
+    tracking_info: string;
+    total_amount: number;
+    delivery_fee: number;
+  };
+  message: string;
+}
+
 export const useSocket = (
   driverId: string,
   setOrders: React.Dispatch<
@@ -35,7 +53,9 @@ export const useSocket = (
   setLatestOrder: React.Dispatch<
     React.SetStateAction<Type_PushNotification_Order | null>
   >,
-  setIsShowToast?: React.Dispatch<React.SetStateAction<boolean>>
+  setIsShowToast?: React.Dispatch<React.SetStateAction<boolean>>,
+  setLatestTip?: React.Dispatch<React.SetStateAction<TipReceivedData | null>>,
+  setIsShowTipToast?: React.Dispatch<React.SetStateAction<boolean>>
 ) => {
   const { accessToken, userId } = useSelector((state: RootState) => state.auth);
   const {
@@ -409,6 +429,7 @@ export const useSocket = (
           responseData?.order_items ??
           responseData?.orderDetails?.order_items ??
           [],
+        distance: responseData?.distance,
       };
 
       processedOrderIds.current.add(orderId);
@@ -516,6 +537,35 @@ export const useSocket = (
       }
     };
 
+    const handleTipReceived = (response: any) => {
+      console.log("🎉 Received tipReceived:", response);
+      const tipData: TipReceivedData = {
+        orderId: response.data.orderId,
+        tipAmount: response.data.tipAmount,
+        tipTime: response.data.tipTime,
+        totalTips: response.data.tipAmount,
+        orderDetails: response.data.orderDetails,
+        message: response.data.message,
+      };
+
+      console.log("🎯 Parsed tip data:", tipData);
+
+      const tipPayload = {
+        tipAmount: tipData.tipAmount,
+        orderId: tipData.orderId,
+        tipTime: tipData.tipTime,
+      };
+
+      console.log("🎯 Dispatching updateTotalTips with:", tipPayload);
+
+      // Update the total_tips in the driver progress stage (increment by tipAmount with deduplication)
+      dispatch(updateTotalTips(tipPayload));
+
+      // Show tip notification
+      if (setLatestTip) setLatestTip(tipData);
+      if (setIsShowTipToast) setIsShowTipToast(true);
+    };
+
     SocketManager.on("connect", handleConnect);
     SocketManager.on("connect_error", handleConnectError);
     SocketManager.on("disconnect", handleDisconnect);
@@ -523,6 +573,7 @@ export const useSocket = (
     SocketManager.on("notifyOrderStatus", handleNotifyOrderStatus);
     SocketManager.on("driverStagesUpdated", handleDriverStagesUpdated);
     SocketManager.on("driverAcceptOrder", handleDriverAcceptOrder);
+    SocketManager.on("tipReceived", handleTipReceived);
 
     const unsubscribe = NetInfo.addEventListener((state) => {
       console.log("Network state:", state);
@@ -542,6 +593,7 @@ export const useSocket = (
       SocketManager.off("notifyOrderStatus", handleNotifyOrderStatus);
       SocketManager.off("driverStagesUpdated", handleDriverStagesUpdated);
       SocketManager.off("driverAcceptOrder", handleDriverAcceptOrder);
+      SocketManager.off("tipReceived", handleTipReceived);
       unsubscribe();
       if (responseTimeoutRef.current) {
         clearTimeout(responseTimeoutRef.current);
@@ -699,6 +751,7 @@ export const useSocket = (
           created_at: created_at,
           updated_at: Math.floor(Date.now() / 1000),
           transactions_processed: false,
+          processed_tip_ids: [], // Initialize empty array for new orders
         };
 
         console.log("Preserving driver progress stage data:", {

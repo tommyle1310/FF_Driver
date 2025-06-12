@@ -22,6 +22,8 @@ import FFToggle from "./FFToggle";
 import { loadTokenFromAsyncStorage } from "../store/authSlice";
 import { toggleAvailability } from "../store/availabilitySlice";
 import DebugLogExporter from "./DebugLogExporter";
+import { colors, spacing } from "../theme";
+import FFView from "./FFView";
 // import {  RootStackParamList,  } from "../navigation/AppNavigator";
 
 type NavigationProp = StackNavigationProp<any, "Main">;
@@ -37,6 +39,10 @@ const FFSidebar = ({
   const [isvisible, setIsVisible] = useState(visible); // Controls the visibility of the sidebar and overlay
   const { theme } = useTheme();
   const [loading, setLoading] = useState(true); // Loading state
+
+  const dps = useSelector(
+    (state: RootState) => state.currentDriverProgressStage
+  );
 
   const dispatch = useDispatch();
   useEffect(() => {
@@ -94,6 +100,9 @@ const FFSidebar = ({
   const sidebarTranslate = isvisible ? translateX : new Animated.Value(300); // Sidebar hidden when not visible
 
   const navigation = useNavigation<NavigationProp>();
+
+  const hasNoTasks = !dps.id || !dps.orders?.length || !dps.stages.length;
+
   return (
     <TouchableWithoutFeedback onPress={closeSidebar}>
       <Animated.View
@@ -160,6 +169,31 @@ const FFSidebar = ({
                 >
                   {item.icon}
                   <FFText style={{ fontSize: 16 }}>{item.title}</FFText>
+                  {!hasNoTasks &&
+                    dps?.stages &&
+                    dps?.stages?.length > 0 &&
+                    dps?.stages?.length <= 16 &&
+                    item.title === "My tasks" && (
+                      <FFView
+                        style={{
+                          backgroundColor: colors.warning,
+                          alignItems: "center",
+                          justifyContent: "center",
+                          display: "flex",
+                          padding: 2,
+                          paddingHorizontal: spacing.sm,
+                          borderRadius: spacing.md,
+                        }}
+                      >
+                        <FFText style={{ color: colors.white }}>
+                          {dps?.stages?.length === 5
+                            ? "1"
+                            : dps?.stages?.length === 10
+                            ? "2"
+                            : "3"}{" "}
+                        </FFText>
+                      </FFView>
+                    )}
                 </TouchableOpacity>
               ))}
 

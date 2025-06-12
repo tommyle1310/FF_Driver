@@ -20,7 +20,7 @@ interface FFToastProps {
   variant?: "SUCCESS" | "DANGER" | "INFO" | "WARNING";
   isApprovalType?: boolean;
   duration?: number;
-  title: string;
+  title: "Tip Received! 🎉" | string;
   children: React.ReactNode; // Includes detailed content and buttons for isApprovalType
   onAccept?: () => void;
   onReject?: () => void;
@@ -111,7 +111,7 @@ const FFToast: React.FC<FFToastProps> = ({
   // Expand/Collapse animation
   useEffect(() => {
     Animated.timing(heightAnim, {
-      toValue: isExpanded ? 1 : 0,
+      toValue: isExpanded ? (title === "Tip Received! 🎉" ? 0.8 : 1.8) : 0,
       duration: 200,
       useNativeDriver: false,
     }).start();
@@ -170,27 +170,29 @@ const FFToast: React.FC<FFToastProps> = ({
             }}
           >
             <View style={styles.expandedContent}>{children}</View>
-            <View
-              style={{
-                flexDirection: "row",
-                gap: spacing.sm,
-              }}
-            >
-              <FFButton
-                variant="outline"
-                onPress={onReject}
-                style={{ flex: 1 }}
+            {isApprovalType && (
+              <View
+                style={{
+                  flexDirection: "row",
+                  gap: spacing.sm,
+                }}
               >
-                Reject
-              </FFButton>
-              <FFButton
-                onPress={onAccept}
-                variant="primary"
-                style={{ flex: 1 }}
-              >
-                Accept
-              </FFButton>
-            </View>
+                <FFButton
+                  variant="outline"
+                  onPress={onReject}
+                  style={{ flex: 1 }}
+                >
+                  Reject
+                </FFButton>
+                <FFButton
+                  onPress={onAccept}
+                  variant="primary"
+                  style={{ flex: 1 }}
+                >
+                  Accept
+                </FFButton>
+              </View>
+            )}
           </Animated.View>
         </View>
       </Pressable>

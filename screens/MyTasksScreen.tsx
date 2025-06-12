@@ -13,6 +13,7 @@ import FFAvatar from "@/src/components/FFAvatar";
 import { Ionicons, MaterialIcons, FontAwesome5 } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { IMAGE_LINKS } from "@/src/assets/imageLinks";
+import { colors } from "@/src/theme";
 
 type MyTasksScreenNavigationProp = StackNavigationProp<
   SidebarStackParamList,
@@ -151,10 +152,7 @@ const MyTasksScreen = () => {
       {hasNoTasks ? (
         <EmptyTasksState />
       ) : (
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          style={{ flex: 1, backgroundColor: "#f8f9fa" }}
-        >
+        <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
           <View style={{ flex: 1 }}>
             {/* Order Summary Card */}
             {currentOrder && (
@@ -162,7 +160,8 @@ const MyTasksScreen = () => {
                 style={{
                   margin: 16,
                   backgroundColor: "white",
-                  borderRadius: 16,
+                  borderStartEndRadius: 16,
+                  borderEndEndRadius: 16,
                   padding: 20,
                   shadowColor: "#000",
                   shadowOffset: { width: 0, height: 2 },
@@ -172,15 +171,13 @@ const MyTasksScreen = () => {
                 }}
               >
                 <LinearGradient
-                  colors={["#667eea", "#764ba2"]}
+                  colors={[colors.primary, colors.warning]}
                   style={{
                     position: "absolute",
                     top: 0,
                     left: 0,
                     right: 0,
                     height: 4,
-                    borderTopLeftRadius: 16,
-                    borderTopRightRadius: 16,
                   }}
                 />
 
@@ -196,7 +193,7 @@ const MyTasksScreen = () => {
                       width: 48,
                       height: 48,
                       borderRadius: 24,
-                      backgroundColor: "#667eea",
+                      backgroundColor: colors.primary,
                       justifyContent: "center",
                       alignItems: "center",
                       marginRight: 12,
@@ -529,7 +526,7 @@ const MyTasksScreen = () => {
                     marginBottom: 8,
                   }}
                 >
-                  <MaterialIcons name="star" size={24} color="#c2185b" />
+                  <MaterialIcons name="star" size={24} color={colors.error} />
                 </View>
                 <FFText
                   style={{ fontSize: 12, color: "#666", marginBottom: 4 }}
@@ -540,7 +537,7 @@ const MyTasksScreen = () => {
                   fontWeight="bold"
                   style={{ fontSize: 16, color: "#c2185b" }}
                 >
-                  ${dps.total_tips?.toFixed(2) || "0.00"}
+                  ${(dps?.total_tips || 0).toFixed(2)}
                 </FFText>
               </View>
             </View>

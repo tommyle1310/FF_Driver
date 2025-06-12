@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { createStackNavigator } from "@react-navigation/stack";
 import { RootState } from "../store/store";
 import { loadTokenFromAsyncStorage } from "../store/authSlice";
@@ -22,12 +22,13 @@ import SettingsScreen from "@/screens/SettingsScreen";
 
 import { useDispatch, useSelector } from "../store/types";
 import { usePushNotifications } from "../hooks/usePushNotifications";
-import { useSocket } from "../hooks/useSocket";
+import { useSocket, TipReceivedData } from "../hooks/useSocket";
 import { sendPushNotification } from "../utils/functions/pushNotification";
 import { Type_PushNotification_Order } from "../types/pushNotification";
 import FFToast from "../components/FFToast";
 import FFText from "../components/FFText";
-import { View } from "react-native";
+import { StyleSheet, TouchableOpacity, View } from "react-native";
+import { MaterialIcons } from "@expo/vector-icons";
 import { Enum_PaymentMethod, Enum_TrackingInfo } from "../types/Orders";
 import { Enum_PaymentStatus } from "../types/Orders";
 import MyVehicleScreen from "@/screens/MyVehicleScreen";
@@ -40,6 +41,11 @@ import RatingScreen from "@/screens/RatingScreen";
 import { Avatar } from "../types/common";
 import ChangePasswordScreen from "@/screens/ChangePasswordScreen";
 import { SocketProvider } from "../hooks/SocketContext";
+import { borderRadius, colors, spacing, typography } from "../theme";
+import axiosInstance from "../utils/axiosConfig";
+import FFInputControl from "../components/FFInputControl";
+import FFModal from "../components/FFModal";
+import FFView from "../components/FFView";
 
 const SidebarStack = createStackNavigator<SidebarStackParamList>();
 const AuthStack = createStackNavigator<AuthStackParamList>();
@@ -125,19 +131,93 @@ const MainNavigator = () => {
     lat: 10.826411,
     lng: 106.617353,
   });
-  const { emitDriverAcceptOrder } = useSocket(
-    driverId || "",
-    () => {},
-    () => {},
-    () => {}
-  );
   const [latestOrder, setLatestOrder] =
     useState<Type_PushNotification_Order | null>(null);
   const [orders, setOrders] = useState<Type_PushNotification_Order[]>([]);
   const [isShowToast, setIsShowToast] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  // Tip notification state
+  const [latestTip, setLatestTip] = useState<TipReceivedData | null>(null);
+  const [isShowTipToast, setIsShowTipToast] = useState(false);
+
   const { expoPushToken } = usePushNotifications();
   const [isLoading, setIsLoading] = useState(false);
   const pushToken = expoPushToken as unknown as { data: string };
+
+  const [reason, setReason] = useState("");
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [modalVisible, setModalVisible] = useState(false);
+  const [modalMessage, setModalMessage] = useState({ title: "", subtitle: "" });
+  const [selectedCancelledOrderId, setSelectedCancelledOrderId] = useState<
+    string | null
+  >(null);
+  const [isRejectModalVisible, setIsRejectModalVisible] = useState(false);
+
+  const showModal = useCallback((title: string, subtitle: string) => {
+    setModalMessage({ title, subtitle });
+    setModalVisible(true);
+    const timeout = setTimeout(() => {
+      setModalVisible(false);
+    }, 3000);
+    return () => clearTimeout(timeout);
+  }, []);
+
+  const handleSubmitReject = useCallback(async () => {
+    // Check if we have either selectedCancelledOrderId OR latestOrder.id
+    const orderId = selectedCancelledOrderId || latestOrder?.id;
+    console.log("echck orderId", orderId);
+
+    if (!orderId) {
+      console.error("No order ID selected for cancellation");
+      alert("No order selected");
+      return;
+    }
+
+    if (!reason || !title || !description) {
+      console.error("All cancellation fields are required");
+      alert("Please fill in all fields");
+      return;
+    }
+
+    const requestBody = {
+      cancelled_by: "driver" as const,
+      cancelled_by_id: driverId,
+      reason,
+      title,
+      description,
+    };
+
+    try {
+      setLoading(true);
+      const response = await axiosInstance.post(
+        `/orders/${orderId}/cancel`,
+        requestBody
+      );
+      console.log("Reject order response:", response.data);
+      if (response.data.EC === 0) {
+        setIsRejectModalVisible(false);
+        setReason("");
+        setTitle("");
+        setDescription("");
+        setSelectedCancelledOrderId(null);
+      }
+    } catch (error) {
+      console.error("Error rejecting order:", error);
+      alert("Failed to reject order");
+    } finally {
+      setLoading(false);
+    }
+  }, [
+    driverId,
+    reason,
+    title,
+    description,
+    latestOrder,
+    selectedCancelledOrderId,
+    showModal,
+  ]);
 
   const sendPushNotification = (order: Type_PushNotification_Order) => {
     console.log("Sending push notification:", {
@@ -146,6 +226,25 @@ const MainNavigator = () => {
     });
     // Implement push notification logic
   };
+
+  const { emitDriverAcceptOrder } = useSocket(
+    driverId || "",
+    setOrders,
+    sendPushNotification,
+    setLatestOrder,
+    setIsShowToast,
+    setLatestTip,
+    setIsShowTipToast
+  );
+
+  useEffect(() => {
+    if (!selectedCancelledOrderId) {
+      return;
+    }
+    setIsRejectModalVisible(true);
+  }, [selectedCancelledOrderId]);
+
+  if (loading) return <Spinner isVisible isOverlay />;
 
   return (
     <SocketProvider
@@ -229,6 +328,7 @@ const MainNavigator = () => {
       </SidebarStack.Navigator>
       <Spinner isVisible={isLoading} isOverlay />
       <FFToast
+        // onTimeout={handleSubmitReject}
         title="Incoming Order"
         disabledClose
         variant="SUCCESS"
@@ -245,30 +345,226 @@ const MainNavigator = () => {
           setIsLoading(false);
           setIsShowToast(false);
         }}
-        onReject={() => setIsShowToast(false)}
+        onReject={() => {
+          setIsShowToast(false);
+          setSelectedCancelledOrderId(latestOrder?.id ?? null);
+        }}
         onClose={() => setIsShowToast(false)}
         visible={isShowToast}
         isApprovalType
       >
-        <View className="flex-row items-center gap-4">
-          <View className="flex-row items-center gap-1">
-            <FFText fontSize="sm" fontWeight="500">
-              Total Earns:
-            </FFText>
-            <FFText fontSize="sm" fontWeight="600" style={{ color: "#63c550" }}>
-              ${latestOrder?.driver_earn?.toFixed(2) ?? 0}
-            </FFText>
+        <View
+          style={{
+            gap: 16,
+          }}
+        >
+          {/* Order Metrics Row */}
+          <View
+            style={{
+              flexDirection: "row",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
+            {/* Earnings */}
+            <View
+              style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+            >
+              <View
+                style={{
+                  backgroundColor: "#f0f9ff",
+                  borderRadius: 8,
+                  padding: 6,
+                }}
+              >
+                <MaterialIcons name="attach-money" size={16} color="#63c550" />
+              </View>
+              <View>
+                <FFText
+                  fontSize="sm"
+                  fontWeight="400"
+                  style={{ color: "#666", marginBottom: 2 }}
+                >
+                  Earnings
+                </FFText>
+                <FFText
+                  fontSize="md"
+                  fontWeight="700"
+                  style={{ color: "#1a1a1a" }}
+                >
+                  ${latestOrder?.driver_earn?.toFixed(2) ?? "0.00"}
+                </FFText>
+              </View>
+            </View>
+
+            {/* Items */}
           </View>
-          <View className="flex-row items-center gap-1">
-            <FFText fontSize="sm" fontWeight="600">
-              {latestOrder?.order_items?.length || 0}
-            </FFText>
-            <FFText fontSize="sm" fontWeight="500" style={{ color: "#63c550" }}>
-              items
-            </FFText>
+          {/* Distance */}
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <View
+              style={{
+                backgroundColor: "#f0f9ff",
+                borderRadius: 8,
+                padding: 6,
+              }}
+            >
+              <MaterialIcons name="navigation" size={16} color="#2196F3" />
+            </View>
+            <View>
+              <FFText
+                fontSize="sm"
+                fontWeight="400"
+                style={{ color: "#666", marginBottom: 2 }}
+              >
+                Distance
+              </FFText>
+              <FFText
+                fontSize="md"
+                fontWeight="700"
+                style={{ color: "#1a1a1a" }}
+              >
+                {latestOrder?.distance?.toFixed(1) ?? "0.0"} km
+              </FFText>
+            </View>
+          </View>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <View
+              style={{
+                backgroundColor: "#f0f9ff",
+                borderRadius: 8,
+                padding: 6,
+              }}
+            >
+              <MaterialIcons name="shopping-bag" size={16} color="#FF9800" />
+            </View>
+            <View>
+              <FFText
+                fontSize="sm"
+                fontWeight="400"
+                style={{ color: "#666", marginBottom: 2 }}
+              >
+                Items
+              </FFText>
+              <FFText
+                fontSize="md"
+                fontWeight="700"
+                style={{ color: "#1a1a1a" }}
+              >
+                {latestOrder?.order_items?.length || 0}
+              </FFText>
+            </View>
           </View>
         </View>
       </FFToast>
+
+      {/* Tip Received Toast */}
+      <FFToast
+        duration={10000}
+        title="Tip Received! 🎉"
+        variant="SUCCESS"
+        visible={isShowTipToast}
+        onClose={() => setIsShowTipToast(false)}
+        disabledClose={false}
+      >
+        <View style={{ gap: 12, alignItems: "center" }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <View
+              style={{
+                backgroundColor: "#f0f9ff",
+                borderRadius: 8,
+                padding: 8,
+              }}
+            >
+              <MaterialIcons name="monetization-on" size={24} color="#63c550" />
+            </View>
+            <View>
+              <FFText
+                fontSize="lg"
+                fontWeight="700"
+                style={{ color: "#1a1a1a", marginBottom: 4 }}
+              >
+                +${latestTip?.tipAmount?.toFixed(2) ?? "0.00"}
+              </FFText>
+              <FFText fontSize="sm" fontWeight="400" style={{ color: "#666" }}>
+                Total Tips: ${latestTip?.tipAmount?.toFixed(2) ?? "0.00"}
+              </FFText>
+            </View>
+          </View>
+
+          <FFText
+            fontSize="sm"
+            fontWeight="400"
+            style={{ color: "#555", textAlign: "center" }}
+          >
+            {latestTip?.message ?? "You received a tip!"}
+          </FFText>
+        </View>
+      </FFToast>
+
+      <FFModal visible={modalVisible} onClose={() => setModalVisible(false)}>
+        <FFView style={styles.toastModal}>
+          <FFText style={styles.toastText}>{modalMessage.title}</FFText>
+          <FFText style={styles.toastText}>{modalMessage.subtitle}</FFText>
+        </FFView>
+      </FFModal>
+      <FFModal
+        visible={isRejectModalVisible}
+        onClose={() => {
+          setIsRejectModalVisible(false);
+          setReason("");
+          setTitle("");
+          setDescription("");
+          setSelectedCancelledOrderId(null);
+        }}
+      >
+        <FFText
+          style={{
+            fontSize: typography.fontSize.lg,
+            fontFamily: typography.fontFamily.bold,
+            marginBottom: spacing.md,
+          }}
+        >
+          Reject Order
+        </FFText>
+        <FFInputControl
+          label="Reason"
+          value={reason}
+          setValue={(value) => setReason(value)}
+          placeholder="Enter reason for cancellation"
+        />
+        <FFInputControl
+          label="Title"
+          value={title}
+          setValue={(value) => setTitle(value)}
+          placeholder="Enter cancellation title"
+        />
+        <FFInputControl
+          label="Description"
+          value={description}
+          setValue={(value) => setDescription(value)}
+          placeholder="Enter detailed description"
+        />
+        <TouchableOpacity
+          style={{
+            backgroundColor: "#63c550",
+            padding: spacing.md,
+            borderRadius: 8,
+            alignItems: "center",
+            marginTop: spacing.md,
+          }}
+          onPress={handleSubmitReject}
+        >
+          <FFText
+            style={{
+              color: "#fff",
+              fontSize: typography.fontSize.md,
+              fontFamily: typography.fontFamily.medium,
+            }}
+          >
+            Submit
+          </FFText>
+        </TouchableOpacity>
+      </FFModal>
     </SocketProvider>
   );
 };
@@ -327,5 +623,19 @@ const App = () => {
     </RootStack.Navigator>
   );
 };
+
+const styles = StyleSheet.create({
+  toastModal: {
+    padding: spacing.md,
+    backgroundColor: colors.success,
+    borderRadius: borderRadius.sm,
+    alignItems: "center",
+  },
+  toastText: {
+    color: colors.white,
+    fontSize: typography.fontSize.sm,
+    fontFamily: typography.fontFamily.medium,
+  },
+});
 
 export default App;
