@@ -12,6 +12,7 @@ import { Type_PushNotification_Order } from "../types/pushNotification";
 import NetInfo from "@react-native-community/netinfo";
 import { debugLogger } from "../utils/debugLogger";
 import SocketManager from "./SocketManager";
+import debounce from "lodash.debounce";
 
 interface Stage {
   state: string;
@@ -93,6 +94,16 @@ export const useSocket = (
   const processedOrderIds = useRef<Set<string>>(new Set());
   const [isSocketConnected, setIsSocketConnected] = useState(false);
 
+  // Simplified duplicate detection - just track last stage count and block obvious duplicates
+  const lastStageCountRef = useRef<number>(0);
+  const lastUpdateTimeRef = useRef<number>(0);
+
+  const debouncedProcessEventQueueRef = useRef(
+    debounce(() => {
+      processEventQueue();
+    }, 500)
+  );
+
   const resetResponseTimeout = () => {
     if (responseTimeoutRef.current) {
       clearTimeout(responseTimeoutRef.current);
@@ -139,20 +150,62 @@ export const useSocket = (
       const eventKey = `${data.id}_${data.updated_at}`;
       const lastUpdatedAt = processedEventIds.current.get(data.id);
 
-      if (lastUpdatedAt && lastUpdatedAt >= data.updated_at) {
-        console.log("Skipping duplicate or older event:", eventKey);
+      // 🔧 CRITICAL FIX: Don't block single order updates (FF_ORDER_xxx events)
+      // These represent important stage transitions and should always be processed
+      const isSingleOrderUpdate = id.startsWith("FF_ORDER_");
+      const isDPSUpdate = id.startsWith("FF_DPS_");
+      
+      // Only apply duplicate blocking to full DPS updates, not single order updates
+      if (!isSingleOrderUpdate && lastUpdatedAt && lastUpdatedAt >= data.updated_at) {
+        console.log("Skipping duplicate or older DPS event:", eventKey);
         isProcessingRef.current = false;
         processEventQueue();
         return;
       }
 
+      // Always update tracking for both types
       processedEventIds.current.set(data.id, data.updated_at);
+      
+      console.log("Processing event:", {
+        eventId: id,
+        eventType: isSingleOrderUpdate ? "SINGLE_ORDER" : "FULL_DPS",
+        dataId: data.id,
+        updatedAt: data.updated_at
+      });
     } else {
       console.log("Processing event without id/updated_at:", id);
     }
 
     if (event === "driverStagesUpdated") {
-      // Skip if this is just an order status update without stages
+      // Handle different event types
+      const isSingleOrderUpdate = id.startsWith("FF_ORDER_");
+      const isDPSUpdate = id.startsWith("FF_DPS_");
+      
+      if (isSingleOrderUpdate) {
+        // Single order status update - these don't have stages array
+        // But they indicate an important status change that should trigger UI updates
+        console.log("Processing single order status update:", {
+          eventId: id,
+          orderStatus: data.status,
+          trackingInfo: data.tracking_info,
+        });
+        
+        // 🔧 CRITICAL: Single order updates indicate stage progression
+        // Force trigger a stage re-evaluation by updating the last update time
+        // This will cause HomeScreen useEffect to re-run and find the new current stage
+        lastUpdateTimeRef.current = Date.now();
+        
+        // Also reset the stage count tracking to force useEffect to process
+        lastStageCountRef.current = -1;
+        
+        console.log("Triggered stage re-evaluation for order status change");
+        
+        isProcessingRef.current = false;
+        processEventQueue();
+        return;
+      }
+      
+      // For DPS updates, continue with existing logic
       if (
         !data.stages ||
         !Array.isArray(data.stages) ||
@@ -177,6 +230,81 @@ export const useSocket = (
         return;
       }
 
+      // AGGRESSIVE DUPLICATE DETECTION: Block if stage count is excessive or obviously duplicated
+      const currentTime = Date.now();
+      const timeSinceLastUpdate = currentTime - lastUpdateTimeRef.current;
+      
+      // Extract unique order IDs from stages to see how many orders we're dealing with
+      const orderIds = new Set<string>();
+      data.stages.forEach((stage: any) => {
+        const match = stage.state.match(/_order_(\d+)$/);
+        if (match) {
+          orderIds.add(match[1]);
+        }
+      });
+      
+      const orderCount = orderIds.size;
+      const expectedStagesPerOrder = 5; // driver_ready, waiting_for_pickup, restaurant_pickup, en_route_to_customer, delivery_complete
+      const expectedTotalStages = orderCount * expectedStagesPerOrder;
+      
+      console.log("Stage analysis:", {
+        totalStages: data.stages.length,
+        orderCount,
+        expectedStagesPerOrder,
+        expectedTotalStages,
+        orderIds: Array.from(orderIds)
+      });
+      
+      // If we get more than 20 stages total, something is wrong - but let's try to salvage it
+      if (data.stages.length > 20) {
+        console.log("WARNING: Too many stages detected, attempting to filter to latest order:", data.stages.length);
+        
+        // Try to find the latest order (highest order number) and only keep those stages
+        const latestOrderId = Math.max(...Array.from(orderIds).map(id => parseInt(id)));
+        console.log("Latest order ID detected:", latestOrderId);
+        
+        // Filter stages to only include the latest order
+        const latestOrderStages = data.stages.filter((stage: any) => 
+          stage.state.includes(`_order_${latestOrderId}`)
+        );
+        
+        if (latestOrderStages.length <= 10 && latestOrderStages.length > 0) {
+          console.log("SALVAGING: Using only latest order stages:", latestOrderStages.length);
+          data.stages = latestOrderStages; // Replace with filtered stages
+        } else {
+          console.log("BLOCKING: Even latest order stages are excessive:", latestOrderStages.length);
+          debugLogger.warn("useSocket", "EXCESSIVE_STAGES_BLOCKED", {
+            eventId: id,
+            stageCount: data.stages.length,
+            latestOrderStages: latestOrderStages.length,
+            reason: "More than 20 stages - likely duplicated data",
+          });
+          isProcessingRef.current = false;
+          processEventQueue();
+          return;
+        }
+      }
+
+      // If stage count is same as last and it's been less than 1 second, block it
+      if (data.stages.length === lastStageCountRef.current && timeSinceLastUpdate < 1000) {
+        console.log("BLOCKING: Same stage count within 1 second:", {
+          stageCount: data.stages.length,
+          timeSinceLastUpdate
+        });
+        debugLogger.warn("useSocket", "RAPID_DUPLICATE_BLOCKED", {
+          eventId: id,
+          stageCount: data.stages.length,
+          timeSinceLastUpdate,
+        });
+        isProcessingRef.current = false;
+        processEventQueue();
+        return;
+      }
+
+      // Update our tracking
+      lastStageCountRef.current = data.stages.length;
+      lastUpdateTimeRef.current = currentTime;
+
       console.log("Processing driverStagesUpdated:", {
         eventId: id,
         stageCount: data.stages.length,
@@ -198,6 +326,59 @@ export const useSocket = (
         processEventQueue();
         return;
       }
+
+      // 🎯 CRITICAL FIX: Normalize order IDs to be sequential
+      // Server might send wrong order IDs like "18" when it should be "1" or "2"
+      const currentOrderCount = new Set(
+        stages.map(stage => stage.state.split("_order_")[1]).filter(Boolean)
+      ).size;
+      
+      // Check if this is a completely new order or an update to existing order
+      const serverOrderIds = Array.from(orderIds);
+      const highestServerOrderId = Math.max(...serverOrderIds.map(id => parseInt(id)));
+      
+      // Only normalize if server is sending clearly wrong order IDs
+      // Don't normalize if we have legitimate multiple orders
+      const shouldNormalize = serverOrderIds.length === 1 && 
+        (currentOrderCount === 0 || highestServerOrderId > currentOrderCount + 5);
+      
+      console.log("🔧 Order ID normalization decision:", {
+        currentOrderCount,
+        highestServerOrderId,
+        serverOrderIds,
+        serverOrderCount: serverOrderIds.length,
+        shouldNormalize,
+      });
+      
+      let normalizedStages;
+      if (shouldNormalize) {
+        // Only normalize when we have a single order with wrong ID
+        const nextOrderId = currentOrderCount + 1;
+        normalizedStages = data.stages.map((stage: any) => {
+          const stageBase = stage.state.split("_order_")[0];
+          const normalizedState = `${stageBase}_order_${nextOrderId}`;
+          
+          return {
+            ...stage,
+            state: normalizedState
+          };
+        });
+        
+        console.log("🔧 Normalized stages (single order):", {
+          originalStageStates: data.stages.map((s: any) => s.state),
+          normalizedStageStates: normalizedStages.map((s: any) => s.state),
+        });
+      } else {
+        // Multiple orders or reasonable order IDs - preserve as is
+        normalizedStages = data.stages;
+        
+        console.log("🔧 Preserving original stages (multiple orders or reasonable IDs):", {
+          originalStageStates: data.stages.map((s: any) => s.state),
+        });
+      }
+      
+      // Use normalized stages for further processing
+      data.stages = normalizedStages;
 
       let uniqueStages = Object.values<Stage>(
         data.stages.reduce((acc: { [key: string]: Stage }, stage: Stage) => {
@@ -230,6 +411,16 @@ export const useSocket = (
         return stageOrder !== 0 ? stageOrder : aOrder - bOrder;
       });
 
+      // Additional safety check: If we still have too many unique stages, limit them
+      if (uniqueStages.length > 15) {
+        console.log("LIMITING: Too many unique stages, truncating to 15");
+        debugLogger.warn("useSocket", "STAGES_TRUNCATED", {
+          originalCount: uniqueStages.length,
+          truncatedCount: 15,
+        });
+        uniqueStages = uniqueStages.slice(0, 15);
+      }
+
       // Check if any delivery_complete stage just changed to "completed"
       const newlyCompletedOrders = uniqueStages
         .filter(
@@ -246,42 +437,21 @@ export const useSocket = (
           totalStagesBefore: uniqueStages.length,
         });
 
-        // Add to completed orders and filter them out
+        // Add to completed orders tracking for UI filtering
         newlyCompletedOrders.forEach((orderId) => {
           completedOrderIds.current.add(orderId);
           console.log(`Order ${orderId} marked as completed`);
         });
 
-        // Filter out stages from completed orders
-        const stagesBeforeFilter = uniqueStages.map((s) => ({
-          state: s.state,
-          status: s.status,
-        }));
-        uniqueStages = uniqueStages.filter((stage) => {
-          const orderId = stage.state.split("_order_")[1];
-          const isCompleted = completedOrderIds.current.has(orderId);
-          if (isCompleted) {
-            console.log(
-              `Filtering out stage ${stage.state} from completed order ${orderId}`
-            );
-          }
-          return !isCompleted;
-        });
-        const stagesAfterFilter = uniqueStages.map((s) => ({
-          state: s.state,
-          status: s.status,
-        }));
+        // 🔧 CRITICAL FIX: DO NOT filter out stages here
+        // Let Redux and UI components handle stage filtering
+        // This was causing the swipe text and task display issues
+        console.log("NOT filtering stages - letting UI handle completed orders");
 
-        console.log(
-          "Stages after filtering completed orders:",
-          uniqueStages.length
-        );
-
-        debugLogger.info("useSocket", "STAGES_FILTERED_BY_COMPLETION", {
-          stagesBeforeFilter,
-          stagesAfterFilter,
-          filteredCount: uniqueStages.length,
+        debugLogger.info("useSocket", "PRESERVING_ALL_STAGES_FOR_UI", {
           completedOrders: Array.from(completedOrderIds.current),
+          totalStages: uniqueStages.length,
+          reason: "UI components will handle stage filtering"
         });
       }
 
@@ -297,37 +467,6 @@ export const useSocket = (
       }
 
       const responseString = JSON.stringify(filteredResponse);
-
-      // Skip dispatch if incoming data contains completed orders that we already removed locally
-      if (completedOrderIds.current.size > 0) {
-        const incomingCompletedStages = uniqueStages.filter((stage) => {
-          const orderId = stage.state.split("_order_")[1];
-          return completedOrderIds.current.has(orderId);
-        });
-
-        if (incomingCompletedStages.length > 0) {
-          console.log(
-            "SKIPPING dispatch - server sending completed order stages:",
-            {
-              completedOrderIds: Array.from(completedOrderIds.current),
-              incomingCompletedStages: incomingCompletedStages.map(
-                (s) => s.state
-              ),
-              reason: "Server has stale data with completed orders",
-            }
-          );
-          debugLogger.warn("useSocket", "SKIPPING_DISPATCH_STALE_SERVER_DATA", {
-            completedOrderIds: Array.from(completedOrderIds.current),
-            incomingCompletedStages: incomingCompletedStages.map(
-              (s) => s.state
-            ),
-            totalIncomingStages: uniqueStages.length,
-          });
-          isProcessingRef.current = false;
-          processEventQueue();
-          return;
-        }
-      }
 
       // Skip dispatch if we have fewer stages than current (order completion in progress)
       if (stages.length > 0 && uniqueStages.length < stages.length) {
@@ -351,10 +490,14 @@ export const useSocket = (
         isInitialUpdateRef.current ||
         lastResponseRef.current !== responseString
       ) {
-        console.log("Dispatching driverStagesUpdated:", {
+        console.log("📡 Dispatching driverStagesUpdated:", {
           stageCount: uniqueStages.length,
           currentState: data.current_state,
+          hasOrders: !!data.orders,
+          ordersCount: data.orders?.length || 0,
+          orderIds: data.orders?.map((o: any) => o.id) || []
         });
+        
         dispatch(setDriverProgressStage(filteredResponse));
         dispatch(saveDriverProgressStageToAsyncStorage(filteredResponse));
         lastResponseRef.current = responseString;
@@ -375,9 +518,7 @@ export const useSocket = (
       return;
     }
 
-    console.log(
-      `Initializing SocketManager with driverId: ${driverId}, userId: ${userId}, token: ${accessToken}`
-    );
+    
     SocketManager.initialize(driverId, accessToken, userId ?? "");
 
     const handleConnect = () => {
@@ -453,12 +594,12 @@ export const useSocket = (
       if (setIsShowToast) setIsShowToast(true);
       sendPushNotification(buildDataToPushNotification);
       setIsOrderCompleted(false);
-      dispatch(clearDriverProgressStage());
+      
       eventQueueRef.current = [];
       processedEventIds.current.clear();
       lastResponseRef.current = undefined;
       isInitialUpdateRef.current = true;
-      completedOrderIds.current.clear(); // Clear completed orders for new session
+      completedOrderIds.current.clear();
     };
 
     const handleNotifyOrderStatus = (response: any) => {
@@ -517,7 +658,7 @@ export const useSocket = (
         data: eventData,
         id: eventId,
       });
-      processEventQueue();
+      debouncedProcessEventQueueRef.current();
     };
 
     const handleDriverAcceptOrder = (response: any) => {
@@ -527,7 +668,7 @@ export const useSocket = (
         setOrders((prevOrders) => [...prevOrders, response.order]);
         if (setIsShowToast) setIsShowToast(true);
         isInitialUpdateRef.current = true;
-        dispatch(clearDriverProgressStage());
+        
         setIsOrderCompleted(false);
         processedOrderIds.current.delete(response.order.id);
       } else {
@@ -576,7 +717,6 @@ export const useSocket = (
     SocketManager.on("tipReceived", handleTipReceived);
 
     const unsubscribe = NetInfo.addEventListener((state) => {
-      console.log("Network state:", state);
       if (!state.isConnected || !state.isInternetReachable) {
         console.log("Network or internet lost, disconnecting socket");
         SocketManager.disconnect();
@@ -598,6 +738,11 @@ export const useSocket = (
       if (responseTimeoutRef.current) {
         clearTimeout(responseTimeoutRef.current);
       }
+      debouncedProcessEventQueueRef.current.cancel();
+      
+      // Clear tracking refs
+      lastStageCountRef.current = 0;
+      lastUpdateTimeRef.current = 0;
     };
   }, [driverId, accessToken, userId, isOrderCompleted]);
 

@@ -79,6 +79,11 @@ const HomeScreen = () => {
   const pendingStageRef = useRef<Stage | null>(null);
   const hasFinishedProgressRef = useRef(false);
   const lastProcessedStageRef = useRef<string | null>(null);
+  const manuallyProgressedOrdersRef = useRef<Set<string>>(new Set());
+
+  // Simple duplicate detection - just track stage count
+  const lastStageCountProcessedRef = useRef<number>(0);
+  const lastStageSnapshotRef = useRef<string>('');
 
   const dispatch = useDispatch();
   const { available_for_work, avatar, accessToken, userId } = useSelector(
@@ -113,7 +118,7 @@ const HomeScreen = () => {
   const getOrderCount = useCallback(() => {
     return orders.length || Math.ceil(stages.length / 5);
   }, [stages, orders]);
-
+console.log('chsk stages', stages.length)
   const updateSwipeText = useCallback((stage: Stage | null) => {
     console.log("Updating swipe text for stage:", stage?.state);
     if (!stage) {
@@ -150,6 +155,12 @@ const HomeScreen = () => {
       console.log("SKIPPING swipe text update - order completion in progress");
       return;
     }
+
+    console.log("🔄 SWIPE TEXT UPDATE useEffect triggered:", {
+      currentStageState: currentStage?.state,
+      currentStageStatus: currentStage?.status,
+      currentSwipeText: swipeTextCurrentStage,
+    });
 
     console.log("Current stage changed:", currentStage?.state);
 
@@ -208,26 +219,73 @@ const HomeScreen = () => {
       return;
     }
 
-    // SKIP if stages contain completed orders that should be filtered
-    if (completedOrderIds.current && completedOrderIds.current.size > 0) {
-      const hasCompletedOrderStages = stages.some((stage) => {
-        const orderId = stage.state.split("_order_")[1];
-        return completedOrderIds.current.has(orderId);
-      });
+    // EMERGENCY BRAKE: If stages count is over 30, something is seriously wrong
+    if (stages.length > 30) {
+      console.log("EMERGENCY: Too many stages detected, clearing state:", stages.length);
+      dispatch(clearDriverProgressStage());
+      return;
+    }
 
-      if (hasCompletedOrderStages) {
-        console.log("SKIPPING useEffect - stages contain completed orders");
-        debugLogger.warn("HomeScreen", "SKIPPING_USEEFFECT_COMPLETED_ORDERS", {
-          completedOrderIds: Array.from(completedOrderIds.current),
-          stagesWithCompletedOrders: stages
-            .filter((stage) => {
-              const orderId = stage.state.split("_order_")[1];
-              return completedOrderIds.current.has(orderId);
-            })
-            .map((s) => s.state),
+    // Improved duplicate detection: Check for actual changes in stage data
+    const currentStageSnapshot = stages.map(s => `${s.state}_${s.status}_${s.timestamp}`).join('|');
+    
+    console.log("🔍 STAGE CHANGE DETECTION:", {
+      stagesLength: stages.length,
+      currentSnapshot: currentStageSnapshot,
+      lastSnapshot: lastStageSnapshotRef.current,
+      isIdentical: currentStageSnapshot === lastStageSnapshotRef.current,
+      stagesDetails: stages.map(s => ({ state: s.state, status: s.status, timestamp: s.timestamp }))
+    });
+    
+    if (currentStageSnapshot === lastStageSnapshotRef.current && stages.length > 0) {
+      console.log("SKIPPING useEffect - no actual stage changes detected");
+      return;
+    }
+
+    // Update our tracking
+    lastStageCountProcessedRef.current = stages.length;
+    lastStageSnapshotRef.current = currentStageSnapshot;
+
+    // 🔧 CRITICAL FIX: Check for delivery_complete stages that are in_progress
+    // These indicate final order completion and should NOT be skipped
+    const hasDeliveryCompleteInProgress = stages.some(stage => 
+      stage.state.startsWith("delivery_complete_") && stage.status === "in_progress"
+    );
+
+    if (hasDeliveryCompleteInProgress) {
+      console.log("🎯 FOUND delivery_complete in_progress - proceeding to handle final order");
+    } else {
+      // SKIP if stages contain completed orders that should be filtered
+      // BUT ONLY if there are NO active stages for remaining orders
+      if (completedOrderIds.current && completedOrderIds.current.size > 0) {
+        const activeStages = stages.filter((stage) => {
+          const orderId = stage.state.split("_order_")[1];
+          return !completedOrderIds.current.has(orderId);
         });
-        return;
+
+        const hasInProgressOrPendingActiveStages = activeStages.some(
+          (stage) => stage.status === "in_progress" || stage.status === "pending"
+        );
+
+        if (!hasInProgressOrPendingActiveStages) {
+          console.log(
+            "SKIPPING useEffect - no active stages for remaining orders:",
+            Array.from(completedOrderIds.current)
+          );
+          return;
+        } else {
+          console.log(
+            "PROCEEDING with useEffect - found active stages:",
+            activeStages.map(s => ({ state: s.state, status: s.status }))
+          );
+        }
       }
+    }
+
+    if (stages.length === 0 || !stages || stages.length < 1) {
+      setCurrentStage(null);
+      setSwipeTextCurrentStage("I'm ready");
+      return;
     }
 
     console.log("Stages updated:", stages);
@@ -238,22 +296,21 @@ const HomeScreen = () => {
       currentSwipeText: swipeTextCurrentStage,
     });
 
-    if (!stages?.length || transactions_processed) {
-      console.log("No stages or order completed, clearing currentStage");
-      debugLogger.info("HomeScreen", "CLEARING_CURRENT_STAGE", {
-        reason: !stages?.length ? "No stages" : "Transactions processed",
-        transactions_processed,
-      });
-      debouncedSetCurrentStage(null);
-      setSwipeTextCurrentStage("");
-      setModalDetails({ status: "HIDDEN", title: "", desc: "" });
-      hasFinishedProgressRef.current = false;
-      lastProcessedStageRef.current = null;
-      return;
-    }
+    // Filter out completed order stages first, then deduplicate
+    const activeOrderStages = stages.filter((stage) => {
+      const orderId = stage.state.split("_order_")[1];
+      return !completedOrderIds.current.has(orderId);
+    });
+
+    console.log("🔧 ACTIVE ORDER FILTERING:", {
+      totalStages: stages.length,
+      activeOrderStages: activeOrderStages.length,
+      completedOrderIds: Array.from(completedOrderIds.current),
+      activeStageDetails: activeOrderStages.map(s => ({ state: s.state, status: s.status }))
+    });
 
     const uniqueStages = Object.values(
-      stages.reduce((acc: { [key: string]: Stage }, stage: Stage) => {
+      activeOrderStages.reduce((acc: { [key: string]: Stage }, stage: Stage) => {
         const key = `${stage.state}_${stage.status}`;
         if (!acc[key] || stage.timestamp > acc[key].timestamp) {
           acc[key] = stage;
@@ -272,18 +329,22 @@ const HomeScreen = () => {
 
     console.log("Unique stages:", uniqueStages);
 
-    const currentOrderId = currentStage?.state.split("_order_").pop() || "1";
-    const deliveryCompleteStage = uniqueStages.find(
+    // 🔧 CRITICAL FIX: Enhanced delivery complete detection
+    // Check for ANY delivery_complete stage that is completed (final order completion)
+    const anyDeliveryCompleteStage = uniqueStages.find(
       (s) =>
-        s.state === `delivery_complete_order_${currentOrderId}` &&
+        s.state.startsWith("delivery_complete_order_") &&
         s.status === "completed"
     );
 
     if (
-      deliveryCompleteStage &&
-      lastProcessedStageRef.current !== deliveryCompleteStage.state
+      anyDeliveryCompleteStage &&
+      lastProcessedStageRef.current !== anyDeliveryCompleteStage.state
     ) {
-      lastProcessedStageRef.current = deliveryCompleteStage.state;
+      const completedOrderId = anyDeliveryCompleteStage.state.split("_order_")[1];
+      console.log("🎯 DETECTED delivery_complete completion for order:", completedOrderId);
+      
+      lastProcessedStageRef.current = anyDeliveryCompleteStage.state;
       setCurrentActiveLocation(null);
       handleFinishProgress();
       return;
@@ -291,28 +352,44 @@ const HomeScreen = () => {
 
     let activeStage: Stage | null = null;
     const inProgressStage = uniqueStages
-      .filter((s) => s.status === "in_progress")
+      .filter((s: Stage) => s.status === "in_progress")
       .sort((a, b) => b.timestamp - a.timestamp)[0];
 
     if (inProgressStage) {
       activeStage = inProgressStage;
     } else {
+      // Find the first pending stage across all orders
+      // Priority: earlier stage types first, then lower order numbers
       for (const stageState of STAGE_ORDER) {
-        const stage = uniqueStages
+        const candidateStages = uniqueStages
           .filter(
-            (s) => s.state.startsWith(stageState) && s.status === "pending"
+            (s: Stage) => s.state.startsWith(stageState) && s.status === "pending"
           )
           .sort((a, b) => {
             const aOrder = parseInt(a.state.split("_order_")[1] || "1");
             const bOrder = parseInt(b.state.split("_order_")[1] || "1");
             return aOrder - bOrder;
-          })[0];
-        if (stage) {
-          activeStage = stage;
+          });
+        
+        if (candidateStages.length > 0) {
+          activeStage = candidateStages[0];
           break;
         }
       }
     }
+
+    console.log("🎯 Active stage determined:", {
+      activeStage: activeStage?.state,
+      status: activeStage?.status,
+      inProgressStages: uniqueStages.filter((s: Stage) => s.status === "in_progress").map((s: Stage) => s.state),
+      pendingStages: uniqueStages.filter((s: Stage) => s.status === "pending").map((s: Stage) => s.state),
+      completedStages: uniqueStages.filter((s: Stage) => s.status === "completed").map((s: Stage) => s.state),
+      totalStages: uniqueStages.length,
+      currentStage: currentStage?.state,
+      willUpdate: activeStage && (!currentStage || 
+        currentStage.state !== activeStage.state || 
+        currentStage.status !== activeStage.status),
+    });
 
     if (
       activeStage &&
@@ -331,13 +408,18 @@ const HomeScreen = () => {
   }, [stages, transactions_processed, debouncedSetCurrentStage, currentStage]);
 
   const handleUpdateProgress = useCallback(async () => {
-    console.log("handleUpdateProgress called", {
+    console.log("🚀 handleUpdateProgress called", {
       isWaitingForResponse,
       isUpdating: isUpdatingRef.current,
       isProcessing,
       currentStage: currentStage?.state,
+      currentStageStatus: currentStage?.status,
       transactions_processed,
       isSocketConnected,
+      swipeText: swipeTextCurrentStage,
+      stagesCount: stages.length,
+      allStages: stages.map(s => ({ state: s.state, status: s.status })),
+      orderCount: getOrderCount()
     });
 
     if (
@@ -355,6 +437,71 @@ const HomeScreen = () => {
         transactions_processed,
         currentStageStatus: currentStage?.status,
       });
+      return;
+    }
+
+    // 🔧 CRITICAL FIX: Handle multiple order scenario
+    // For 2nd+ orders, manually progress first swipe since server data is inconsistent
+    const orderCount = getOrderCount();
+    const currentOrderId = currentStage.state.split("_order_")[1];
+    const isMultipleOrders = orderCount > 1;
+    const isSecondOrLaterOrder = parseInt(currentOrderId) > 1;
+    const isFirstStageOfOrder = currentStage.state.startsWith("driver_ready");
+    const hasBeenManuallyProgressed = manuallyProgressedOrdersRef.current.has(currentOrderId);
+
+    console.log("🔧 MULTIPLE ORDER CHECK:", {
+      orderCount,
+      currentOrderId,
+      isMultipleOrders,
+      isSecondOrLaterOrder,
+      isFirstStageOfOrder,
+      hasBeenManuallyProgressed,
+      currentStage: currentStage.state,
+      swipeText: swipeTextCurrentStage
+    });
+
+    if (isMultipleOrders && isSecondOrLaterOrder && isFirstStageOfOrder && !manuallyProgressedOrdersRef.current.has(currentOrderId)) {
+      console.log("🔧 MANUAL PROGRESSION: Multiple order detected, manually progressing first swipe", {
+        orderCount,
+        currentOrderId,
+        currentStage: currentStage.state,
+        swipeText: swipeTextCurrentStage
+      });
+
+      // Mark this order as manually progressed
+      manuallyProgressedOrdersRef.current.add(currentOrderId);
+
+      // Manually progress the swipe text for subsequent orders
+      setIsResetSwipe(true);
+      setTimeout(() => setIsResetSwipe(false), 100);
+      
+      // Update swipe text to next stage
+      setSwipeTextCurrentStage("I've arrived restaurant");
+      
+      // Update current stage status to simulate progression 
+      // AND update the stages in Redux to ensure consistency
+      const updatedStage = { ...currentStage, status: "in_progress" as Stage["status"] };
+      setCurrentStage(updatedStage);
+      
+      // Update the stages array to reflect the manual progression
+      const updatedStages = stages.map(stage => 
+        stage.state === currentStage.state ? updatedStage : stage
+      );
+      dispatch(updateStages(updatedStages));
+
+      console.log("🔧 MANUAL PROGRESSION: Updated swipe text and stage", {
+        newSwipeText: "I've arrived restaurant",
+        newStageStatus: "in_progress",
+        markedOrderId: currentOrderId
+      });
+
+      // Still emit to server but don't wait for response
+      if (emitUpdateDriverProgress && id) {
+        emitUpdateDriverProgress({ stageId: id }).catch(error => {
+          console.error("Background server update failed:", error);
+        });
+      }
+      
       return;
     }
 
@@ -380,18 +527,23 @@ const HomeScreen = () => {
     try {
       isUpdatingRef.current = true;
       setIsProcessing(true);
-      console.log("Starting updateDriverProgress with stageId:", id);
+      console.log("🚀 Starting updateDriverProgress with stageId:", id);
       const response = await emitUpdateDriverProgress({ stageId: id });
-      console.log("updateDriverProgress response:", response);
+      console.log("🚀 updateDriverProgress response:", response);
       if (
         response?.success === false &&
         response?.message === "Duplicate event"
       ) {
-        console.warn("Duplicate event detected, skipping stage update");
+        console.warn("🚀 Duplicate event detected, skipping stage update");
         return;
       }
+      
+      console.log("🚀 Server response success, resetting swipe");
       setIsResetSwipe(true);
       setTimeout(() => setIsResetSwipe(false), 100);
+
+      // Let server updates handle progression for normal cases
+      // Manual progression logic above handles multiple order scenarios
     } catch (error) {
       console.error("Error updating progress:", error);
       setModalDetails({
@@ -422,6 +574,8 @@ const HomeScreen = () => {
       currentStageStatus: currentStage?.status,
       stagesCount: stages.length,
       swipeText: swipeTextCurrentStage,
+      allStages: stages.map(s => ({ state: s.state, status: s.status })),
+      allOrders: orders.map(o => ({ id: o.id, status: o.status }))
     });
 
     if (!currentStage) return;
@@ -429,9 +583,17 @@ const HomeScreen = () => {
     const currentOrderId = currentStage.state.split("_order_").pop();
     if (!currentOrderId) return;
 
-    console.log("=== CONFIRMING DELIVERY FOR ORDER:", currentOrderId, "===");
+    console.log("🎯 CONFIRMING DELIVERY FOR ORDER:", currentOrderId);
+    console.log("🎯 Current stage details:", {
+      state: currentStage.state,
+      status: currentStage.status,
+      isDeliveryComplete: currentStage.state.startsWith("delivery_complete_")
+    });
+    
     await debugLogger.info("HomeScreen", "handleConfirmDelivery_ORDER_ID", {
       currentOrderId,
+      currentStageState: currentStage.state,
+      currentStageStatus: currentStage.status
     });
 
     const remainingStages = stages.filter(
@@ -441,12 +603,33 @@ const HomeScreen = () => {
     const orderCount = getOrderCount();
     const remainingOrderCount = Math.floor(remainingStages.length / 5);
 
-    console.log("Order count:", orderCount);
+    console.log("🎯 DELIVERY CONFIRMATION ANALYSIS:");
+    console.log("Current order being confirmed:", currentOrderId);
+    console.log("Total order count:", orderCount);
     console.log("Remaining stages count:", remainingStages.length);
     console.log("Remaining order count:", remainingOrderCount);
+    console.log("All stages:", stages.map(s => ({ state: s.state, status: s.status })));
+    console.log("Remaining stages:", remainingStages.map(s => ({ state: s.state, status: s.status })));
 
-    if (orderCount > 1 && remainingOrderCount > 0) {
-      console.log("=== MULTIPLE ORDERS: PROCESSING NEXT ORDER ===");
+    // 🔧 CRITICAL FIX: Better final order detection
+    // Check if this is actually the final order by checking if ALL delivery_complete stages will be completed
+    const allDeliveryCompleteStages = stages.filter(stage => 
+      stage.state.startsWith("delivery_complete_order_")
+    );
+    
+    const completedDeliveryStages = allDeliveryCompleteStages.filter(stage => 
+      stage.status === "completed" || stage.state.includes(`order_${currentOrderId}`)
+    );
+    
+    const isFinalOrder = completedDeliveryStages.length === allDeliveryCompleteStages.length;
+    
+    console.log("🎯 FINAL ORDER DETECTION:");
+    console.log("All delivery_complete stages:", allDeliveryCompleteStages.map(s => ({ state: s.state, status: s.status })));
+    console.log("Completed delivery stages (including current):", completedDeliveryStages.map(s => ({ state: s.state, status: s.status })));
+    console.log("Is final order?", isFinalOrder);
+
+    if (orderCount > 1 && remainingOrderCount > 0 && !isFinalOrder) {
+      console.log("🔄 MULTIPLE ORDERS: PROCESSING NEXT ORDER");
 
       try {
         // FIRST: Block useEffect and socket updates to prevent override
@@ -475,9 +658,28 @@ const HomeScreen = () => {
         console.log("Filtered stages:", filteredStages.length);
         console.log("Removed order:", currentOrderId);
 
+        // 🔧 CRITICAL FIX: Reset remaining order stages to proper state
+        // When order 1 is completed, order 2 should start fresh from driver_ready
+        const resetFilteredStages = filteredStages.map((stage): Stage => {
+          const stageBase = stage.state.split("_order_")[0];
+          const orderId = stage.state.split("_order_")[1];
+          
+          // Reset all stages of remaining order to pending except the first one
+          return { 
+            ...stage, 
+            status: "pending" as Stage["status"]
+          };
+        });
+
+        console.log("🔧 RESET STAGES for next order:", {
+          beforeReset: filteredStages.map(s => ({ state: s.state, status: s.status })),
+          afterReset: resetFilteredStages.map(s => ({ state: s.state, status: s.status }))
+        });
+
         await debugLogger.info("HomeScreen", "STAGES_FILTERING", {
           originalCount: stages.length,
           filteredCount: filteredStages.length,
+          resetStagesCount: resetFilteredStages.length,
           removedOrderId: currentOrderId,
           originalStages: stages.map((s) => ({
             state: s.state,
@@ -487,12 +689,16 @@ const HomeScreen = () => {
             state: s.state,
             status: s.status,
           })),
+          resetStages: resetFilteredStages.map((s) => ({
+            state: s.state,
+            status: s.status,
+          })),
         });
 
-        // Update Redux state immediately with filtered stages
-        dispatch(updateStages(filteredStages));
+        // Update Redux state immediately with reset stages
+        dispatch(updateStages(resetFilteredStages));
         await debugLogger.info("HomeScreen", "REDUX_STAGES_UPDATED", {
-          newStagesCount: filteredStages.length,
+          newStagesCount: resetFilteredStages.length,
         });
 
         // Calculate remaining orders
@@ -504,12 +710,12 @@ const HomeScreen = () => {
         await AsyncStorage.setItem(
           "currentDriverProgressStage",
           JSON.stringify({
-            stages: filteredStages,
+            stages: resetFilteredStages,
             orders: remainingOrders,
             id: id,
             driver_id: userId,
             transactions_processed: false,
-            // Preserve other fields but with filtered stages
+            // Preserve other fields but with reset stages
           })
         );
         console.log("=== FORCE UPDATED ASYNCSTORAGE ===");
@@ -546,10 +752,17 @@ const HomeScreen = () => {
           setTimeout(() => setIsResetSwipe(false), 50);
         }, 200);
 
-        // Reset flags
+        // Reset flags and force snapshot update
         hasFinishedProgressRef.current = false;
         lastProcessedStageRef.current = null;
         setIsProcessing(false);
+
+        // 🔧 CRITICAL: Force reset stage snapshot to ensure change detection works
+        lastStageSnapshotRef.current = '';
+        lastStageCountProcessedRef.current = 0;
+
+        // Clear manually progressed orders for fresh start
+        manuallyProgressedOrdersRef.current.clear();
 
         console.log("=== UI UPDATED IMMEDIATELY ===");
 
@@ -559,7 +772,7 @@ const HomeScreen = () => {
           isCompletingOrderRef.current = false;
 
           // Force update currentStage to first pending stage of remaining order
-          const firstPendingStage = filteredStages
+          const firstPendingStage = resetFilteredStages
             .filter((s) => s.status === "pending")
             .sort((a, b) => {
               const aOrder = parseInt(a.state.split("_order_")[1] || "1");
@@ -579,31 +792,43 @@ const HomeScreen = () => {
             setCurrentStage(firstPendingStage);
 
             // Force update swipe text based on stage
+            let newSwipeText = "";
             if (firstPendingStage.state.startsWith("driver_ready")) {
-              setSwipeTextCurrentStage("I'm ready");
+              newSwipeText = "I'm ready";
             } else if (
               firstPendingStage.state.startsWith("waiting_for_pickup")
             ) {
-              setSwipeTextCurrentStage("I've arrived restaurant");
+              newSwipeText = "I've arrived restaurant";
             } else if (
               firstPendingStage.state.startsWith("restaurant_pickup")
             ) {
-              setSwipeTextCurrentStage("I've picked up the order");
+              newSwipeText = "I've picked up the order";
             } else if (
               firstPendingStage.state.startsWith("en_route_to_customer")
             ) {
-              setSwipeTextCurrentStage("I've arrived customer");
+              newSwipeText = "I've arrived customer";
             } else if (
               firstPendingStage.state.startsWith("delivery_complete")
             ) {
-              setSwipeTextCurrentStage("Confirm delivery");
+              newSwipeText = "Confirm delivery";
             }
 
-            console.log(
-              "=== FORCE UPDATED SWIPE TEXT ===",
-              swipeTextCurrentStage
-            );
+            console.log("=== FORCE UPDATING SWIPE TEXT ===", {
+              from: swipeTextCurrentStage,
+              to: newSwipeText,
+              stage: firstPendingStage.state
+            });
+            setSwipeTextCurrentStage(newSwipeText);
+
+            // Force reset the swipe component
+            setIsResetSwipe(true);
+            setTimeout(() => setIsResetSwipe(false), 100);
           }
+
+          // 🔧 CRITICAL: Force trigger stage re-evaluation to ensure useEffect runs
+          console.log("=== FORCE TRIGGER STAGE RE-EVALUATION ===");
+          lastStageSnapshotRef.current = '';
+          
         }, 1000); // Unblock after 1 second
 
         // SECOND: Emit to server in background (don't await)
@@ -641,8 +866,8 @@ const HomeScreen = () => {
       }
     }
 
-    console.log("=== SINGLE ORDER: PROCEEDING TO RATING ===");
-    // Single order case - proceed with normal flow
+    console.log("🎯 FINAL ORDER: PROCEEDING TO RATING (from handleConfirmDelivery)");
+    // Final order case - proceed with rating flow
     handleFinishProgress();
   };
 
@@ -689,12 +914,30 @@ const HomeScreen = () => {
       );
       console.log("Remaining stages:", remainingStages);
 
-      // Check if there are remaining orders (each order has 5 stages)
+      // 🔧 CRITICAL FIX: Better logic to detect if this is the final order
+      const allOrderIds = new Set<string>();
+      stages.forEach(stage => {
+        const orderId = stage.state.split("_order_")[1];
+        if (orderId) allOrderIds.add(orderId);
+      });
+      
+      const totalOrdersInDPS = allOrderIds.size;
+      const currentOrderNumber = parseInt(currentOrderId);
+      const isLastOrder = currentOrderNumber === totalOrdersInDPS;
       const remainingOrderCount = Math.floor(remainingStages.length / 5);
-      console.log("Remaining order count:", remainingOrderCount);
+      
+      console.log("🎯 Final order detection:", {
+        currentOrderId,
+        currentOrderNumber,
+        totalOrdersInDPS,
+        isLastOrder,
+        remainingOrderCount,
+        allOrderIds: Array.from(allOrderIds),
+        shouldNavigateToRating: isLastOrder || remainingOrderCount === 0
+      });
 
-      if (orderCount > 1 && remainingOrderCount > 0) {
-        console.log("Multiple orders detected, resetting UI for next order");
+      if (!isLastOrder && remainingOrderCount > 0) {
+        console.log("🔄 Multiple orders detected, resetting UI for next order");
 
         // Call handleCompleteOrder first to update the state properly
         console.log("Calling handleCompleteOrder for orderId:", currentOrderId);
@@ -725,35 +968,40 @@ const HomeScreen = () => {
         return;
       }
 
-      const buildDataCustomer1 = filterPickupAndDropoffStages(
-        stages?.map((item) => ({
-          ...item,
-          address: item.details?.restaurantDetails?.address
-            ? item.details.restaurantDetails.address
-            : item.details?.customerDetails?.address?.[0],
-        }))
-      ).find((item) => item.type === "DROPOFF") as {
-        id: string;
-        avatar: Avatar;
-      };
-      const buildDataRestaurant1 = filterPickupAndDropoffStages(
-        stages?.map((item) => ({
-          ...item,
-          address: item.details?.restaurantDetails?.address
-            ? item.details.restaurantDetails.address
-            : item.details?.customerDetails?.address?.[0],
-        }))
-      ).find((item) => item.type === "PICKUP") as {
-        id: string;
-        avatar: Avatar;
-      };
+      console.log("🎯 FINAL ORDER: Proceeding to Rating screen");
 
-      if (!orders[0]) {
-        console.error("No orders available");
+      // 🔧 CRITICAL: Find the current order being completed, not just orders[0]
+      const currentCompletedOrder = orders.find(order => 
+        order.id.includes(currentOrderId)
+      );
+
+      if (!currentCompletedOrder) {
+        console.error("❌ No completed order found for currentOrderId:", currentOrderId);
+        console.log("Available orders:", orders.map(o => ({ id: o.id, status: o.status })));
         setIsProcessing(false);
         hasFinishedProgressRef.current = false;
         return;
       }
+
+      console.log("✅ Found completed order:", {
+        orderId: currentCompletedOrder.id,
+        customerId: currentCompletedOrder.customer_id,
+        restaurantId: currentCompletedOrder.restaurant_id
+      });
+
+      // Build rating data from the completed order (not from filtered stages)
+      // Note: The order might have expanded customer/restaurant data from server
+      const orderWithDetails = currentCompletedOrder as any; // Type assertion for server data
+      
+      const buildDataCustomer1 = {
+        id: `${currentCompletedOrder.customer_id}_dropoff`,
+        avatar: orderWithDetails.customer?.avatar || { key: "", url: "" }
+      };
+      
+      const buildDataRestaurant1 = {
+        id: `${currentCompletedOrder.restaurant_id}_pickup`, 
+        avatar: orderWithDetails.restaurant?.avatar || { key: "", url: "" }
+      };
 
       await AsyncStorage.removeItem("currentDriverProgressStage");
       dispatch(clearDriverProgressStage());
@@ -768,7 +1016,7 @@ const HomeScreen = () => {
 
       navigation.navigate("Rating", {
         customer1: buildDataCustomer1,
-        orderId: orders[0].id,
+        orderId: currentCompletedOrder.id,
         restaurant1: buildDataRestaurant1,
       });
     } catch (error) {
@@ -839,7 +1087,27 @@ const HomeScreen = () => {
     }
   }, [stages.length, getOrderCount]);
 
-  console.log("check stagé", stages);
+  console.log("check stagé", stages.length);
+
+  // Emergency reset function to clear all duplicated data
+  const handleEmergencyReset = () => {
+    console.log("🚨 EMERGENCY RESET: Clearing all driver progress stage data");
+    dispatch(clearDriverProgressStage());
+    setCurrentStage(null);
+    setSwipeTextCurrentStage("I'm ready");
+    completedOrderIds.current.clear();
+    lastStageCountProcessedRef.current = 0;
+    hasFinishedProgressRef.current = false;
+    lastProcessedStageRef.current = null;
+  };
+
+  // Auto-reset if we detect too many stages (allow up to 10 stages for 2 orders)
+  useEffect(() => {
+    if (stages.length > 25) {
+      console.log("🚨 AUTO-RESET: Detected excessive stages, resetting:", stages.length);
+      handleEmergencyReset();
+    }
+  }, [stages.length]);
 
   return (
     <FFSafeAreaView>

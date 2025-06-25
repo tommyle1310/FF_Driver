@@ -215,42 +215,283 @@ const currentDriverProgressStageSlice = createSlice({
         created_at,
         updated_at,
         orders,
-        transactions_processed, // Thêm field
-        processed_tip_ids, // Add new field
+        transactions_processed,
+        processed_tip_ids,
       } = action.payload;
 
-      // Filter duplicate stages
-      const uniqueStages = stages.reduce((acc: Stage[], stage: Stage) => {
-        if (
-          !acc.find(
-            (s: Stage) =>
-              s.state === stage.state &&
-              s.status === stage.status &&
-              s.timestamp === stage.timestamp
-          )
-        ) {
+      console.log("🔧 REDUX setDriverProgressStage - Incoming data:", {
+        id,
+        stagesCount: stages?.length || 0,
+        ordersCount: orders?.length || 0,
+        incomingTotalEarns: total_earns,
+        incomingTotalDistance: total_distance_travelled,
+        currentTotalEarns: state.total_earns,
+        currentTotalDistance: state.total_distance_travelled,
+        currentStagesCount: state.stages.length,
+        currentOrdersCount: state.orders.length,
+      });
+
+      // AGGRESSIVE PROTECTION: Block any update with more than 15 stages
+      if (stages && stages.length > 15) {
+        console.log("🚫 REDUX: BLOCKING update with excessive stages:", stages.length);
+        return;
+      }
+
+      // Extract order information from incoming stages to understand what's happening
+      const incomingOrderIds = new Set<string>();
+      const incomingStages = stages || [];
+      incomingStages.forEach((stage: Stage) => {
+        const match = stage.state.match(/_order_(\d+)$/);
+        if (match) {
+          incomingOrderIds.add(match[1]);
+        }
+      });
+
+      // Extract order information from current stages
+      const currentOrderIds = new Set<string>();
+      state.stages.forEach((stage: Stage) => {
+        const match = stage.state.match(/_order_(\d+)$/);
+        if (match) {
+          currentOrderIds.add(match[1]);
+        }
+      });
+
+      const incomingOrderCount = incomingOrderIds.size;
+      const currentOrderCount = currentOrderIds.size;
+      const isFirstOrder = state.stages.length === 0 || currentOrderCount === 0;
+      const isNewOrderAdded = incomingOrderCount > currentOrderCount;
+      
+      // Fix: Better logic to detect new orders
+      const hasNewOrders = Array.from(incomingOrderIds).some(id => !currentOrderIds.has(id));
+
+      console.log("🔍 REDUX Stage analysis:", {
+        incomingStages: incomingStages.length,
+        currentStages: state.stages.length,
+        incomingOrderCount,
+        currentOrderCount,
+        isFirstOrder,
+        isNewOrderAdded,
+        hasNewOrders,
+        incomingOrderIds: Array.from(incomingOrderIds),
+        currentOrderIds: Array.from(currentOrderIds),
+      });
+
+      // Handle stage deduplication and merging
+      let finalStages: Stage[];
+      let finalOrders: any[];
+      
+      if (isFirstOrder) {
+        // First order - use incoming stages and orders directly
+        console.log("📝 REDUX: First order - using incoming stages and orders directly");
+        finalStages = incomingStages;
+        finalOrders = orders || [];
+      } else if (hasNewOrders) {
+        // New order added - merge stages intelligently
+        console.log("📝 REDUX: New order detected - merging stages");
+        
+        // Create a map of existing stages by state
+        const existingStagesMap = new Map<string, Stage>();
+        state.stages.forEach(stage => {
+          existingStagesMap.set(stage.state, stage);
+        });
+        
+        // Add new stages from incoming data (don't overwrite existing)
+        incomingStages.forEach((stage: Stage) => {
+          if (!existingStagesMap.has(stage.state)) {
+            existingStagesMap.set(stage.state, stage);
+          } else {
+            // If stage exists, update it with latest data (for status changes)
+            existingStagesMap.set(stage.state, stage);
+          }
+        });
+        
+        finalStages = Array.from(existingStagesMap.values());
+        
+        // 🔧 CRITICAL: Merge orders properly
+        // If server sends orders array, use it; otherwise preserve existing
+        if (orders && orders.length > 0) {
+          finalOrders = orders;
+          console.log("📝 REDUX: Using server orders data:", orders.length);
+        } else {
+          finalOrders = state.orders;
+          console.log("📝 REDUX: Preserving existing orders:", state.orders.length);
+        }
+        
+        console.log("📝 REDUX: Merged stages result:", {
+          previousStages: state.stages.length,
+          incomingStages: incomingStages.length,
+          finalStages: finalStages.length,
+          finalOrdersCount: finalOrders.length
+        });
+      } else {
+        // Same order count - but could be status updates for multiple orders
+        // Replace all stages with incoming data to ensure status updates are applied
+        console.log("📝 REDUX: Updating stages with latest status");
+        finalStages = incomingStages.length > 0 ? incomingStages : state.stages;
+        
+        // 🔧 CRITICAL: Preserve orders if server doesn't send them
+        if (orders && orders.length > 0) {
+          finalOrders = orders;
+          console.log("📝 REDUX: Using updated server orders:", orders.length);
+        } else {
+          finalOrders = state.orders;
+          console.log("📝 REDUX: Preserving existing orders (no server orders):", state.orders.length);
+        }
+      }
+
+      // Enhanced deduplication - remove exact duplicates
+      const uniqueStages = finalStages.reduce((acc: Stage[], stage: Stage) => {
+        const existingStageIndex = acc.findIndex(
+          (s: Stage) =>
+            s.state === stage.state &&
+            s.status === stage.status &&
+            s.timestamp === stage.timestamp
+        );
+        
+        if (existingStageIndex === -1) {
           acc.push(stage);
+        } else {
+          // Keep the one with more details if it's a duplicate
+          const existingStage = acc[existingStageIndex];
+          if (stage.details && Object.keys(stage.details).length > Object.keys(existingStage.details || {}).length) {
+            acc[existingStageIndex] = stage;
+          }
         }
         return acc;
       }, [] as Stage[]);
 
-      state.id = id;
-      state.driver_id = driver_id;
-      state.current_state = current_state;
-      state.previous_state = previous_state;
-      state.total_earns = total_earns;
+      // Final safety check
+      if (uniqueStages.length > 12) {
+        console.log("🚫 REDUX: LIMITING unique stages to 12, was:", uniqueStages.length);
+        uniqueStages.splice(12);
+      }
+
+      // 🎯 CRITICAL: PROPER ACCUMULATION LOGIC
+      let finalTotalEarns: number;
+      let finalTotalDistance: number;
+
+      if (isFirstOrder) {
+        // First order - extract individual order values from server response
+        // Server response includes both individual order data AND accumulated totals
+        // We need individual values: driver_wage, distance (individual), not total_earns (accumulated)
+        
+        let singleOrderEarns = 0;
+        let singleOrderDistance = 0;
+        
+        // Try to get individual order values from the server response payload
+        const driverWage = action.payload.driver_wage; // Individual order earnings
+        const orderDistance = action.payload.distance; // Individual order distance
+        
+        if (driverWage) {
+          singleOrderEarns = parseFloat(driverWage.toString());
+        } else if (orders && orders.length > 0) {
+          // Fallback: get from orders array
+          const latestOrder = orders[orders.length - 1];
+          singleOrderEarns = parseFloat(latestOrder.driver_tips || latestOrder.total_amount || "0");
+        }
+        
+        if (orderDistance) {
+          singleOrderDistance = parseFloat(orderDistance.toString());
+        } else if (orders && orders.length > 0) {
+          // Fallback: get from orders array
+          const latestOrder = orders[orders.length - 1];
+          singleOrderDistance = parseFloat(latestOrder.distance || "0");
+        }
+
+        finalTotalEarns = singleOrderEarns;
+        finalTotalDistance = singleOrderDistance;
+        
+        console.log("💰 REDUX: First order values (using individual order data):", {
+          driverWage,
+          orderDistance,
+          serverTotalEarns: total_earns,
+          serverTotalDistance: total_distance_travelled,
+          serverOrdersCount: orders?.length || 0,
+          calculatedEarns: singleOrderEarns,
+          calculatedDistance: singleOrderDistance,
+          finalOrdersCount: finalOrders.length
+        });
+      } else if (hasNewOrders) {
+        // New order added - accumulate properly
+        const previousTotalEarns = state.total_earns || 0;
+        const previousTotalDistance = state.total_distance_travelled || 0;
+        const previousOrders = state.orders || [];
+        
+        // For new orders, use the difference in server totals if available
+        // This is more accurate than trying to calculate from individual orders
+        const newOrderEarns = total_earns ? 
+          Math.max(0, total_earns - previousTotalEarns) : 
+          (orders ? orders.filter((order: Order) => 
+            !previousOrders.some((prevOrder: Order) => prevOrder.id === order.id)
+          ).reduce((sum: number, order: Order) => 
+            sum + parseFloat(order.driver_tips || "0"), 0) : 0);
+            
+        const newOrderDistance = total_distance_travelled ? 
+          Math.max(0, total_distance_travelled - previousTotalDistance) :
+          (orders ? orders.filter((order: Order) => 
+            !previousOrders.some((prevOrder: Order) => prevOrder.id === order.id)
+          ).reduce((sum: number, order: Order) => 
+            sum + parseFloat(order.distance || "0"), 0) : 0);
+        
+        // Get new orders for orders array
+        const newOrders = orders ? orders.filter((order: Order) => 
+          !previousOrders.some((prevOrder: Order) => prevOrder.id === order.id)
+        ) : [];
+        
+        finalTotalEarns = previousTotalEarns + newOrderEarns;
+        finalTotalDistance = previousTotalDistance + newOrderDistance;
+        
+        console.log("💰 REDUX: Accumulating new order values:", {
+          previousTotalEarns,
+          serverTotalEarns: total_earns,
+          newOrderEarns,
+          finalTotalEarns,
+          previousTotalDistance,
+          serverTotalDistance: total_distance_travelled,
+          newOrderDistance,
+          finalTotalDistance,
+          newOrdersCount: newOrders.length,
+          totalOrdersCount: finalOrders.length
+        });
+      } else {
+        // Same orders - preserve accumulated values
+        finalTotalEarns = state.total_earns || total_earns || 0;
+        finalTotalDistance = state.total_distance_travelled || total_distance_travelled || 0;
+        
+        console.log("💰 REDUX: Preserving accumulated values:", {
+          finalTotalEarns,
+          finalTotalDistance,
+          finalOrdersCount: finalOrders.length
+        });
+      }
+
+      console.log("✅ REDUX: Final update values:", {
+        previousStageCount: state.stages.length,
+        newStageCount: uniqueStages.length,
+        finalTotalEarns,
+        finalTotalDistance,
+        finalOrdersCount: finalOrders.length,
+        id: id,
+      });
+
+      // Update state
+      state.id = id || state.id;
+      state.driver_id = driver_id || state.driver_id;
+      state.current_state = current_state || state.current_state;
+      state.previous_state = previous_state || state.previous_state;
+      state.total_earns = finalTotalEarns;
       state.stages = uniqueStages;
-      state.next_state = next_state;
-      state.estimated_time_remaining = estimated_time_remaining;
-      state.actual_time_spent = actual_time_spent;
-      state.total_distance_travelled = total_distance_travelled;
-      state.total_tips = parseTotalTips(total_tips);
-      state.events = events;
-      state.created_at = created_at;
-      state.updated_at = updated_at;
-      state.orders = orders;
-      state.transactions_processed = transactions_processed || false; // Cập nhật field
-      state.processed_tip_ids = processed_tip_ids || []; // Initialize if not provided
+      state.next_state = next_state || state.next_state;
+      state.estimated_time_remaining = estimated_time_remaining || state.estimated_time_remaining;
+      state.actual_time_spent = actual_time_spent || state.actual_time_spent;
+      state.total_distance_travelled = finalTotalDistance;
+      state.total_tips = parseTotalTips(total_tips) || state.total_tips;
+      state.events = events || state.events;
+      state.created_at = created_at || state.created_at;
+      state.updated_at = updated_at || Math.floor(Date.now() / 1000);
+      state.orders = finalOrders;
+      state.transactions_processed = transactions_processed || false;
+      state.processed_tip_ids = processed_tip_ids || state.processed_tip_ids || [];
     },
     updateCurrentState: (state, action) => {
       state.current_state = action.payload;

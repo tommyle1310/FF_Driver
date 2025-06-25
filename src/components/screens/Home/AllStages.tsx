@@ -53,12 +53,12 @@ const AllStages: React.FC<AllStagesProps> = ({
     handleGoNow();
   }, [selectedDestination]);
 
-  const { total_earns, total_distance_travelled } = useSelector(
+  const { total_earns, total_distance_travelled, orders } = useSelector(
     (state: RootState) => state.currentDriverProgressStage
   );
 
-  // Calculate total orders based on unique order IDs in stages
-  const totalOrders = Math.ceil(stages.length / 2); // 2 stages (PICKUP, DROPOFF) per order
+  // Calculate total orders from the orders array in Redux state
+  const totalOrders = orders ? orders.length : Math.ceil(stages.length / 2);
 
   return (
     <View className="p-4 bg-white rounded-lg shadow-md">
