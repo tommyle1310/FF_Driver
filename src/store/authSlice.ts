@@ -38,6 +38,8 @@ interface AuthState {
   balance: number | null;
   email: string | null;
   userId: string | null;
+  id: string | null; // Chat compatibility - same as userId
+  user_id: string | null; // Additional compatibility
   driverId: string | null;
   avatar: { url: string; key: string } | null;
   fWalletId: string | null;
@@ -60,6 +62,8 @@ const initialState: AuthState = {
   available_for_work: false,
   email: null,
   userId: null,
+  id: null,
+  user_id: null,
   driverId: null,
   user_type: null,
   contact_email: [],
@@ -95,6 +99,8 @@ export const loadTokenFromAsyncStorage = createAsyncThunk(
       email,
       fWalletId,
       userId,
+      id: userId, // Set id same as userId for chat compatibility
+      user_id: userId, // Additional compatibility
       driverId,
       available_for_work,
       user_type: user_type ? JSON.parse(user_type) : null,

@@ -5,5 +5,6 @@ export const IP_ADDRESS = {
 };
 
 export const BACKEND_URL = `http://${IP_ADDRESS.NEAR}:1310`;
+export const CHAT_SOCKET_URL = `ws://${IP_ADDRESS.NEAR}:1310`;
 
 export const SERVICE_FEE = 0;

@@ -102,13 +102,17 @@ export type SidebarStackParamList = {
   ChangePassword: undefined;
   FChat: {
     withUserId?: string;
-    type?: "SUPPORT" | "ORDER";
+    type?: "SUPPORT" | "ORDER" | "CHATBOT";
     orderId?: string;
+    title?: string;
   };
   OrderHistoryDetails: {
     dpsId: string;
   };
 };
+
+// Alias for compatibility with FChatScreen
+export type MainStackParamList = SidebarStackParamList;
 
 export type ScreenNames =
   | "Home"

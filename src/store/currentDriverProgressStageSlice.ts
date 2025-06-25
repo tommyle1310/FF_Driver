@@ -80,7 +80,7 @@ interface Event {
   };
 }
 
-interface Order {
+export interface Order {
   id: string;
   customer_id: string;
   restaurant_id: string;

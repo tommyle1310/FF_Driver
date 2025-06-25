@@ -10,10 +10,19 @@ import { useSelector } from "@/src/store/types";
 import { RootState } from "@/src/store/store";
 import FFSeperator from "../../FFSeperator";
 import FFSwipe from "../../FFSwipe";
-import { colors } from "@/src/theme";
+import { colors, spacing } from "@/src/theme";
+import { useNavigation } from "@react-navigation/native";
+import { StackNavigationProp } from "@react-navigation/stack";
+import { SidebarStackParamList } from "@/src/navigation/AppNavigator";
+import { Order } from "@/src/store/currentDriverProgressStageSlice";
 
+type HomeSreenNavigationProp = StackNavigationProp<
+  SidebarStackParamList,
+  "Home"
+>;
 interface AllStagesProps {
   stages: PickupAndDropoffStage[];
+  orderRedux?: Order[];
   onCall: (contactNumber: string) => void;
   onChange: () => void;
   handleGoNow?: () => void;
@@ -30,6 +39,7 @@ const AllStages: React.FC<AllStagesProps> = ({
   stages,
   onCall,
   onChange,
+  orderRedux,
   selectedDestination,
   handleGoNow,
   setSelectedDestination,
@@ -38,6 +48,7 @@ const AllStages: React.FC<AllStagesProps> = ({
   isSwipeDisabled = false,
   resetSwipe = false,
 }) => {
+  const navigation = useNavigation<HomeSreenNavigationProp>();
   // Hàm xử lý khi chọn stage
   const handleSelectStage = (stage: PickupAndDropoffStage) => {
     if (selectedDestination?.id === stage.id) {
@@ -46,6 +57,20 @@ const AllStages: React.FC<AllStagesProps> = ({
       setSelectedDestination(stage); // Chọn stage mới
     }
     onChange(); // Gọi onChange để báo cho parent nếu cần
+  };
+  const handleChat = async (stage: PickupAndDropoffStage) => {
+    // console.log('cehck selectedDestination', orderRedux?.find((order) => order.restaurant_id === stage?.id?.split('_pickup')[0])?.restaurant_id)
+    // console.log('cehck selectedDestination', orderRedux?.find((order) => order.customer_id === stage?.id?.split('_dropoff')[0])?.customer_id)
+    const userId  = stage?.id?.includes('_pickup') ? stage?.id?.split('_pickup')[0] : stage?.id?.includes('_dropoff') ? stage?.id?.split('_dropoff')[0] : null
+    // console.log('check userId' , userId)
+    const orderId = stage?.id?.includes('_pickup') ? orderRedux?.find((order) => order.restaurant_id === userId)?.id : orderRedux?.find((order) => order.customer_id === userId)?.id
+    console.log('check orderId' , orderId)
+    navigation.navigate('FChat', {
+      withUserId: userId ?? '',
+      type: "ORDER",
+      orderId: orderId ?? '',
+      title: orderId ?? ''
+    });
   };
 
   useEffect(() => {
@@ -104,7 +129,12 @@ const AllStages: React.FC<AllStagesProps> = ({
           <View className="flex-row justify-between items-center mb-2">
             <View className="flex-row gap-2">
               <FFAvatar size={40} avatar={stage?.avatar?.url} />
-              <View style={{ alignItems: "flex-start", maxWidth: "80%" }}>
+              <View
+                style={{
+                  alignItems: "flex-start",
+                  flex: 1,
+                }}
+              >
                 <FFBadge
                   backgroundColor={
                     stage.type === "PICKUP" ? "#bff2b5" : "#eeafaf"
@@ -123,19 +153,41 @@ const AllStages: React.FC<AllStagesProps> = ({
                   {stage.address}
                 </FFText>
               </View>
+              <View
+                style={{
+                  flexDirection: "row",
+                  gap: spacing.sm,
+                  alignSelf: "flex-start",
+                }}
+              >
+                <TouchableOpacity
+                  style={{
+                    backgroundColor: "#fff",
+                    padding: 4,
+                    borderWidth: 1,
+                    borderColor: "#ddd",
+                    borderRadius: 9999,
+                  }}
+                  onPress={() =>
+                    handleChat(          stage          )
+                  }
+                >
+                  <Ionicons name="chatbubble-outline" size={20} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={{
+                    backgroundColor: "#fff",
+                    padding: 4,
+                    borderWidth: 1,
+                    borderColor: "#ddd",
+                    borderRadius: 9999,
+                  }}
+                  onPress={() => onCall(stage.contactNumber)}
+                >
+                  <Ionicons name="call-outline" size={20} />
+                </TouchableOpacity>
+              </View>
             </View>
-            <TouchableOpacity
-              style={{
-                backgroundColor: "#fff",
-                padding: 4,
-                borderWidth: 1,
-                borderColor: "#ddd",
-                borderRadius: 9999,
-              }}
-              onPress={() => onCall(stage.contactNumber)}
-            >
-              <Ionicons name="call-outline" size={20} />
-            </TouchableOpacity>
           </View>
         </TouchableOpacity>
       ))}

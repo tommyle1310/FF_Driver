@@ -18,20 +18,7 @@ import FFScreenTopSection from "@/src/components/FFScreenTopSection";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { MainStackParamList } from "@/src/navigation/AppNavigator";
 import { StackNavigationProp } from "@react-navigation/stack";
-import { useFChatSocket } from "@/src/hooks/useFChatSocket";
-export interface ChatbotMessage {
-  sessionId: string;
-  message: string;
-  type: 'text' | 'options' | 'quickReplies' | 'cards' | 'form' | 'image';
-  options?: any[];
-  quickReplies?: any[];
-  cards?: any[];
-  formFields?: any[];
-  followUpPrompt?: string;
-  timestamp: string;
-  sender: string;
-  confidence?: number;
-}
+import { useFChatSocket, ChatbotMessage } from "@/src/hooks/useFChatSocket";
 import { useSelector, useDispatch } from "@/src/store/types";
 import { RootState } from "@/src/store/store";
 import { truncateString } from "@/src/utils/functions";
@@ -66,7 +53,7 @@ const MessageContent = ({ message, userId, onOptionSelect }: {
   const [imageError, setImageError] = useState(false);
   const chatbotData = message.metadata?.chatbotMessage as ChatbotMessage | undefined;
   const agentData = message.metadata?.agentMessage as any;
-  
+    console.log('cehck agent data', agentData);
   // Helper function to format timestamp
   const formatTime = (timestamp: Date | string | number) => {
     const date = new Date(timestamp);
@@ -283,7 +270,7 @@ const FChatScreen = () => {
     selectOption,
   } = useFChatSocket();
 
-  const { userId, id, driverId, accessToken } = useSelector(
+  const { user_id, id, accessToken } = useSelector(
     (state: RootState) => state.auth
   );
 
@@ -299,7 +286,7 @@ const FChatScreen = () => {
   const displayOrderId = currentSession?.orderId || orderId || "";
 
   // For CHATBOT, we don't need roomId to start chatting - we just need a valid session
-  const hasChatbotSession = chatType === "CHATBOT" && currentSession?.sessionId;
+  const hasChatbotSession = chatType === "CHATBOT" && currentSession?.supportSessionId;
   
   // Check if we have messages to display (prioritize server session messages)
   const hasMessages = messages && messages.length > 0;
@@ -312,24 +299,7 @@ const FChatScreen = () => {
     console.log("FChatScreen - Room ID:", roomId);
     console.log("FChatScreen - Has Messages:", hasMessages);
     console.log("FChatScreen - Messages Length:", messages?.length || 0);
-       console.log("FChatScreen - Auth userId:", userId);
-   console.log("FChatScreen - Auth id:", id);
-   console.log("FChatScreen - Auth driverId:", driverId);
-   console.log("FChatScreen - Auth accessToken exists:", !!accessToken);
-    
-    // Debug message sender comparison
-    if (messages && messages.length > 0) {
-      messages.forEach((msg, index) => {
-               console.log(`Message ${index} - senderId: "${msg.senderId}", from: "${msg.from}", current user id: "${id}", userId: "${userId}", driverId: "${driverId}"`);
-       console.log(`Message ${index} - Is current user (senderId === id): ${msg.senderId === id}`);
-       console.log(`Message ${index} - Is current user (from === id): ${msg.from === id}`);
-       console.log(`Message ${index} - Is current user (senderId === userId): ${msg.senderId === userId}`);
-       console.log(`Message ${index} - Is current user (from === userId): ${msg.from === userId}`);
-       console.log(`Message ${index} - Is current user (senderId === driverId): ${msg.senderId === driverId}`);
-       console.log(`Message ${index} - Is current user (from === driverId): ${msg.from === driverId}`);
-      });
-    }
-  }, [chatType, messages, currentSession, roomId, hasMessages, userId, id, driverId]);
+  }, [chatType, messages, currentSession, roomId, hasMessages]);
 
   // Cleanup on unmount to prevent conflicts
   useEffect(() => {
@@ -341,18 +311,9 @@ const FChatScreen = () => {
 
   // Start chat when component mounts (for existing chat flow) - ONLY ONCE
   useEffect(() => {
-    if (!socket || hasInitiatedChat) {
-      console.log("Skipping chat initialization - socket not ready or chat already initiated");
-      return;
-    }
+    if (hasInitiatedChat || !socket) return;
     
     if (route.params?.withUserId) {
-      console.log("Starting chat with params:", {
-        withUserId: route.params.withUserId,
-        type: route.params.type,
-        orderId: route.params.orderId
-      });
-      
       setHasInitiatedChat(true);
       startChat(
         route.params.withUserId,
@@ -360,34 +321,10 @@ const FChatScreen = () => {
         route.params.orderId
       );
     } else if (route.params?.type === "CHATBOT") {
-      console.log("Starting chatbot session");
       setHasInitiatedChat(true);
       startChatbotSession();
     }
   }, [socket, route.params?.withUserId, route.params?.type, route.params?.orderId, hasInitiatedChat, startChat, startChatbotSession]);
-
-  // Fetch chat history when we get a valid session
-  useEffect(() => {
-    if (!socket || !currentSession || hasHadValidSession) {
-      return;
-    }
-
-    // For ORDER chats, we need both dbRoomId and chatId
-    if (currentSession.type === "ORDER" && currentSession.dbRoomId && currentSession.chatId) {
-      console.log("Fetching ORDER chat history for room:", currentSession.dbRoomId);
-      getChatHistory();
-      setHasHadValidSession(true);
-    }
-    // For SUPPORT/CHATBOT chats, we need sessionId
-    else if (
-      (currentSession.type === "SUPPORT" || currentSession.type === "CHATBOT") && 
-      currentSession.sessionId
-    ) {
-      console.log("Fetching SUPPORT/CHATBOT chat history for session:", currentSession.sessionId);
-      getChatHistory();
-      setHasHadValidSession(true);
-    }
-  }, [socket, currentSession, hasHadValidSession, getChatHistory]);
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -695,35 +632,28 @@ const FChatScreen = () => {
               </Text>
             </View>
           ) : (
-            messages.map((msg) => {
-              // Check if this message is from the current user
-              const isCurrentUser = msg.from === driverId || msg.senderId === driverId || 
-                                   msg.from === id || msg.senderId === id ||
-                                   msg.from === userId || msg.senderId === userId;
-              
-              return (
+            messages.map((msg) => (
+              <View
+                key={msg.messageId || `${msg.from}-${msg.timestamp}`}
+                className={`flex-row ${
+                  msg.from === id || msg.senderId === id ? "justify-end" : "justify-start"
+                } mb-4`}
+              >
                 <View
-                  key={msg.messageId || `${msg.from}-${msg.timestamp}`}
-                  className={`flex-row ${
-                    isCurrentUser ? "justify-end" : "justify-start"
-                  } mb-4`}
+                  className={`max-w-[80%] rounded-2xl p-3 ${
+                    msg.from === id || msg.senderId === id
+                      ? "bg-[#63c550] rounded-tr-none"
+                      : "bg-gray-200 rounded-tl-none"
+                  }`}
                 >
-                  <View
-                    className={`max-w-[80%] rounded-2xl p-3 ${
-                      isCurrentUser
-                        ? "bg-[#63c550] rounded-tr-none"
-                        : "bg-gray-200 rounded-tl-none"
-                    }`}
-                  >
-                    <MessageContent 
-                      message={msg} 
-                      userId={driverId || id || userId}
-                      onOptionSelect={handleOptionSelect} 
-                    />
-                  </View>
+                  <MessageContent 
+                    message={msg} 
+                    userId={id}
+                    onOptionSelect={handleOptionSelect} 
+                  />
                 </View>
-              );
-            })
+              </View>
+            ))
           )}
         </ScrollView>
         

@@ -93,6 +93,8 @@ const HomeScreen = () => {
     (state: RootState) => state.currentDriverProgressStage
   );
 
+
+
   const {
     isWaitingForResponse,
     emitUpdateDriverProgress,
@@ -1260,6 +1262,7 @@ console.log('chsk stages', stages.length)
               </View>
             ) : (
               <AllStages
+                orderRedux={orders}
                 handleGoNow={handleGoNow}
                 selectedDestination={selectedDestination}
                 setSelectedDestination={setSelectedDestination}
