@@ -383,9 +383,184 @@ export const useFChatSocket = () => {
         }
       }
     });
+
+    // Handle supportChatStarted event (alternative to supportStarted)
+    socketInstance.on("supportChatStarted", (data: any) => {
+      console.log("Support chat started:", data);
+      
+      if (data.sessionId) {
+        const chatMode = data.chatMode === "bot" ? "CHATBOT" : "AGENT";
+        const chatType = data.chatMode === "bot" ? "CHATBOT" : "SUPPORT";
+        
+        // Store the support session
+        dispatch(setSupportSession({
+          sessionId: data.sessionId,
+          chatMode: chatMode,
+          status: data.status || "ACTIVE",
+          priority: data.priority || "medium",
+          category: data.category,
+          slaDeadline: data.slaDeadline,
+          timestamp: new Date().toISOString(),
+        }));
+        
+        // Create a room for this session using the server sessionId
+        const roomId = data.sessionId.startsWith(chatType.toLowerCase() + '_') 
+          ? data.sessionId 
+          : `${chatType.toLowerCase()}_${data.sessionId}`;
+        
+        const session: ChatSession = {
+          chatId: data.sessionId,
+          dbRoomId: roomId,
+          withUser: chatType === "CHATBOT" ? "chatbot" : "agent",
+          type: chatType,
+          sessionId: data.sessionId,
+          isActive: true,
+          createdAt: new Date().toISOString(),
+          lastMessageAt: new Date().toISOString(),
+        };
+        
+        setCurrentSession(session);
+        dispatch(setChatSession(session));
+        
+        // Check if room already exists to avoid duplicates
+        const state = store.getState();
+        const roomExists = state.chat.rooms.some((room: any) => room.id === roomId);
+        
+        if (!roomExists) {
+          dispatch(addRoom({
+            id: roomId,
+            participants: [chatType === "CHATBOT" ? "chatbot" : "agent"],
+            unreadCount: 0,
+            type: chatType,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          }));
+        }
+        
+        dispatch(setActiveRoom(roomId));
+        dispatch(supportRequestSuccess());
+        
+        // If it's a chatbot, send a welcome message ONLY if the room is empty
+        if (chatType === "CHATBOT") {
+          const currentMessages = state.chat.messages[roomId] || [];
+          if (currentMessages.length === 0) {
+            const welcomeMessage: ChatMessage = {
+              messageId: `welcome_${Date.now()}`,
+              from: "chatbot",
+              senderId: "chatbot",
+              content: "Hello! I'm your AI assistant. How can I help you today?",
+              type: "TEXT",
+              messageType: "TEXT",
+              timestamp: new Date().toISOString(),
+              roomId: roomId,
+              metadata: {
+                chatbotMessage: {
+                  sessionId: data.sessionId,
+                  message: "Hello! I'm your AI assistant. How can I help you today?",
+                  type: "text",
+                  sender: "chatbot",
+                  timestamp: new Date().toISOString()
+                }
+              },
+            };
+            
+            dispatch(addMessage(welcomeMessage));
+          }
+        }
+      }
+    });
+
+    // Handle startSupportChatResponse (for both SUPPORT and CHATBOT types)
+    socketInstance.on("startSupportChatResponse", (data: any) => {
+      console.log("Support chat response received:", data);
+      
+      if (data.sessionId) {
+        const chatMode = data.chatMode === "bot" ? "CHATBOT" : "AGENT";
+        const chatType = data.chatMode === "bot" ? "CHATBOT" : "SUPPORT";
+        
+        // Store the support session
+        dispatch(setSupportSession({
+          sessionId: data.sessionId,
+          chatMode: chatMode,
+          status: data.status || "ACTIVE",
+          priority: data.priority || "medium",
+          category: data.category,
+          slaDeadline: data.slaDeadline,
+          timestamp: new Date().toISOString(),
+        }));
+        
+        // Create a room for this session using the server sessionId
+        // Note: sessionId might already include the type prefix, so check first
+        const roomId = data.sessionId.startsWith(chatType.toLowerCase() + '_') 
+          ? data.sessionId 
+          : `${chatType.toLowerCase()}_${data.sessionId}`;
+        
+        const session: ChatSession = {
+          chatId: data.sessionId, // Using sessionId as chatId for support chats
+          dbRoomId: roomId,
+          withUser: chatType === "CHATBOT" ? "chatbot" : "agent",
+          type: chatType,
+          sessionId: data.sessionId,
+          isActive: true,
+          createdAt: new Date().toISOString(),
+          lastMessageAt: new Date().toISOString(),
+        };
+        
+        setCurrentSession(session);
+        dispatch(setChatSession(session));
+        
+        // Check if room already exists to avoid duplicates
+        const state = store.getState();
+        const roomExists = state.chat.rooms.some((room: any) => room.id === roomId);
+        
+        if (!roomExists) {
+          dispatch(addRoom({
+            id: roomId,
+            participants: [chatType === "CHATBOT" ? "chatbot" : "agent"],
+            unreadCount: 0,
+            type: chatType,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          }));
+        }
+        
+        dispatch(setActiveRoom(roomId));
+        
+        // Mark support request as successful
+        dispatch(supportRequestSuccess());
+        
+        // If it's a chatbot, send a welcome message ONLY if the room is empty
+        if (chatType === "CHATBOT") {
+          const currentMessages = state.chat.messages[roomId] || [];
+          if (currentMessages.length === 0) {
+            const welcomeMessage: ChatMessage = {
+              messageId: `welcome_${Date.now()}`,
+              from: "chatbot",
+              senderId: "chatbot",
+              content: "Hello! I'm your AI assistant. How can I help you today?",
+              type: "TEXT",
+              messageType: "TEXT",
+              timestamp: new Date().toISOString(),
+              roomId: roomId,
+              metadata: {
+                chatbotMessage: {
+                  sessionId: data.sessionId,
+                  message: "Hello! I'm your AI assistant. How can I help you today?",
+                  type: "text",
+                  sender: "chatbot",
+                  timestamp: new Date().toISOString()
+                }
+              },
+            };
+            
+            dispatch(addMessage(welcomeMessage));
+          }
+        }
+      }
+    });
     
-    // Handle supportMessage for SUPPORT/CHATBOT chats
-    socketInstance.on("supportMessage", (data: any) => {
+    // Handle sendSupportMessage for SUPPORT/CHATBOT chats
+    socketInstance.on("sendSupportMessage", (data: any) => {
       console.log("Support message received:", data);
       
       if (data.sessionId && currentSession?.sessionId === data.sessionId) {
@@ -445,10 +620,16 @@ export const useFChatSocket = () => {
       const state = store.getState();
       const currentSupportSession = state.chat.supportSession;
       
+      console.log("Current support session:", currentSupportSession);
+      console.log("Session ID match:", data.sessionId === currentSupportSession?.sessionId);
+      
       if (data.sessionId && currentSupportSession?.sessionId === data.sessionId) {
         const roomId = data.sessionId.startsWith('support_') 
           ? data.sessionId 
           : `support_${data.sessionId}`;
+        
+        console.log("Agent message roomId:", roomId);
+        console.log("Current activeRoomId:", state.chat.activeRoomId);
         
         const formattedMessage: ChatMessage = {
           messageId: `agent_${Date.now()}`,
@@ -464,7 +645,38 @@ export const useFChatSocket = () => {
           },
         };
         
+        // Make sure the room exists
+        const roomExists = state.chat.rooms.some((room: any) => room.id === roomId);
+        
+        console.log("Room exists:", roomExists, "Room ID:", roomId);
+        
+        if (!roomExists) {
+          console.log("Creating room for agent message:", roomId);
+          dispatch(addRoom({
+            id: roomId,
+            participants: [data.agentId || "agent"],
+            unreadCount: 0,
+            type: "SUPPORT",
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          }));
+        }
+        
+        // Set this room as active if we don't have one or if it's the correct session
+        const currentActiveRoomId = state.chat.activeRoomId;
+        if (!currentActiveRoomId || currentActiveRoomId !== roomId) {
+          console.log("Setting active room to:", roomId);
+          dispatch(setActiveRoom(roomId));
+        }
+        
+        console.log("Adding agent message:", formattedMessage);
         dispatch(addMessage(formattedMessage));
+      } else {
+        console.log("Agent message session ID mismatch or missing:", {
+          receivedSessionId: data.sessionId,
+          currentSessionId: currentSupportSession?.sessionId,
+          hasCurrentSession: !!currentSupportSession
+        });
       }
     });
 
@@ -481,6 +693,20 @@ export const useFChatSocket = () => {
 
     return () => {
       console.log("Cleaning up socket connection");
+      socketInstance.off("connect");
+      socketInstance.off("disconnect");
+      socketInstance.off("connect_error");
+      socketInstance.off("newMessage");
+      socketInstance.off("chatHistory");
+      socketInstance.off("supportHistory");
+      socketInstance.off("chatStarted");
+      socketInstance.off("supportStarted");
+      socketInstance.off("supportChatStarted");
+      socketInstance.off("startSupportChatResponse");
+      socketInstance.off("sendSupportMessage");
+      socketInstance.off("chatbotMessage");
+      socketInstance.off("agentMessage");
+      
       if (socketInstance.connected) {
         socketInstance.disconnect();
       }
@@ -627,10 +853,31 @@ export const useFChatSocket = () => {
           sessionId: session.sessionId,
         });
         
-        socket.emit("supportMessage", {
+        socket.emit("sendSupportMessage", {
           ...messageData,
+          content: undefined,
+          messageType: type.toLowerCase(),
+          message: content,
           sessionId: session.sessionId,
         });
+        
+        // Add the message to local state immediately for instant feedback
+        const roomId = session.dbRoomId;
+        if (roomId) {
+          const userMessage: ChatMessage = {
+            messageId: `user_${Date.now()}`,
+            from: id || "",
+            senderId: id || "",
+            content: content,
+            type: type,
+            messageType: type,
+            timestamp: new Date().toISOString(),
+            roomId: roomId,
+            metadata: {},
+          };
+          
+          dispatch(addMessage(userMessage));
+        }
       }
     }
   }, [socketRef, currentSession, chatType]);
@@ -642,10 +889,29 @@ export const useFChatSocket = () => {
       return;
     }
 
-    socketRef.current.emit("selectOption", {
+    socketRef.current.emit("sendSupportMessage", {
+      messageType: "text",
       sessionId: currentSession.sessionId,
-      value,
+      message: value,
     });
+    
+    // Add the selected option to local state immediately for instant feedback
+    const roomId = currentSession.dbRoomId;
+    if (roomId) {
+      const userMessage: ChatMessage = {
+        messageId: `user_option_${Date.now()}`,
+        from: id || "",
+        senderId: id || "",
+        content: value,
+        type: "TEXT",
+        messageType: "TEXT",
+        timestamp: new Date().toISOString(),
+        roomId: roomId,
+        metadata: {},
+      };
+      
+      dispatch(addMessage(userMessage));
+    }
   }, [socketRef, currentSession]);
 
   // Get chat history

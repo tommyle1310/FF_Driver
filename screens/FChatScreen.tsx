@@ -180,6 +180,22 @@ const MessageContent = ({ message, userId, onOptionSelect }: {
           {message.content}
         </FFText>
         {renderChatbotOptions(chatbotData.options, message.messageId)}
+        {/* Display followUpPrompt if available */}
+        {chatbotData.followUpPrompt && (
+          <FFText
+            style={{
+              ...styles.messageText,
+              ...(message.senderId === userId || message.from === userId
+                 ? styles.sentMessageText
+                 : styles.receivedMessageText),
+              marginTop: 8,
+              fontStyle: 'italic',
+              opacity: 0.8,
+            }}
+          >
+            {chatbotData.followUpPrompt}
+          </FFText>
+        )}
       </View>
     );
   } else if (chatbotData?.quickReplies && chatbotData.quickReplies.length > 0) {
@@ -196,6 +212,22 @@ const MessageContent = ({ message, userId, onOptionSelect }: {
           {message.content}
         </FFText>
         {renderQuickReplies(chatbotData.quickReplies, message.messageId)}
+        {/* Display followUpPrompt if available */}
+        {chatbotData.followUpPrompt && (
+          <FFText
+            style={{
+              ...styles.messageText,
+              ...(message.senderId === userId || message.from === userId
+                 ? styles.sentMessageText
+                 : styles.receivedMessageText),
+              marginTop: 8,
+              fontStyle: 'italic',
+              opacity: 0.8,
+            }}
+          >
+            {chatbotData.followUpPrompt}
+          </FFText>
+        )}
       </View>
     );
   } else if (agentData) {
@@ -229,16 +261,34 @@ const MessageContent = ({ message, userId, onOptionSelect }: {
     );
   } else {
     return (
-      <FFText
-        style={{
-          ...styles.messageText,
-          ...(message.senderId === userId || message.from === userId
-             ? styles.sentMessageText
-             : styles.receivedMessageText),
-        }}
-      >
-        {message.content}
-      </FFText>
+      <View>
+        <FFText
+          style={{
+            ...styles.messageText,
+            ...(message.senderId === userId || message.from === userId
+               ? styles.sentMessageText
+               : styles.receivedMessageText),
+          }}
+        >
+          {message.content}
+        </FFText>
+        {/* Display followUpPrompt if available for chatbot messages */}
+        {chatbotData?.followUpPrompt && (
+          <FFText
+            style={{
+              ...styles.messageText,
+              ...(message.senderId === userId || message.from === userId
+                 ? styles.sentMessageText
+                 : styles.receivedMessageText),
+              marginTop: 8,
+              fontStyle: 'italic',
+              opacity: 0.8,
+            }}
+          >
+            {chatbotData.followUpPrompt}
+          </FFText>
+        )}
+      </View>
     );
   }
 };
@@ -287,9 +337,6 @@ const FChatScreen = () => {
     (state: RootState) => state.auth
   );
 
-  // Initial state logic - check if we have essential chat data
-  const hasEssentialChatData = roomId && currentSession;
-
   // Get the chat type from route params or default to SUPPORT
   const routeChatType = route.params?.type || "SUPPORT";
   const orderId = route.params?.orderId;
@@ -297,6 +344,24 @@ const FChatScreen = () => {
   
   // Get the order ID from the current session or route params
   const displayOrderId = currentSession?.orderId || orderId || "";
+
+  // Initial state logic - check if we have essential chat data based on chat type
+  const hasEssentialChatData = (() => {
+    if (!currentSession) return false;
+    
+    // For ORDER chats, we need both roomId and currentSession
+    if (chatType === "ORDER") {
+      return roomId && currentSession.dbRoomId;
+    }
+    
+    // For SUPPORT/CHATBOT chats, we just need a sessionId
+    if (chatType === "SUPPORT" || chatType === "CHATBOT") {
+      return currentSession.sessionId;
+    }
+    
+    // Fallback for unknown chat types
+    return roomId && currentSession;
+  })();
 
   // For CHATBOT, we don't need roomId to start chatting - we just need a valid session
   const hasChatbotSession = chatType === "CHATBOT" && currentSession?.sessionId;
@@ -312,10 +377,12 @@ const FChatScreen = () => {
     console.log("FChatScreen - Room ID:", roomId);
     console.log("FChatScreen - Has Messages:", hasMessages);
     console.log("FChatScreen - Messages Length:", messages?.length || 0);
-       console.log("FChatScreen - Auth userId:", userId);
-   console.log("FChatScreen - Auth id:", id);
-   console.log("FChatScreen - Auth driverId:", driverId);
-   console.log("FChatScreen - Auth accessToken exists:", !!accessToken);
+    console.log("FChatScreen - Has Essential Chat Data:", hasEssentialChatData);
+    console.log("FChatScreen - Has Chatbot Session:", hasChatbotSession);
+    console.log("FChatScreen - Auth userId:", userId);
+    console.log("FChatScreen - Auth id:", id);
+    console.log("FChatScreen - Auth driverId:", driverId);
+    console.log("FChatScreen - Auth accessToken exists:", !!accessToken);
     
     // Debug message sender comparison
     if (messages && messages.length > 0) {
@@ -329,7 +396,7 @@ const FChatScreen = () => {
        console.log(`Message ${index} - Is current user (from === driverId): ${msg.from === driverId}`);
       });
     }
-  }, [chatType, messages, currentSession, roomId, hasMessages, userId, id, driverId]);
+  }, [chatType, messages, currentSession, roomId, hasMessages, hasEssentialChatData, hasChatbotSession, userId, id, driverId]);
 
   // Cleanup on unmount to prevent conflicts
   useEffect(() => {

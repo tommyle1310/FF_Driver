@@ -1,5 +1,5 @@
 import { io, Socket } from "socket.io-client";
-import { BACKEND_URL, IP_ADDRESS } from "../utils/constants";
+import { BACKEND_URL, CHAT_SOCKET_URL, IP_ADDRESS } from "../utils/constants";
 
 class SocketManager {
   private socket: Socket | null = null;
@@ -52,10 +52,10 @@ class SocketManager {
 
     console.log(`Creating new socket connection for driverId: ${driverId}`);
     console.log(
-      `ws://${IP_ADDRESS.NEAR}:1310/driver`,
-      `ws://${IP_ADDRESS.NEAR}:1310/driver`
+      `${CHAT_SOCKET_URL}/driver`,
+      `${CHAT_SOCKET_URL}/driver`
     );
-    this.socket = io(`ws://${IP_ADDRESS.NEAR}:1310/driver`, {
+    this.socket = io(`${CHAT_SOCKET_URL}/driver`, {
       auth: { token }, // Keep for compatibility
       extraHeaders: {
         auth: `Bearer ${token}`, // Match backend expectation
@@ -126,7 +126,7 @@ class SocketManager {
       console.log(
         `Creating new socket connection for driverId: ${this.driverId}`
       );
-      this.socket = io(`ws://${IP_ADDRESS.NEAR}:1310/driver`, {
+      this.socket = io(`${CHAT_SOCKET_URL}/driver`, {
         auth: { token: this.token },
         extraHeaders: {
           auth: `Bearer ${this.token}`,
