@@ -16,6 +16,18 @@ export interface PickupAndDropoffStage {
   contactNumber: string;
 }
 
+// Check if coordinates are within a reasonable range for Vietnam
+// Vietnam's approximate bounds: 8.18°N to 23.39°N and 102.14°E to 109.46°E
+const isValidVietnamCoordinate = (lat?: number, lng?: number): boolean => {
+  if (lat === undefined || lng === undefined) return false;
+  
+  // Check if coordinates are within a reasonable range for Vietnam or nearby
+  const isReasonableLat = lat >= 5 && lat <= 25;
+  const isReasonableLng = lng >= 100 && lng <= 112;
+  
+  return isReasonableLat && isReasonableLng;
+};
+
 export const filterPickupAndDropoffStages = (
   stages: Array<{
     state: string;
@@ -45,7 +57,7 @@ export const filterPickupAndDropoffStages = (
   }>
 ): PickupAndDropoffStage[] => {
   const result: PickupAndDropoffStage[] = [];
-  const processedOrders = new Set<string>(); // Để tránh trùng order
+  const processedOrders = new Set<string>();
 
   stages?.forEach((stage) => {
     const { details, state, address } = stage;
@@ -53,6 +65,20 @@ export const filterPickupAndDropoffStages = (
     // Lấy số order từ state (ví dụ: "restaurant_pickup_order_1" -> "1")
     const orderMatch = state.match(/_order_(\d+)$/);
     const orderNumber = orderMatch ? orderMatch[1] : "1"; // Mặc định là "1" nếu không match
+
+    // Validate location data
+    const location = details?.location;
+    const validatedLocation = isValidVietnamCoordinate(location?.lat, location?.lng) 
+      ? location 
+      : { lat: 10.781975, lng: 106.664512 }; // Default to Ho Chi Minh City if invalid
+
+    // Log if we had to fix the location
+    if (location && !isValidVietnamCoordinate(location.lat, location.lng)) {
+      console.warn(
+        "Invalid location detected, using default Ho Chi Minh City coordinates instead:", 
+        location
+      );
+    }
 
     // Xử lý PICKUP từ restaurantDetails
     if (
@@ -69,7 +95,7 @@ export const filterPickupAndDropoffStages = (
           : "Unknown address", // Placeholder, thay bằng logic từ Order nếu cần
         avatar: details.restaurantDetails.avatar,
         name: details.restaurantDetails.restaurant_name,
-        location: details.location,
+        location: validatedLocation,
         contactNumber:
           details.restaurantDetails.contact_phone.find(
             (phone) => phone.is_default
@@ -95,7 +121,7 @@ export const filterPickupAndDropoffStages = (
           : "Unknown address",
         avatar: details.customerDetails.avatar,
         name: `${details.customerDetails.first_name} ${details.customerDetails.last_name}`,
-        location: details.location,
+        location: validatedLocation,
         contactNumber: "Unknown", // Customer không có contact_phone, thay bằng logic nếu cần
       });
       processedOrders.add(`dropoff_${orderNumber}`);

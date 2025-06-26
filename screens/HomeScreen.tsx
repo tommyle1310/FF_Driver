@@ -1037,8 +1037,16 @@ console.log('chsk stages', stages.length)
   const handleNavigateGoogleMap = async (
     location: { lat: number; lng: number } | undefined
   ) => {
-    if (location) {
+    if (location && location.lat && location.lng) {
+      console.log("Opening Google Maps with location:", location);
       openGoogleMaps(location);
+    } else {
+      console.error("Invalid location data for navigation:", location);
+      setModalDetails({
+        status: "ERROR",
+        title: "Navigation Error",
+        desc: "Could not open map with the provided location. Location data is missing or invalid.",
+      });
     }
   };
 
@@ -1053,6 +1061,26 @@ console.log('chsk stages', stages.length)
       isUpdatingRef.current = false;
     }
   }, [isWaitingForResponse, isProcessing]);
+
+  // Clear selectedDestination when stages change or current stage progresses
+  useEffect(() => {
+    if (currentStage?.status === "in_progress" && selectedDestination) {
+      console.log("Stage progressed, clearing selected destination for route");
+      setSelectedDestination(null);
+    }
+  }, [currentStage?.status, selectedDestination]);
+
+  // Log selected destination changes for debugging route issues
+  useEffect(() => {
+    if (selectedDestination) {
+      console.log("Selected destination updated:", {
+        id: selectedDestination.id,
+        name: selectedDestination.name,
+        type: selectedDestination.type,
+        location: selectedDestination.location
+      });
+    }
+  }, [selectedDestination]);
 
   // Force reset swipe text when stages change after order completion
   useEffect(() => {
@@ -1145,7 +1173,15 @@ console.log('chsk stages', stages.length)
           }}
         />
 
-        <MapWrapper />
+        <MapWrapper 
+          selectedDestination={selectedDestination && selectedDestination.location ? {
+            lat: selectedDestination.location.lat || 0,
+            lng: selectedDestination.location.lng || 0,
+            name: selectedDestination.name,
+            avatar: selectedDestination.avatar,
+            type: selectedDestination.type
+          } : null}
+        />
 
         <View
           style={{
@@ -1326,7 +1362,7 @@ console.log('chsk stages', stages.length)
       </FFView>
       <FloatingStage
         onNavigate={(res) => handleNavigateGoogleMap(res)}
-        stage={currentActiveLocation}
+        stage={currentActiveLocation || selectedDestination}
       />
       <FFModal
         visible={modalDetails.status !== "HIDDEN"}

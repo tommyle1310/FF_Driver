@@ -2,18 +2,24 @@ import { Platform } from "react-native";
 import React from "react";
 import WebMap from "./WebMap";
 
-interface MapComponentProps {
-  // Add any props your map components use
+interface MapWrapperProps {
+  selectedDestination?: {
+    lat: number;
+    lng: number;
+    name?: string;
+    avatar?: { url?: string };
+    type?: "PICKUP" | "DROPOFF";
+  } | null;
 }
 
-const MapWrapper: React.FC = () => {
+const MapWrapper: React.FC<MapWrapperProps> = ({ selectedDestination }) => {
   if (Platform.OS === "web") {
-    return <WebMap />;
+    return <WebMap selectedDestination={selectedDestination} />;
   }
 
   // Only import MapWithCurrentLocation on native platforms
   const MapWithCurrentLocation = require("./CurrentLocation").default;
-  return <MapWithCurrentLocation />;
+  return <MapWithCurrentLocation selectedDestination={selectedDestination} />;
 };
 
 export default MapWrapper;

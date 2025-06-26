@@ -54,7 +54,35 @@ const AllStages: React.FC<AllStagesProps> = ({
     if (selectedDestination?.id === stage.id) {
       setSelectedDestination(null); // Bỏ chọn nếu đã chọn rồi
     } else {
-      setSelectedDestination(stage); // Chọn stage mới
+      // Validate location data before setting
+      if (stage.location && stage.location.lat && stage.location.lng) {
+        // Check if coordinates are within a reasonable range for Vietnam
+        const isReasonableLat = stage.location.lat >= 5 && stage.location.lat <= 25;
+        const isReasonableLng = stage.location.lng >= 100 && stage.location.lng <= 112;
+        
+        if (!isReasonableLat || !isReasonableLng) {
+          console.warn("Location coordinates outside Vietnam range:", stage.location);
+          // Create a copy with fixed location (Ho Chi Minh City)
+          const fixedStage = {
+            ...stage,
+            location: { lat: 10.781975, lng: 106.664512 }
+          };
+          console.log("Using fixed location instead:", fixedStage.location);
+          setSelectedDestination(fixedStage);
+        } else {
+          console.log("Selected destination with valid location:", stage.location);
+          setSelectedDestination(stage); // Chọn stage mới
+        }
+      } else {
+        console.error("Selected stage has invalid location data:", stage);
+        // Create a copy with default location (Ho Chi Minh City)
+        const fixedStage = {
+          ...stage,
+          location: { lat: 10.781975, lng: 106.664512 }
+        };
+        console.log("Using default location instead:", fixedStage.location);
+        setSelectedDestination(fixedStage);
+      }
     }
     onChange(); // Gọi onChange để báo cho parent nếu cần
   };
