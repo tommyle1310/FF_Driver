@@ -16,6 +16,9 @@ import {
   addRoom,
   setActiveRoom,
   setSupportSession,
+  clearChat,
+  clearSupportError,
+  clearAllChatStorage,
 } from "@/src/store/chatSlice";
 
 // Define types for the chatbot responses
@@ -55,7 +58,15 @@ export const useFChatSocket = () => {
   const [chatType, setChatType] = useState<"SUPPORT" | "ORDER" | "CHATBOT">("SUPPORT");
   const [currentSession, setCurrentSession] = useState<ChatSession | null>(null);
   const socketRef = useRef<Socket | null>(null);
+  const isCleaningUpRef = useRef(false);
   const dispatch = useDispatch();
+  
+  // Add refs to track pending chat requests
+  const pendingChatRequestRef = useRef<{
+    withUserId: string;
+    type: "SUPPORT" | "ORDER" | "CHATBOT";
+    orderId?: string;
+  } | null>(null);
 
   const { accessToken, id } = useSelector((state: RootState) => state.auth);
   const {
@@ -70,25 +81,38 @@ export const useFChatSocket = () => {
 
   // Initialize socket connection
   useEffect(() => {
-    if (!accessToken) {
-      console.log("No access token available");
+    if (!accessToken || !id) {
+      console.log("No access token or ID available");
       return;
     }
 
+    // Clean up any existing socket before creating a new one
+    if (socketRef.current) {
+      console.log("Cleaning up existing socket before creating new one");
+      if (socketRef.current.connected) {
+        socketRef.current.disconnect();
+      }
+      socketRef.current.removeAllListeners();
+      socketRef.current = null;
+      setSocket(null);
+    }
+
+    // Clear any existing cleanup flag and reset all flags
+    isCleaningUpRef.current = false;
+
     console.log("Initializing socket connection with URL:", CHAT_SOCKET_URL);
     
+    // Connect to /chat namespace which is where chat actually works (based on successful first connection)
     const socketInstance = io(`${CHAT_SOCKET_URL}/chat`, {
-      transports: ["websocket"],
-      auth: {
-        token: accessToken,
+      auth: { token: accessToken }, // Keep for compatibility
+      extraHeaders: {
+        auth: `Bearer ${accessToken}`, // Match backend expectation
+        Authorization: `Bearer ${accessToken}`, // Fallback
       },
-      reconnection: true,
-      reconnectionAttempts: 3,
-      reconnectionDelay: 2000,
-      autoConnect: false,
-      query: {
-        driverId: id
-      }
+      query: { driverId: id, userId: id },
+      reconnection: false, // Disable automatic reconnection initially
+      transports: ["websocket"],
+      forceNew: true, // Force new connection each time to prevent conflicts
     });
 
     // Log all socket events for debugging
@@ -105,27 +129,55 @@ export const useFChatSocket = () => {
     socketInstance.on("connect", () => {
       console.log("Connected to chat server with socket ID:", socketInstance.id);
       dispatch(setConnectionState(true));
+      
+      // Check if we have a pending chat request to retry
+      if (pendingChatRequestRef.current) {
+        console.log("Retrying pending chat request:", pendingChatRequestRef.current);
+        const pendingRequest = pendingChatRequestRef.current;
+        pendingChatRequestRef.current = null; // Clear the pending request
+        
+        // Retry the chat start
+        setTimeout(() => {
+          if (pendingRequest.type === "ORDER") {
+            console.log("Emitting startChat for ORDER after connection:", pendingRequest);
+            setChatType("ORDER");
+            socketInstance.emit("startChat", { 
+              withUserId: pendingRequest.withUserId, 
+              type: pendingRequest.type, 
+              orderId: pendingRequest.orderId 
+            });
+          } else if (pendingRequest.type === "SUPPORT") {
+            console.log("Emitting startSupportChat for SUPPORT after connection");
+            setChatType("SUPPORT");
+            socketInstance.emit("startSupportChat", { type: "SUPPORT" });
+          } else if (pendingRequest.type === "CHATBOT") {
+            console.log("Emitting startSupportChat for CHATBOT after connection");
+            setChatType("CHATBOT");
+            socketInstance.emit("startSupportChat", { type: "CHATBOT" });
+          }
+        }, 100); // Small delay to ensure connection is fully established
+      }
     });
 
     socketInstance.on("disconnect", (reason) => {
       console.log("Disconnected from chat server:", reason);
       dispatch(setConnectionState(false));
       
-      // Attempt to reconnect if not intentionally closed
-      if (reason !== "io client disconnect") {
-        console.log("Attempting to reconnect...");
-        setTimeout(() => {
-          if (socketInstance && !socketInstance.connected) {
-            socketInstance.connect();
-          }
-        }, 1000);
-      }
+              // Only show error for unexpected disconnects, not for clean shutdowns
+        if (reason === "io server disconnect" && !isCleaningUpRef.current) {
+          console.log("Server disconnected us - this might be due to a duplicate connection, clearing all data");
+          // Clear all stored data to prevent conflicts on next connection
+          dispatch(clearAllChatStorage());
+          dispatch(supportRequestError("Connection was closed by server. Please try again."));
+        }
     });
 
     socketInstance.on("connect_error", (error) => {
       console.error("Connection error:", error);
       dispatch(setConnectionState(false));
-      dispatch(supportRequestError("Connection failed. Please try again."));
+      if (!isCleaningUpRef.current) {
+        dispatch(supportRequestError("Connection failed. Please check your internet connection."));
+      }
     });
 
     // Handle new messages
@@ -680,46 +732,59 @@ export const useFChatSocket = () => {
       }
     });
 
-    // Connect the socket
-    setTimeout(() => {
-      if (!socketInstance.connected) {
-        console.log("Initiating socket connection with auth token");
-        socketInstance.connect();
-      }
-    }, 100);
-
     setSocket(socketInstance);
     socketRef.current = socketInstance;
 
     return () => {
       console.log("Cleaning up socket connection");
-      socketInstance.off("connect");
-      socketInstance.off("disconnect");
-      socketInstance.off("connect_error");
-      socketInstance.off("newMessage");
-      socketInstance.off("chatHistory");
-      socketInstance.off("supportHistory");
-      socketInstance.off("chatStarted");
-      socketInstance.off("supportStarted");
-      socketInstance.off("supportChatStarted");
-      socketInstance.off("startSupportChatResponse");
-      socketInstance.off("sendSupportMessage");
-      socketInstance.off("chatbotMessage");
-      socketInstance.off("agentMessage");
       
-      if (socketInstance.connected) {
-        socketInstance.disconnect();
-      }
-      setSocket(null);
-      socketRef.current = null;
+      // Set cleanup flag to prevent reconnections and error dispatches
+      isCleaningUpRef.current = true;
+      
+      // Clear pending chat request
+      pendingChatRequestRef.current = null;
+      
+              // Clear all Redux state and storage before disconnecting to prevent race conditions
+        dispatch(clearAllChatStorage());
+      
+      // Add a small delay to ensure Redux state is cleared
+      setTimeout(() => {
+        // Remove all event listeners to prevent any callbacks
+        socketInstance.removeAllListeners();
+        
+        // Disconnect cleanly
+        if (socketInstance.connected) {
+          socketInstance.disconnect();
+        }
+        
+        // Clear references
+        setSocket(null);
+        socketRef.current = null;
+        
+        // Reset local state
+        setCurrentSession(null);
+        setChatType("SUPPORT");
+      }, 100);
     };
-  }, [accessToken, dispatch]);
+  }, [accessToken, id, dispatch]);
 
   // Request customer care chat (SUPPORT type)
   const requestCustomerCare = useCallback(() => {
     if (!socketRef.current) {
-      console.log("Socket is not initialized");
-      dispatch(supportRequestError("Connection not available"));
+      console.log("Socket is not initialized, storing pending SUPPORT request");
+      pendingChatRequestRef.current = { withUserId: "", type: "SUPPORT" };
+      dispatch(startSupportRequest());
+      return;
+    }
+
+    // Clear any previous errors
+    dispatch(clearSupportError());
+
+    // Check if socket is connected
+    if (!socketRef.current.connected) {
+      console.log("Socket not connected, storing pending SUPPORT request");
+      pendingChatRequestRef.current = { withUserId: "", type: "SUPPORT" };
+      dispatch(startSupportRequest());
       return;
     }
 
@@ -733,8 +798,20 @@ export const useFChatSocket = () => {
   // Start a chatbot session (CHATBOT type)
   const startChatbotSession = useCallback(() => {
     if (!socketRef.current) {
-      console.log("Socket is not initialized");
-      dispatch(supportRequestError("Connection not available"));
+      console.log("Socket is not initialized, storing pending CHATBOT request");
+      pendingChatRequestRef.current = { withUserId: "", type: "CHATBOT" };
+      dispatch(startSupportRequest());
+      return;
+    }
+    
+    // Clear any previous errors
+    dispatch(clearSupportError());
+    
+    // Check if socket is connected
+    if (!socketRef.current.connected) {
+      console.log("Socket not connected, storing pending CHATBOT request");
+      pendingChatRequestRef.current = { withUserId: "", type: "CHATBOT" };
+      dispatch(startSupportRequest());
       return;
     }
     
@@ -752,20 +829,18 @@ export const useFChatSocket = () => {
     orderId?: string
   ) => {
     if (!socketRef.current) {
-      console.log("Socket is not initialized");
-      dispatch(supportRequestError("Connection not available"));
+      console.log("Socket is not initialized, storing pending request");
+      // Store the pending request to retry when socket connects
+      pendingChatRequestRef.current = { withUserId, type, orderId };
+      dispatch(startSupportRequest()); // Show loading state
       return;
     }
 
     if (!socketRef.current.connected) {
-      console.log("Socket is not connected, attempting to connect...");
-      socketRef.current.connect();
-      
-      // Wait for connection before sending startChat
-      socketRef.current.once("connect", () => {
-        console.log("Socket connected, now starting chat");
-        emitStartChat();
-      });
+      console.log("Socket is not connected, storing pending request");
+      // Store the pending request to retry when socket connects
+      pendingChatRequestRef.current = { withUserId, type, orderId };
+      dispatch(startSupportRequest()); // Show loading state
       return;
     }
 
@@ -809,12 +884,7 @@ export const useFChatSocket = () => {
 
     // Check connection status
     if (!socket.connected) {
-      console.log("Socket disconnected, attempting to reconnect before sending");
-      socket.connect();
-      
-      socket.once("connect", () => {
-        emitMessage();
-      });
+      console.log("Socket not connected, cannot send message");
       return;
     }
 

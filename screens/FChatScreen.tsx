@@ -347,20 +347,29 @@ const FChatScreen = () => {
 
   // Initial state logic - check if we have essential chat data based on chat type
   const hasEssentialChatData = (() => {
-    if (!currentSession) return false;
+    if (!currentSession) {
+      console.log("No current session available");
+      return false;
+    }
     
     // For ORDER chats, we need both roomId and currentSession
     if (chatType === "ORDER") {
-      return roomId && currentSession.dbRoomId;
+      const hasOrderData = roomId && currentSession.dbRoomId;
+      console.log("ORDER chat - hasOrderData:", hasOrderData, "roomId:", roomId, "dbRoomId:", currentSession.dbRoomId);
+      return hasOrderData;
     }
     
     // For SUPPORT/CHATBOT chats, we just need a sessionId
     if (chatType === "SUPPORT" || chatType === "CHATBOT") {
-      return currentSession.sessionId;
+      const hasSupportData = currentSession.sessionId;
+      console.log("SUPPORT/CHATBOT chat - hasSupportData:", hasSupportData, "sessionId:", currentSession.sessionId);
+      return hasSupportData;
     }
     
     // Fallback for unknown chat types
-    return roomId && currentSession;
+    const hasFallbackData = roomId && currentSession;
+    console.log("Fallback chat - hasFallbackData:", hasFallbackData);
+    return hasFallbackData;
   })();
 
   // For CHATBOT, we don't need roomId to start chatting - we just need a valid session
@@ -368,6 +377,13 @@ const FChatScreen = () => {
   
   // Check if we have messages to display (prioritize server session messages)
   const hasMessages = messages && messages.length > 0;
+
+  // Reset flags on mount to ensure clean state
+  useEffect(() => {
+    console.log("FChatScreen mounting - resetting initialization flags");
+    setHasInitiatedChat(false);
+    setHasHadValidSession(false);
+  }, []);
 
   // Debug logging
   useEffect(() => {
@@ -379,6 +395,9 @@ const FChatScreen = () => {
     console.log("FChatScreen - Messages Length:", messages?.length || 0);
     console.log("FChatScreen - Has Essential Chat Data:", hasEssentialChatData);
     console.log("FChatScreen - Has Chatbot Session:", hasChatbotSession);
+    console.log("FChatScreen - isRequestingSupport:", isRequestingSupport);
+    console.log("FChatScreen - requestError:", requestError);
+    console.log("FChatScreen - isConnected:", isConnected);
     console.log("FChatScreen - Auth userId:", userId);
     console.log("FChatScreen - Auth id:", id);
     console.log("FChatScreen - Auth driverId:", driverId);
@@ -403,13 +422,20 @@ const FChatScreen = () => {
     return () => {
       // Reset the initiated chat flag when component unmounts
       setHasInitiatedChat(false);
+      setHasHadValidSession(false);
+      console.log("FChatScreen unmounting, resetting flags");
     };
   }, []);
 
-  // Start chat when component mounts (for existing chat flow) - ONLY ONCE
+  // Start chat when component mounts (for existing chat flow)
   useEffect(() => {
-    if (!socket || hasInitiatedChat) {
-      console.log("Skipping chat initialization - socket not ready or chat already initiated");
+    if (!socket) {
+      console.log("Skipping chat initialization - socket not ready");
+      return;
+    }
+    
+    if (hasInitiatedChat) {
+      console.log("Skipping chat initialization - chat already initiated");
       return;
     }
     
@@ -610,8 +636,11 @@ const FChatScreen = () => {
               className={`bg-[#63c550] rounded-2xl py-4 px-6 items-center mb-4 ${
                 isRequestingSupport ? "opacity-70" : ""
               }`}
-              onPress={requestCustomerCare}
-              disabled={isRequestingSupport || !isConnected}
+              onPress={() => {
+                console.log("Request Customer Care button pressed - isRequestingSupport:", isRequestingSupport, "isConnected:", isConnected);
+                requestCustomerCare();
+              }}
+              disabled={isRequestingSupport}
             >
               {isRequestingSupport ? (
                 <View className="flex-row items-center">
@@ -634,8 +663,11 @@ const FChatScreen = () => {
               className={`bg-[#63c550] rounded-2xl py-4 px-6 items-center mb-4 ${
                 isRequestingSupport ? "opacity-70" : ""
               }`}
-              onPress={startChatbotSession}
-              disabled={isRequestingSupport || !isConnected}
+              onPress={() => {
+                console.log("Start Chatbot button pressed - isRequestingSupport:", isRequestingSupport, "isConnected:", isConnected);
+                startChatbotSession();
+              }}
+              disabled={isRequestingSupport}
             >
               {isRequestingSupport ? (
                 <View className="flex-row items-center">
@@ -674,7 +706,7 @@ const FChatScreen = () => {
                 isConnected ? "text-green-600" : "text-red-600"
               }`}
             >
-              {isConnected ? "Connected" : "Connecting..."}
+              {isRequestingSupport ? "Connecting..." : isConnected ? "Connected" : requestError ? "Connection Failed" : "Connecting..."}
             </Text>
           </View>
 
@@ -684,6 +716,27 @@ const FChatScreen = () => {
               <Text className="text-red-600 text-center text-sm">
                 {requestError}
               </Text>
+              {requestError.includes("try again") && (
+                <View>
+                  <Text className="text-gray-600 text-center text-xs mt-2">
+                    The app will automatically reconnect. Wait a moment and try again.
+                  </Text>
+                  <TouchableOpacity
+                    className="mt-2 bg-red-600 rounded-lg py-2 px-4"
+                    onPress={() => {
+                      if (chatTypeToRequest === "SUPPORT") {
+                        requestCustomerCare();
+                      } else if (chatTypeToRequest === "CHATBOT") {
+                        startChatbotSession();
+                      }
+                    }}
+                  >
+                    <Text className="text-white text-center font-semibold">
+                      Try Again
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
             </View>
           )}
         </View>
@@ -693,7 +746,10 @@ const FChatScreen = () => {
 
   // If no essential chat data and we have access token, show customer care request
   // Exception: CHATBOT type can work with just supportSessionId
-  if (!hasEssentialChatData && !hasChatbotSession && accessToken) {
+  // Also check if we have messages without a session (stale state) - reset in this case
+  if ((!hasEssentialChatData && !hasChatbotSession && accessToken) || (!currentSession && hasMessages)) {
+    console.log("Showing customer care request screen - hasEssentialChatData:", hasEssentialChatData, "hasChatbotSession:", hasChatbotSession, "currentSession:", !!currentSession, "hasMessages:", hasMessages);
+    
     return (
       <FFSafeAreaView>
         <FFScreenTopSection

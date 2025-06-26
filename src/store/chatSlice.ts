@@ -155,6 +155,22 @@ const saveChatToStorage = async (state: ChatState) => {
   }
 };
 
+// Clear all chat data from AsyncStorage
+const clearChatStorage = async () => {
+  try {
+    await Promise.all([
+      AsyncStorage.removeItem(CHAT_ROOMS_KEY),
+      AsyncStorage.removeItem(CHAT_MESSAGES_KEY),
+      AsyncStorage.removeItem(SUPPORT_SESSION_KEY),
+      AsyncStorage.removeItem(ACTIVE_ROOM_KEY),
+      AsyncStorage.removeItem(CURRENT_SESSION_KEY),
+    ]);
+    console.log("All chat storage cleared");
+  } catch (error) {
+    console.error("Error clearing chat storage:", error);
+  }
+};
+
 const chatSlice = createSlice({
   name: "chat",
   initialState,
@@ -235,7 +251,32 @@ const chatSlice = createSlice({
       state.activeRoomId = null;
       state.currentSession = null;
       state.supportSession = null;
-      saveChatToStorage(state);
+      state.isRequestingSupport = false;
+      state.requestError = null;
+      state.isLoadingHistory = false;
+      // Clear storage completely to prevent conflicts
+      clearChatStorage();
+    },
+    resetChatConnection: (state) => {
+      state.isConnected = false;
+      state.isRequestingSupport = false;
+      state.requestError = null;
+    },
+    clearSupportError: (state) => {
+      state.requestError = null;
+    },
+    clearAllChatStorage: (state) => {
+      // Complete reset with storage clearing
+      state.rooms = [];
+      state.messages = {};
+      state.activeRoomId = null;
+      state.currentSession = null;
+      state.supportSession = null;
+      state.isRequestingSupport = false;
+      state.requestError = null;
+      state.isLoadingHistory = false;
+      state.isConnected = false;
+      clearChatStorage();
     },
   },
   extraReducers: (builder) => {
@@ -261,6 +302,9 @@ export const {
   setSupportSession,
   setLoadingHistory,
   clearChat,
+  resetChatConnection,
+  clearSupportError,
+  clearAllChatStorage,
 } = chatSlice.actions;
 
 export default chatSlice.reducer;
