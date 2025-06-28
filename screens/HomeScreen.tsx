@@ -30,6 +30,7 @@ import {
 import FloatingStage from "@/src/components/FloatingStage";
 import FFSeperator from "@/src/components/FFSeperator";
 import { useSocket } from "@/src/hooks/useSocket";
+import { useLocationSocket } from "@/src/hooks/useLocationSocket";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { SidebarStackParamList } from "@/src/navigation/AppNavigator";
 import { StackNavigationProp } from "@react-navigation/stack";
@@ -107,6 +108,25 @@ const HomeScreen = () => {
     () => {},
     () => {}
   );
+
+  // 📍 Location tracking socket
+  const {
+    isLocationSocketConnected,
+    hasLocationPermission,
+    currentLocation,
+    hasActiveOrders,
+  } = useLocationSocket(userId || "");
+
+  // Debug log location socket status
+  useEffect(() => {
+    console.log("🔄 Location Socket Status:", {
+      isLocationSocketConnected,
+      hasLocationPermission,
+      hasActiveOrders,
+      currentLocation: currentLocation ? `${currentLocation.lat.toFixed(4)}, ${currentLocation.lng.toFixed(4)}` : null,
+      stagesLength: stages.length
+    });
+  }, [isLocationSocketConnected, hasLocationPermission, hasActiveOrders, currentLocation, stages.length]);
 
   useEffect(() => {
     const loadToken = async () => {

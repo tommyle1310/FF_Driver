@@ -68,6 +68,7 @@ export const filterPickupAndDropoffStages = (
 
     // Validate location data
     const location = details?.location;
+    console.log('hceck location details', details?.location)
     const validatedLocation = isValidVietnamCoordinate(location?.lat, location?.lng) 
       ? location 
       : { lat: 10.781975, lng: 106.664512 }; // Default to Ho Chi Minh City if invalid
