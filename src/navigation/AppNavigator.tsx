@@ -46,6 +46,7 @@ import axiosInstance from "../utils/axiosConfig";
 import FFInputControl from "../components/FFInputControl";
 import FFModal from "../components/FFModal";
 import FFView from "../components/FFView";
+import RatingsReviewsScreen from "@/screens/RatingsReviewsScreen";
 
 const SidebarStack = createStackNavigator<SidebarStackParamList>();
 const AuthStack = createStackNavigator<AuthStackParamList>();
@@ -98,6 +99,7 @@ export type SidebarStackParamList = {
   MyWallet: undefined;
   SupportCenter: undefined;
   Settings: undefined;
+  RatingsReviews: undefined;
   MyVehicles: undefined;
   ChangePassword: undefined;
   FChat: {
@@ -124,6 +126,7 @@ export type ScreenNames =
   | "MyWallet"
   | "SupportCenter"
   | "OrderHistoryDetails"
+  | "RatingsReviews"
   | "Settings"
   | "MyVehicles"
   | "ChangePassword"
@@ -328,6 +331,11 @@ const MainNavigator = () => {
           options={{ headerShown: false }}
           name="Settings"
           component={SettingsScreen}
+        />
+        <SidebarStack.Screen
+          options={{ headerShown: false }}
+          name="RatingsReviews"
+          component={RatingsReviewsScreen}
         />
       </SidebarStack.Navigator>
       <Spinner isVisible={isLoading} isOverlay />

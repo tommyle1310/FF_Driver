@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, TouchableOpacity, Modal } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, Modal, ScrollView, FlatList } from "react-native";
 import React, { useEffect, useState } from "react";
 import FFView from "@/src/components/FFView";
 import FFScreenTopSection from "@/src/components/FFScreenTopSection";
@@ -14,6 +14,7 @@ import { useSelector } from "@/src/store/types";
 import { RootState } from "@/src/store/store";
 import axiosInstance from "@/src/utils/axiosConfig";
 import { Picker } from "@react-native-picker/picker";
+import { spacing } from "@/src/theme";
 
 type TrackHistorySreenNavigationProp = StackNavigationProp<
   SidebarStackParamList,
@@ -67,14 +68,18 @@ const StatisticsScreen = () => {
 
   // State cho dữ liệu từ API
   const [statsData, setStatsData] = useState({
-    total_earns: 0,
-    total_tips: 0,
     total_online_hours: 0,
+    total_orders: 0,
+    avg_completion_rate: 0,
+    avg_response_time: 0,
+    avg_cancellation_rate: 0,
+    avg_on_time_delivery_rate: 0,
+    avg_consistency_score: 0,
   });
 
   // State cho tab và dữ liệu chart
-  const [activeTab, setActiveTab] = useState<"earns" | "tips" | "hours">(
-    "earns"
+  const [activeTab, setActiveTab] = useState<"hours" | "orders" | "completion" | "response">(
+    "hours"
   );
   const [chartData, setChartData] = useState<number[]>([]);
   const [statsRecords, setStatsRecords] = useState<any[]>([]);
@@ -86,32 +91,65 @@ const StatisticsScreen = () => {
   const fetchDriverStats = async () => {
     setIsLoading(true);
     try {
-      const startDateStr = startDate.toISOString().split("T")[0]; // YYYY-MM-DD
-      const endDateStr = endDate.toISOString().split("T")[0];
+      // Convert dates to epoch timestamps (seconds)
+      const startDateEpoch = Math.floor(startDate.getTime() / 1000);
+      const endDateEpoch = Math.floor(endDate.getTime() / 1000);
+      
       const res = await axiosInstance.get(
-        `/driver-stats/${driverId}?start_date=${startDateStr}&end_date=${endDateStr}`
+        `/driver-stats/${driverId}?startDate=${startDateEpoch}&endDate=${endDateEpoch}`
       );
       const { EC, EM, data } = res.data;
       if (EC === 0) {
         console.log("Driver stats data:", data);
         setStatsRecords(data);
 
-        // Tính tổng từ tất cả records
+        // Tính tổng và trung bình từ tất cả records
         const totalStats = data.reduce(
-          (
-            acc: {
-              total_earns: number;
-              total_tips: number;
-              total_online_hours: number;
-            },
-            record: any
-          ) => ({
-            total_earns: acc.total_earns + (record.total_earns || 0),
-            total_tips: acc.total_tips + (record.total_tips || 0),
-            total_online_hours:
-              acc.total_online_hours + (record.total_online_hours || 0),
-          }),
-          { total_earns: 0, total_tips: 0, total_online_hours: 0 }
+          (acc: any, record: any, index: number, array: any[]) => {
+            const perfMetrics = record.performance_metrics || {};
+            const timeInsights = record.time_insights || {};
+            
+            return {
+              total_online_hours: acc.total_online_hours + (record.total_online_hours || 0),
+              total_orders: acc.total_orders + (record.total_orders || 0),
+              // Calculate averages for performance metrics
+              avg_completion_rate: index === array.length - 1 
+                ? (acc.total_completion_rate + (perfMetrics.completion_rate || 0)) / array.length
+                : acc.total_completion_rate + (perfMetrics.completion_rate || 0),
+              avg_response_time: index === array.length - 1 
+                ? (acc.total_response_time + (perfMetrics.avg_response_time || 0)) / array.length
+                : acc.total_response_time + (perfMetrics.avg_response_time || 0),
+              avg_cancellation_rate: index === array.length - 1 
+                ? (acc.total_cancellation_rate + (perfMetrics.cancellation_rate || 0)) / array.length
+                : acc.total_cancellation_rate + (perfMetrics.cancellation_rate || 0),
+              avg_on_time_delivery_rate: index === array.length - 1 
+                ? (acc.total_on_time_delivery_rate + (perfMetrics.on_time_delivery_rate || 0)) / array.length
+                : acc.total_on_time_delivery_rate + (perfMetrics.on_time_delivery_rate || 0),
+              avg_consistency_score: index === array.length - 1 
+                ? (acc.total_consistency_score + (timeInsights.consistency_score || 0)) / array.length
+                : acc.total_consistency_score + (timeInsights.consistency_score || 0),
+              // Temp totals for averaging
+              total_completion_rate: acc.total_completion_rate + (perfMetrics.completion_rate || 0),
+              total_response_time: acc.total_response_time + (perfMetrics.avg_response_time || 0),
+              total_cancellation_rate: acc.total_cancellation_rate + (perfMetrics.cancellation_rate || 0),
+              total_on_time_delivery_rate: acc.total_on_time_delivery_rate + (perfMetrics.on_time_delivery_rate || 0),
+              total_consistency_score: acc.total_consistency_score + (timeInsights.consistency_score || 0),
+            };
+          },
+          { 
+            total_online_hours: 0, 
+            total_orders: 0, 
+            avg_completion_rate: 0,
+            avg_response_time: 0,
+            avg_cancellation_rate: 0,
+            avg_on_time_delivery_rate: 0,
+            avg_consistency_score: 0,
+            total_completion_rate: 0,
+            total_response_time: 0,
+            total_cancellation_rate: 0,
+            total_on_time_delivery_rate: 0,
+            total_consistency_score: 0,
+          }
         );
 
         setStatsData(totalStats);
@@ -128,10 +166,14 @@ const StatisticsScreen = () => {
 
   const updateChartData = (records: any[], tab: string) => {
     let chartValues: number[];
-    if (tab === "earns") {
-      chartValues = records.map((record) => record.total_earns || 0);
-    } else if (tab === "tips") {
-      chartValues = records.map((record) => record.total_tips || 0);
+    if (tab === "hours") {
+      chartValues = records.map((record) => record.total_online_hours || 0);
+    } else if (tab === "orders") {
+      chartValues = records.map((record) => record.total_orders || 0);
+    } else if (tab === "completion") {
+      chartValues = records.map((record) => record.performance_metrics?.completion_rate || 0);
+    } else if (tab === "response") {
+      chartValues = records.map((record) => record.performance_metrics?.avg_response_time || 0);
     } else {
       chartValues = records.map((record) => record.total_online_hours || 0);
     }
@@ -141,7 +183,7 @@ const StatisticsScreen = () => {
     setChartData(chartValues);
   };
 
-  const handleTabChange = (tab: "earns" | "tips" | "hours") => {
+  const handleTabChange = (tab: "hours" | "orders" | "completion" | "response") => {
     setActiveTab(tab);
     updateChartData(statsRecords, tab);
   };
@@ -207,7 +249,7 @@ const StatisticsScreen = () => {
           </TouchableOpacity>
         </View>
         <View className="items-center justify-center gap-2">
-          <FFText style={styles.headerText}>Earnings</FFText>
+          <FFText style={styles.headerText}>Driver Statistics</FFText>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
             <TouchableOpacity onPress={() => setShowStartPicker(true)}>
               <FFText fontSize="sm" fontWeight="500" style={{ color: "#fff" }}>
@@ -224,7 +266,7 @@ const StatisticsScreen = () => {
             </TouchableOpacity>
           </View>
           <FFText fontWeight="700" fontSize="lg" style={{ color: "#fff" }}>
-            ${statsData.total_earns.toFixed(2)}
+            {statsData.total_orders} Orders
           </FFText>
         </View>
       </LinearGradient>
@@ -248,9 +290,9 @@ const StatisticsScreen = () => {
             flex: 1,
           }}
         >
-          <FFText>Earnings</FFText>
+          <FFText>Orders</FFText>
           <FFText fontSize="lg" fontWeight="800" style={{ color: "#4d9c39" }}>
-            ${statsData.total_earns.toFixed(2)}
+            {statsData.total_orders}
           </FFText>
         </View>
         <View
@@ -270,8 +312,150 @@ const StatisticsScreen = () => {
         </View>
       </View>
 
-      {/* Start Date Picker Modal */}
-      <Modal visible={showStartPicker} transparent animationType="slide">
+   <ScrollView>
+       {/* Performance Metrics Cards */}
+       <View
+        style={{
+          padding: 16,
+          width: "100%",
+          flexDirection: "row",
+          gap: 12,
+          flexWrap: "wrap",
+        }}
+      >
+        <View
+          style={{
+            elevation: 3,
+            padding: 16,
+            alignItems: "center",
+            borderRadius: 8,
+            backgroundColor: "#fff",
+            flex: 1,
+            minWidth: "45%",
+          }}
+        >
+          <FFText>Completion Rate</FFText>
+          <FFText fontSize="lg" fontWeight="800" style={{ color: "#4d9c39" }}>
+            {statsData.avg_completion_rate.toFixed(1)}%
+          </FFText>
+        </View>
+        <View
+          style={{
+            elevation: 3,
+            padding: 16,
+            alignItems: "center",
+            borderRadius: 8,
+            backgroundColor: "#fff",
+            flex: 1,
+            minWidth: "45%",
+          }}
+        >
+          <FFText>Avg Response</FFText>
+          <FFText fontSize="lg" fontWeight="800" style={{ color: "#4d9c39" }}>
+            {statsData.avg_response_time.toFixed(1)}s
+          </FFText>
+        </View>
+        <View
+          style={{
+            elevation: 3,
+            padding: 16,
+            alignItems: "center",
+            borderRadius: 8,
+            backgroundColor: "#fff",
+            flex: 1,
+            minWidth: "45%",
+          }}
+        >
+          <FFText>On-Time Rate</FFText>
+          <FFText fontSize="lg" fontWeight="800" style={{ color: "#4d9c39" }}>
+            {statsData.avg_on_time_delivery_rate.toFixed(1)}%
+          </FFText>
+        </View>
+        <View
+          style={{
+            elevation: 3,
+            padding: 16,
+            alignItems: "center",
+            borderRadius: 8,
+            backgroundColor: "#fff",
+            flex: 1,
+            minWidth: "45%",
+          }}
+        >
+          <FFText>Consistency</FFText>
+          <FFText fontSize="lg" fontWeight="800" style={{ color: "#4d9c39" }}>
+            {statsData.avg_consistency_score.toFixed(1)}
+          </FFText>
+        </View>
+      </View>
+
+             {/* Tabs */}
+       <ScrollView
+         horizontal
+         showsHorizontalScrollIndicator={false}
+         contentContainerStyle={{
+           paddingHorizontal: 16,
+           paddingVertical: 16,
+           gap: 12,
+         }}
+         style={{ marginVertical: 16 }}
+       >
+         <TouchableOpacity
+           style={[styles.tab, activeTab === "hours" && styles.activeTab]}
+           onPress={() => handleTabChange("hours")}
+         >
+           <FFText
+             style={
+               activeTab === "hours" ? styles.activeTabText : styles.tabText
+             }
+           >
+             Hours
+           </FFText>
+         </TouchableOpacity>
+         <TouchableOpacity
+           style={[styles.tab, activeTab === "orders" && styles.activeTab]}
+           onPress={() => handleTabChange("orders")}
+         >
+           <FFText
+             style={activeTab === "orders" ? styles.activeTabText : styles.tabText}
+           >
+             Orders
+           </FFText>
+         </TouchableOpacity>
+         <TouchableOpacity
+           style={[styles.tab, activeTab === "completion" && styles.activeTab]}
+           onPress={() => handleTabChange("completion")}
+         >
+           <FFText
+             style={
+               activeTab === "completion" ? styles.activeTabText : styles.tabText
+             }
+           >
+             Completion
+           </FFText>
+         </TouchableOpacity>
+         <TouchableOpacity
+           style={[styles.tab, activeTab === "response" && styles.activeTab]}
+           onPress={() => handleTabChange("response")}
+         >
+           <FFText
+             style={
+               activeTab === "response" ? styles.activeTabText : styles.tabText
+             }
+           >
+             Response
+           </FFText>
+         </TouchableOpacity>
+       </ScrollView>
+
+      {/* Chart */}
+      <FFBarChart data={chartData} labels={getChartLabels()} />
+      <View style={{marginVertical: spacing.xxxl}}></View>
+   </ScrollView>
+
+
+        {/* Start Date Picker Modal */}
+        <Modal visible={showStartPicker} transparent animationType="slide">
         <View style={styles.modalContainer}>
           <View style={styles.pickerContainer}>
             <FFText style={styles.modalTitle}>Select Start Date</FFText>
@@ -355,53 +539,6 @@ const StatisticsScreen = () => {
           </View>
         </View>
       </Modal>
-
-      {/* Tabs */}
-      <View
-        style={{
-          flexDirection: "row",
-          justifyContent: "space-around",
-          marginVertical: 16,
-        }}
-      >
-        <TouchableOpacity
-          style={[styles.tab, activeTab === "earns" && styles.activeTab]}
-          onPress={() => handleTabChange("earns")}
-        >
-          <FFText
-            style={
-              activeTab === "earns" ? styles.activeTabText : styles.tabText
-            }
-          >
-            Earnings
-          </FFText>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === "tips" && styles.activeTab]}
-          onPress={() => handleTabChange("tips")}
-        >
-          <FFText
-            style={activeTab === "tips" ? styles.activeTabText : styles.tabText}
-          >
-            Tips
-          </FFText>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === "hours" && styles.activeTab]}
-          onPress={() => handleTabChange("hours")}
-        >
-          <FFText
-            style={
-              activeTab === "hours" ? styles.activeTabText : styles.tabText
-            }
-          >
-            Hours
-          </FFText>
-        </TouchableOpacity>
-      </View>
-
-      {/* Chart */}
-      <FFBarChart data={chartData} labels={getChartLabels()} />
     </FFSafeAreaView>
   );
 };

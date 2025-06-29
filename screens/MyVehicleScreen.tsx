@@ -277,13 +277,19 @@ const MyVehicleScreen = () => {
       });
       return;
     }
-    if (!frontViewImg || !backViewImg || !leftViewImg || !rightViewImg) {
-      setModalStatusDetails({
+
+    // Check if user is trying to upload new images but hasn't provided all 4
+    const hasAnyNewImage = frontViewImg || backViewImg || leftViewImg || rightViewImg;
+    const hasAllNewImages = frontViewImg && backViewImg && leftViewImg && rightViewImg;
+    
+    if (hasAnyNewImage && !hasAllNewImages) {
+      setModalStatusDetails({ 
         status: "FAILED",
         details: "Please provide all views of your vehicle",
       });
       return;
     }
+
     const requestData = {
       license_plate: licensePlate,
       brand,
@@ -301,12 +307,16 @@ const MyVehicleScreen = () => {
           validateStatus: () => true,
         }
       );
-      await uploadDriverVehicleImages([
-        frontViewImg,
-        backViewImg,
-        leftViewImg,
-        rightViewImg,
-      ]);
+
+      // Only upload images if user provided all new images
+      if (hasAllNewImages) {
+        await uploadDriverVehicleImages([
+          frontViewImg,
+          backViewImg,
+          leftViewImg,
+          rightViewImg,
+        ]);
+      }
 
       const { EC, EM, data } = response.data;
       if (EC === 0) {
@@ -369,22 +379,22 @@ const MyVehicleScreen = () => {
               {[
                 {
                   title: "Front View",
-                  image: frontViewImg,
+                  image: frontViewImg ?? vehicle?.images?.[vehicle?.images?.length - 4]?.url ?? IMAGE_LINKS.DEFAULT_LOGO,
                   onPress: selectFrontViewImage,
                 },
                 {
                   title: "Back View",
-                  image: backViewImg,
+                  image: backViewImg ?? vehicle?.images?.[vehicle?.images?.length - 3]?.url ?? IMAGE_LINKS.DEFAULT_LOGO,
                   onPress: selectBackViewImage,
                 },
                 {
                   title: "Right View",
-                  image: rightViewImg,
+                  image: rightViewImg ?? vehicle?.images?.[vehicle?.images?.length - 2]?.url ?? IMAGE_LINKS.DEFAULT_LOGO,
                   onPress: selectRightViewImage,
                 },
                 {
                   title: "Left View",
-                  image: leftViewImg,
+                  image: leftViewImg ?? vehicle?.images?.[vehicle?.images?.length - 1]?.url ?? IMAGE_LINKS.DEFAULT_LOGO,
                   onPress: selectLeftViewImage,
                 },
               ].map((view, index) => (
@@ -407,10 +417,10 @@ const MyVehicleScreen = () => {
           ) : (
             <CoralTourCarousel
               imageUrls={[
-                vehicle?.images?.[vehicle?.images?.length - 4]?.url ?? IMAGE_LINKS.DEFAULT_LOGO,
-                vehicle?.images?.[vehicle?.images?.length - 3]?.url ?? IMAGE_LINKS.DEFAULT_LOGO,
-                vehicle?.images?.[vehicle?.images?.length - 2]?.url ?? IMAGE_LINKS.DEFAULT_LOGO,
-                vehicle?.images?.[vehicle?.images?.length - 1]?.url ?? IMAGE_LINKS.DEFAULT_LOGO,
+              frontViewImg ?? vehicle?.images?.[vehicle?.images?.length - 4]?.url ?? IMAGE_LINKS.DEFAULT_LOGO,
+              backViewImg ?? vehicle?.images?.[vehicle?.images?.length - 3]?.url ?? IMAGE_LINKS.DEFAULT_LOGO,
+              rightViewImg ?? vehicle?.images?.[vehicle?.images?.length - 2]?.url ?? IMAGE_LINKS.DEFAULT_LOGO,
+              leftViewImg ?? vehicle?.images?.[vehicle?.images?.length - 1]?.url ?? IMAGE_LINKS.DEFAULT_LOGO,
               ]}
             />
           )}

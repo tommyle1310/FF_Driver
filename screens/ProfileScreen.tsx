@@ -209,7 +209,7 @@ const ProfileScreen = () => {
             <View className="gap-2">
               <View className="flex-row items-cente justify-between gap-2">
                 <FFText>Reviews</FFText>
-                <TouchableOpacity>
+                <TouchableOpacity onPress={() => navigation.navigate("RatingsReviews")}>
                   <FFText fontWeight="400" style={{ color: "#4d9c39" }}>
                     See All
                   </FFText>
@@ -234,9 +234,9 @@ const ProfileScreen = () => {
                         <FFAvatar size={40} />
                       )}
                       <FFText>
-                        {item.reviewer
+                        {item.reviewer?.first_name
                           ? `${item.reviewer.first_name} ${item.reviewer.last_name}`
-                          : "Anonymous"}
+                          : item.reviewer?.name || "Anonymous"}
                       </FFText>
                     </View>
                     <View className="w-full flex-row justify-between items-center">
