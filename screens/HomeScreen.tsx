@@ -992,10 +992,44 @@ console.log('chsk stages', stages.length)
 
       console.log("🎯 FINAL ORDER: Proceeding to Rating screen");
 
-      // 🔧 CRITICAL: Find the current order being completed, not just orders[0]
-      const currentCompletedOrder = orders.find(order => 
-        order.id.includes(currentOrderId)
+      // 🔧 CRITICAL: Find the current order being completed using proper mapping
+      // currentOrderId is "1" or "2" but order.id is "FF_ORDER_uuid..."
+      let currentCompletedOrder = null;
+      
+      // Method 1: Find by stage details (most reliable)
+      const currentOrderStages = stages.filter(stage => 
+        stage.state.includes(`order_${currentOrderId}`)
       );
+      
+      for (const stage of currentOrderStages) {
+        if (stage.details?.customerDetails || stage.details?.restaurantDetails) {
+          const customerId = stage.details?.customerDetails?.id;
+          const restaurantId = stage.details?.restaurantDetails?.id;
+          
+          const foundOrder = orders.find(order => 
+            (customerId && order.customer_id === customerId) ||
+            (restaurantId && order.restaurant_id === restaurantId)
+          );
+          
+          if (foundOrder) {
+            currentCompletedOrder = foundOrder;
+            break;
+          }
+        }
+      }
+      
+      // Method 2: Fallback to array index mapping (order_1 = orders[0], order_2 = orders[1])
+      if (!currentCompletedOrder) {
+        const orderIndex = parseInt(currentOrderId) - 1;
+        if (orderIndex >= 0 && orderIndex < orders.length) {
+          currentCompletedOrder = orders[orderIndex];
+        }
+      }
+      
+      // Method 3: Last resort - if only one order left, use it
+      if (!currentCompletedOrder && orders.length === 1) {
+        currentCompletedOrder = orders[0];
+      }
 
       if (!currentCompletedOrder) {
         console.error("❌ No completed order found for currentOrderId:", currentOrderId);

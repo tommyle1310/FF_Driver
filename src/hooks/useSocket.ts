@@ -849,7 +849,7 @@ export const useSocket = (
   const handleCompleteOrder = (orderId?: string) => {
     console.log("=== HANDLE COMPLETE ORDER:", orderId, "===");
     if (orderId) {
-      // Add to completed orders set to prevent restoration
+      // Add to completed orders set for tracking
       completedOrderIds.current.add(orderId);
       console.log("Added to completed orders:", orderId);
       console.log(
@@ -857,60 +857,127 @@ export const useSocket = (
         Array.from(completedOrderIds.current)
       );
 
-      // Filter out stages and orders for the completed order
-      const remainingStages = stages.filter(
-        (stage) => !stage.state.includes(`order_${orderId}`)
-      );
-      const remainingOrders = orders.filter(
-        (order) => !order.id.includes(orderId)
-      );
+      // 🔧 CRITICAL FIX: Don't filter stages locally for multi-order scenarios
+      // Let the socket updates handle the full state management
+      // This prevents race conditions and empty stages issues
+      
+             // 🔧 CRITICAL FIX: Proper order mapping for multi-order scenarios
+       // orderId is "1" or "2" from stage name like "delivery_complete_order_1"
+       // orders array contains actual order objects with UUID IDs
+       
+       const orderIndex = parseInt(orderId) - 1; // order_1 = index 0, order_2 = index 1
+       let actualCompletedOrderId = null;
+       
+       // Method 1: Try to find by stage details (most reliable)
+       const completedOrderStages = stages.filter(stage => 
+         stage.state.includes(`order_${orderId}`)
+       );
+       
+       for (const stage of completedOrderStages) {
+         if (stage.details?.customerDetails || stage.details?.restaurantDetails) {
+           const customerId = stage.details?.customerDetails?.id;
+           const restaurantId = stage.details?.restaurantDetails?.id;
+           
+           const foundOrder = orders.find(order => 
+             (customerId && order.customer_id === customerId) ||
+             (restaurantId && order.restaurant_id === restaurantId)
+           );
+           
+           if (foundOrder) {
+             actualCompletedOrderId = foundOrder.id;
+             console.log("🎯 Found order by stage details:", { orderId, foundOrderId: foundOrder.id });
+             break;
+           }
+         }
+       }
+       
+       // Method 2: Fallback to array index mapping
+       if (!actualCompletedOrderId && orderIndex >= 0 && orderIndex < orders.length) {
+         actualCompletedOrderId = orders[orderIndex].id;
+         console.log("🎯 Using index mapping:", { orderId, orderIndex, mappedOrderId: actualCompletedOrderId });
+       }
+       
+       // Method 3: Last resort - if we have only one order left, it must be the one
+       if (!actualCompletedOrderId && orders.length === 1) {
+         actualCompletedOrderId = orders[0].id;
+         console.log("🎯 Only one order left, using it:", actualCompletedOrderId);
+       }
+       
+       const remainingOrders = actualCompletedOrderId 
+         ? orders.filter(order => order.id !== actualCompletedOrderId)
+         : [];
+       
+       console.log("🔧 COMPLETE ORDER MAPPING:", {
+         stageOrderId: orderId,
+         orderIndex,
+         actualCompletedOrderId,
+         totalOrders: orders.length,
+         remainingOrders: remainingOrders.length,
+         allOrderIds: orders.map(o => o.id),
+         remainingOrderIds: remainingOrders.map(o => o.id)
+       });
 
-      console.log("Original stages count:", stages.length);
-      console.log("Remaining stages count:", remainingStages.length);
+      console.log("Original orders count:", orders.length);
+      console.log("Remaining orders count:", remainingOrders.length);
       console.log("Completed orderId:", orderId);
 
-      if (remainingStages.length > 0) {
-        // Update stages and orders, keep state for remaining orders
-        console.log(
-          "Remaining stages after completing order:",
-          remainingStages
+      if (remainingOrders.length > 0) {
+        // 🔧 CRITICAL FIX: For multi-order scenarios, filter completed order's stages
+        // and immediately update Redux to prevent empty stages
+        const remainingStages = stages.filter(
+          (stage) => !stage.state.includes(`order_${orderId}`)
         );
-
-        // Get current driver progress stage data to preserve
-        const currentDPS = {
-          id: id, // PRESERVE original driver progress stage ID
-          driver_id: userId,
-          current_state:
-            remainingStages.find((s) => s.status === "in_progress")?.state ||
-            remainingStages[0]?.state,
-          previous_state: previous_state,
-          stages: remainingStages,
-          orders: remainingOrders,
-          next_state: next_state,
-          estimated_time_remaining: estimated_time_remaining,
-          actual_time_spent: actual_time_spent,
-          total_distance_travelled: total_distance_travelled, // PRESERVE
-          total_tips: total_tips, // PRESERVE
-          total_earns: total_earns, // PRESERVE
-          events: events || [],
-          created_at: created_at,
-          updated_at: Math.floor(Date.now() / 1000),
-          transactions_processed: false,
-          processed_tip_ids: [], // Initialize empty array for new orders
-        };
-
-        console.log("Preserving driver progress stage data:", {
-          id: currentDPS.id,
-          total_earns: currentDPS.total_earns,
-          total_distance_travelled: currentDPS.total_distance_travelled,
-          total_tips: currentDPS.total_tips,
+        
+        console.log("🔧 MULTI-ORDER: Filtering completed order stages");
+        console.log("Original stages count:", stages.length);
+        console.log("Remaining stages count:", remainingStages.length);
+        console.log("Remaining orders:", remainingOrders.map(o => o.id));
+        
+                 // 🔧 CRITICAL FIX: Reset all remaining order stages to pending status
+        // and set current_state to first driver_ready stage
+        const resetRemainingStages = remainingStages.map(stage => ({
+          ...stage,
+          status: "pending" as Stage["status"]
+        }));
+        
+        // Find the first driver_ready stage for remaining orders
+        const firstDriverReadyStage = resetRemainingStages.find(s => 
+          s.state.startsWith("driver_ready_order_")
+        );
+        
+        console.log("🔧 MULTI-ORDER RESET:", {
+          originalRemaining: remainingStages.length,
+          resetRemaining: resetRemainingStages.length,
+          firstDriverReadyStage: firstDriverReadyStage?.state,
+          allResetStages: resetRemainingStages.map(s => ({ state: s.state, status: s.status }))
         });
 
-        dispatch(updateStages(remainingStages));
-        dispatch(setDriverProgressStage(currentDPS));
-        dispatch(saveDriverProgressStageToAsyncStorage(currentDPS));
-
-        // Don't set isOrderCompleted to true if there are remaining orders
+        // Immediately update Redux with reset stages
+        dispatch(setDriverProgressStage({
+           id,
+           driver_id: driverId,
+           stages: resetRemainingStages,
+           orders: remainingOrders,
+           // 🔧 CRITICAL: Set current_state to first driver_ready stage
+           current_state: firstDriverReadyStage?.state || null,
+           previous_state: null,
+           next_state: null,
+           estimated_time_remaining: null,
+           actual_time_spent: null,
+           total_distance_travelled: total_distance_travelled,
+           total_earns: total_earns,
+           total_tips: 0,
+           events: [],
+           created_at: Math.floor(Date.now() / 1000),
+           updated_at: Math.floor(Date.now() / 1000),
+           transactions_processed: false,
+           processed_tip_ids: []
+         }));
+         
+         // 🔧 CRITICAL: Block socket updates for longer to prevent override
+         blockSocketUpdatesTemporarily(10000); // Block for 10 seconds
+        
+        console.log("✅ MULTI-ORDER: Updated Redux with remaining stages and orders");
         console.log("Multiple orders: not setting isOrderCompleted to true");
 
         // Reset some flags but keep socket active for remaining orders
@@ -918,10 +985,15 @@ export const useSocket = (
         isInitialUpdateRef.current = true;
         setIsWaitingForResponse(false);
 
+        // 🔧 CRITICAL: Force trigger stage re-evaluation
+        // This ensures the UI will update when socket data comes in
+        lastUpdateTimeRef.current = Date.now();
+        lastStageCountRef.current = -1;
+
         return;
       } else {
-        // No remaining orders, clear state
-        console.log("No remaining orders, clearing state");
+        // Single order or last order: clear everything
+        console.log("Single/last order: clearing state");
         dispatch(clearDriverProgressStage());
       }
     } else {
@@ -930,6 +1002,7 @@ export const useSocket = (
       dispatch(clearDriverProgressStage());
     }
 
+    // Only set completed and clear tracking for single order or last order
     setIsOrderCompleted(true);
     lastResponseRef.current = undefined;
     isInitialUpdateRef.current = true;

@@ -261,8 +261,11 @@ const currentDriverProgressStageSlice = createSlice({
       const isFirstOrder = state.stages.length === 0 || currentOrderCount === 0;
       const isNewOrderAdded = incomingOrderCount > currentOrderCount;
       
-      // Fix: Better logic to detect new orders
+      // 🔧 CRITICAL FIX: Better logic to detect order completion scenarios
       const hasNewOrders = Array.from(incomingOrderIds).some(id => !currentOrderIds.has(id));
+      const hasOrderCompletion = incomingStages.some((stage: Stage) => 
+        stage.state.startsWith("delivery_complete_") && stage.status === "completed"
+      );
 
       console.log("🔍 REDUX Stage analysis:", {
         incomingStages: incomingStages.length,
@@ -272,11 +275,13 @@ const currentDriverProgressStageSlice = createSlice({
         isFirstOrder,
         isNewOrderAdded,
         hasNewOrders,
+        hasOrderCompletion,
         incomingOrderIds: Array.from(incomingOrderIds),
         currentOrderIds: Array.from(currentOrderIds),
       });
 
-      // Handle stage deduplication and merging
+      // 🔧 CRITICAL FIX: Simplified stage handling for multi-order scenarios
+      // Always use incoming stages as the source of truth to prevent race conditions
       let finalStages: Stage[];
       let finalOrders: any[];
       
@@ -285,30 +290,13 @@ const currentDriverProgressStageSlice = createSlice({
         console.log("📝 REDUX: First order - using incoming stages and orders directly");
         finalStages = incomingStages;
         finalOrders = orders || [];
-      } else if (hasNewOrders) {
-        // New order added - merge stages intelligently
-        console.log("📝 REDUX: New order detected - merging stages");
+      } else {
+        // Multi-order scenario: Always use incoming data as source of truth
+        // This prevents race conditions between handleCompleteOrder and socket updates
+        console.log("📝 REDUX: Multi-order scenario - using incoming data as source of truth");
+        finalStages = incomingStages.length > 0 ? incomingStages : state.stages;
         
-        // Create a map of existing stages by state
-        const existingStagesMap = new Map<string, Stage>();
-        state.stages.forEach(stage => {
-          existingStagesMap.set(stage.state, stage);
-        });
-        
-        // Add new stages from incoming data (don't overwrite existing)
-        incomingStages.forEach((stage: Stage) => {
-          if (!existingStagesMap.has(stage.state)) {
-            existingStagesMap.set(stage.state, stage);
-          } else {
-            // If stage exists, update it with latest data (for status changes)
-            existingStagesMap.set(stage.state, stage);
-          }
-        });
-        
-        finalStages = Array.from(existingStagesMap.values());
-        
-        // 🔧 CRITICAL: Merge orders properly
-        // If server sends orders array, use it; otherwise preserve existing
+        // Use server orders if available, otherwise preserve existing
         if (orders && orders.length > 0) {
           finalOrders = orders;
           console.log("📝 REDUX: Using server orders data:", orders.length);
@@ -317,26 +305,13 @@ const currentDriverProgressStageSlice = createSlice({
           console.log("📝 REDUX: Preserving existing orders:", state.orders.length);
         }
         
-        console.log("📝 REDUX: Merged stages result:", {
+        console.log("📝 REDUX: Multi-order update result:", {
           previousStages: state.stages.length,
           incomingStages: incomingStages.length,
           finalStages: finalStages.length,
-          finalOrdersCount: finalOrders.length
+          finalOrdersCount: finalOrders.length,
+          hasOrderCompletion
         });
-      } else {
-        // Same order count - but could be status updates for multiple orders
-        // Replace all stages with incoming data to ensure status updates are applied
-        console.log("📝 REDUX: Updating stages with latest status");
-        finalStages = incomingStages.length > 0 ? incomingStages : state.stages;
-        
-        // 🔧 CRITICAL: Preserve orders if server doesn't send them
-        if (orders && orders.length > 0) {
-          finalOrders = orders;
-          console.log("📝 REDUX: Using updated server orders:", orders.length);
-        } else {
-          finalOrders = state.orders;
-          console.log("📝 REDUX: Preserving existing orders (no server orders):", state.orders.length);
-        }
       }
 
       // Enhanced deduplication - remove exact duplicates
