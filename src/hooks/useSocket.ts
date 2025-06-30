@@ -13,6 +13,7 @@ import NetInfo from "@react-native-community/netinfo";
 import { debugLogger } from "../utils/debugLogger";
 import SocketManager from "./SocketManager";
 import debounce from "lodash.debounce";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 interface Stage {
   state: string;
@@ -94,6 +95,10 @@ export const useSocket = (
   const processedOrderIds = useRef<Set<string>>(new Set());
   const [isSocketConnected, setIsSocketConnected] = useState(false);
 
+  // 🔧 POST-RATING BLOCKING: Block all driverStagesUpdated events after rating completion
+  const postRatingBlockRef = useRef<boolean>(false);
+  const postRatingBlockTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   // Simplified duplicate detection - just track last stage count and block obvious duplicates
   const lastStageCountRef = useRef<number>(0);
   const lastUpdateTimeRef = useRef<number>(0);
@@ -103,6 +108,46 @@ export const useSocket = (
       processEventQueue();
     }, 500)
   );
+
+  // 🔧 POST-RATING BLOCKING: Check and restore persistent blocking state
+  const checkAndRestorePostRatingBlock = async () => {
+    try {
+      const isBlockActive = await AsyncStorage.getItem("POST_RATING_BLOCK_ACTIVE");
+      const blockUntil = await AsyncStorage.getItem("POST_RATING_BLOCK_UNTIL");
+      
+      if (isBlockActive === "true" && blockUntil) {
+        const blockUntilTime = parseInt(blockUntil);
+        const now = Date.now();
+        
+        if (now < blockUntilTime) {
+          // Block is still active, restore it
+          const remainingTime = blockUntilTime - now;
+          console.log("🚫 POST-RATING: Restoring persistent block for", remainingTime, "ms");
+          postRatingBlockRef.current = true;
+          
+          // Set timeout to unblock when time expires
+          if (postRatingBlockTimeoutRef.current) {
+            clearTimeout(postRatingBlockTimeoutRef.current);
+          }
+          
+          postRatingBlockTimeoutRef.current = setTimeout(() => {
+            console.log("✅ POST-RATING: Unblocking driverStagesUpdated events (persistent)");
+            postRatingBlockRef.current = false;
+            postRatingBlockTimeoutRef.current = null;
+            AsyncStorage.removeItem("POST_RATING_BLOCK_ACTIVE");
+            AsyncStorage.removeItem("POST_RATING_BLOCK_UNTIL");
+          }, remainingTime);
+        } else {
+          // Block has expired, clear it
+          console.log("✅ POST-RATING: Clearing expired persistent block");
+          AsyncStorage.removeItem("POST_RATING_BLOCK_ACTIVE");
+          AsyncStorage.removeItem("POST_RATING_BLOCK_UNTIL");
+        }
+      }
+    } catch (error) {
+      console.error("Error checking persistent post-rating block:", error);
+    }
+  };
 
   const resetResponseTimeout = () => {
     if (responseTimeoutRef.current) {
@@ -142,6 +187,17 @@ export const useSocket = (
   const processEventQueue = () => {
     if (isProcessingRef.current || eventQueueRef.current.length === 0) return;
 
+    // 🔧 POST-RATING BLOCKING: Block ALL processing of driverStagesUpdated events
+    if (postRatingBlockRef.current) {
+      console.log("🚫 POST-RATING: BLOCKING processEventQueue - clearing all queued events");
+      debugLogger.warn("useSocket", "POST_RATING_PROCESS_BLOCK", {
+        reason: "Rating completed - blocking all queued event processing",
+        queueLength: eventQueueRef.current.length
+      });
+      eventQueueRef.current = []; // Clear all queued events
+      return;
+    }
+
     isProcessingRef.current = true;
     const { event, data, id } = eventQueueRef.current.shift()!;
 
@@ -177,6 +233,18 @@ export const useSocket = (
     }
 
     if (event === "driverStagesUpdated") {
+      // 🔧 POST-RATING BLOCKING: Additional block check during event processing
+      if (postRatingBlockRef.current) {
+        console.log("🚫 POST-RATING: BLOCKING driverStagesUpdated processing in processEventQueue");
+        debugLogger.warn("useSocket", "POST_RATING_EVENT_PROCESS_BLOCK", {
+          reason: "Rating completed - blocking driverStagesUpdated event processing",
+          eventId: id
+        });
+        isProcessingRef.current = false;
+        processEventQueue();
+        return;
+      }
+
       // Handle different event types
       const isSingleOrderUpdate = id.startsWith("FF_ORDER_");
       const isDPSUpdate = id.startsWith("FF_DPS_");
@@ -521,6 +589,9 @@ export const useSocket = (
     
     SocketManager.initialize(driverId, accessToken, userId ?? "");
 
+    // 🔧 POST-RATING BLOCKING: Check and restore persistent blocking state on socket init
+    checkAndRestorePostRatingBlock();
+
     const handleConnect = () => {
       console.log("Socket connected");
       setIsSocketConnected(true);
@@ -634,6 +705,17 @@ export const useSocket = (
     };
 
     const handleDriverStagesUpdated = (response: any) => {
+      // 🔧 POST-RATING BLOCKING: Block ALL driverStagesUpdated events after rating completion
+      if (postRatingBlockRef.current) {
+        console.log("🚫 POST-RATING: BLOCKING driverStagesUpdated event - rating completed recently");
+        debugLogger.warn("useSocket", "POST_RATING_BLOCK", {
+          reason: "Rating completed - blocking server stage updates",
+          eventData: response,
+          blockActive: true
+        });
+        return; // Completely ignore the event
+      }
+
       // Handle different response formats
       let eventId;
       let eventData;
@@ -743,6 +825,13 @@ export const useSocket = (
       // Clear tracking refs
       lastStageCountRef.current = 0;
       lastUpdateTimeRef.current = 0;
+      
+      // 🔧 POST-RATING BLOCKING: Cleanup post-rating timeout
+      if (postRatingBlockTimeoutRef.current) {
+        clearTimeout(postRatingBlockTimeoutRef.current);
+        postRatingBlockTimeoutRef.current = null;
+      }
+      postRatingBlockRef.current = false;
     };
   }, [driverId, accessToken, userId, isOrderCompleted]);
 
@@ -843,6 +932,38 @@ export const useSocket = (
       console.log("Unblocking socket updates");
       blockSocketUpdates.current = false;
       blockTimeoutRef.current = null;
+    }, duration);
+  };
+
+  // 🔧 POST-RATING BLOCKING: Block all driverStagesUpdated events for extended period after rating completion
+  const blockDriverStagesUpdatesAfterRating = (duration: number = 120000) => { // Default 2 minutes
+    console.log("🚫 POST-RATING: Blocking ALL driverStagesUpdated events for", duration, "ms");
+    postRatingBlockRef.current = true;
+
+    // 🔧 CRITICAL: Immediately clear all queued events to prevent processing
+    console.log("🚫 POST-RATING: Clearing event queue immediately, had", eventQueueRef.current.length, "events");
+    eventQueueRef.current = [];
+    
+    // Also reset processing state and cancel debounced processing
+    isProcessingRef.current = false;
+    debouncedProcessEventQueueRef.current.cancel();
+
+    // 🔧 CRITICAL: Store blocking state in AsyncStorage for persistence across socket reconnections
+    AsyncStorage.setItem("POST_RATING_BLOCK_ACTIVE", "true");
+    AsyncStorage.setItem("POST_RATING_BLOCK_UNTIL", (Date.now() + duration).toString());
+
+    if (postRatingBlockTimeoutRef.current) {
+      clearTimeout(postRatingBlockTimeoutRef.current);
+    }
+
+    postRatingBlockTimeoutRef.current = setTimeout(() => {
+      console.log("✅ POST-RATING: Unblocking driverStagesUpdated events");
+      postRatingBlockRef.current = false;
+      postRatingBlockTimeoutRef.current = null;
+      
+      // 🔧 CRITICAL: Clear persistent blocking state
+      AsyncStorage.removeItem("POST_RATING_BLOCK_ACTIVE");
+      AsyncStorage.removeItem("POST_RATING_BLOCK_UNTIL");
     }, duration);
   };
 
@@ -1029,5 +1150,6 @@ export const useSocket = (
     handleCompleteOrder,
     handleRejectOrder,
     blockSocketUpdatesTemporarily,
+    blockDriverStagesUpdatesAfterRating, // 🔧 POST-RATING BLOCKING: Export the function
   };
 };

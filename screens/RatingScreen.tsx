@@ -47,12 +47,14 @@ const RatingScreen = () => {
     setRating(index);
   };
   const { driverId } = useSelector((state: RootState) => state.auth);
-  // const { completeOrder } = useSocket(
-  //   driverId || "",
-  //   () => {},
-  //   () => {},
-  //   () => {}
-  // ); //
+  
+  // 🔧 POST-RATING BLOCKING: Get the blocking function from useSocket
+  const { blockDriverStagesUpdatesAfterRating } = useSocket(
+    driverId || "",
+    () => {},
+    () => {},
+    () => {}
+  );
 
   const handleSubmit = async () => {
     setIsLoading(true);
@@ -95,6 +97,11 @@ const RatingScreen = () => {
           setTypeRating("CUSTOMER");
           return;
         }
+        
+        // 🔧 POST-RATING BLOCKING: Block all driverStagesUpdated events for 2 minutes
+        console.log("🚫 POST-RATING: Activating 2-minute block on driverStagesUpdated events");
+        blockDriverStagesUpdatesAfterRating(120000); // Block for 2 minutes
+        
         dispatch(clearDriverProgressStage());
         dispatch(clearState());
         navigation.navigate("Home", {});
@@ -160,6 +167,10 @@ const RatingScreen = () => {
           <FFButton
             variant="outline"
             onPress={() => {
+              // 🔧 POST-RATING BLOCKING: Block all driverStagesUpdated events for 2 minutes
+              console.log("🚫 POST-RATING SKIP: Activating 2-minute block on driverStagesUpdated events");
+              blockDriverStagesUpdatesAfterRating(120000); // Block for 2 minutes
+              
               dispatch(clearDriverProgressStage());
               dispatch(clearState());
               navigation.reset({
