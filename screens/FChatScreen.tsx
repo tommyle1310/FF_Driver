@@ -43,6 +43,7 @@ import FFButton from "@/src/components/FFButton";
 import * as ImagePicker from "expo-image-picker";
 import axiosInstance from "@/src/utils/axiosConfig";
 import FFSpinner from "@/src/components/FFSpinner";
+import FFAvatar from "@/src/components/FFAvatar";
 
 type FChatNavigationProp = StackNavigationProp<MainStackParamList, "FChat">;
 type FChatRouteProp = RouteProp<
@@ -341,6 +342,7 @@ const FChatScreen = () => {
   const routeChatType = route.params?.type || "SUPPORT";
   const orderId = route.params?.orderId;
   const routeTitle = route.params?.title;
+  const otherUserAvatar = route.params?.avatar;
   
   // Get the order ID from the current session or route params
   const displayOrderId = currentSession?.orderId || orderId || "";
@@ -778,8 +780,10 @@ const FChatScreen = () => {
           )}
           titlePosition="left"
           navigation={navigation}
+          avatar={otherUserAvatar}
         />
         <View className="flex-row ml-auto gap-4 mt-2">
+          
           {chatType === "SUPPORT" && (
             <>
               <TouchableOpacity>

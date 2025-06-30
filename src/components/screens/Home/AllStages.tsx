@@ -90,14 +90,15 @@ const AllStages: React.FC<AllStagesProps> = ({
     // console.log('cehck selectedDestination', orderRedux?.find((order) => order.restaurant_id === stage?.id?.split('_pickup')[0])?.restaurant_id)
     // console.log('cehck selectedDestination', orderRedux?.find((order) => order.customer_id === stage?.id?.split('_dropoff')[0])?.customer_id)
     const userId  = stage?.id?.includes('_pickup') ? stage?.id?.split('_pickup')[0] : stage?.id?.includes('_dropoff') ? stage?.id?.split('_dropoff')[0] : null
-    // console.log('check userId' , userId)
+    console.log('check user avt ' , stage?.avatar?.url)
     const orderId = stage?.id?.includes('_pickup') ? orderRedux?.find((order) => order.restaurant_id === userId)?.id : orderRedux?.find((order) => order.customer_id === userId)?.id
     console.log('check orderId' , orderId)
     navigation.navigate('FChat', {
       withUserId: userId ?? '',
       type: "ORDER",
       orderId: orderId ?? '',
-      title: orderId ?? ''
+      title: stage?.name ?? '',
+      avatar: stage?.avatar?.url ?? ''
     });
   };
 

@@ -60,12 +60,61 @@ const MyTasksScreen = () => {
     }
   };
 
-  const currentOrder = dps.orders?.[0] as any; // Use any to access nested objects from server
+  const currentOrder = dps?.stages?.length > 0 ? dps.orders?.[1] : dps.orders?.[0] as any; // Use any to access nested objects from server
   const stages = dps.stages || [];
+
+  // Process and order stages
+  const getOrderedStages = () => {
+    // Group stages by order and sort them properly
+    const groupedStages: { [key: number]: any[] } = {};
+    
+    stages.forEach((stage: any) => {
+      // Extract order identifier from stage.state
+      const orderMatch = stage.state.match(/order_(\d+)/);
+      const orderNumber = orderMatch ? parseInt(orderMatch[1]) : 0;
+      
+      if (!groupedStages[orderNumber]) {
+        groupedStages[orderNumber] = [];
+      }
+      groupedStages[orderNumber].push(stage);
+    });
+
+    // Define stage order for proper sequencing
+    const stageOrder = [
+      'driver_ready',
+      'waiting_for_pickup', 
+      'restaurant_pickup',
+      'en_route_to_customer',
+      'delivery_complete'
+    ];
+
+    // Sort stages within each order group
+    Object.keys(groupedStages).forEach(orderNumStr => {
+      const orderNum = parseInt(orderNumStr);
+      groupedStages[orderNum].sort((a: any, b: any) => {
+        const aType = a.state.split('_order_')[0];
+        const bType = b.state.split('_order_')[0];
+        return stageOrder.indexOf(aType) - stageOrder.indexOf(bType);
+      });
+    });
+
+    // Flatten stages in correct order (complete each order before next)
+    const orderedStages: any[] = [];
+    const orderNumbers = Object.keys(groupedStages).sort((a, b) => parseInt(a) - parseInt(b));
+    
+    orderNumbers.forEach(orderNumStr => {
+      const orderNum = parseInt(orderNumStr);
+      orderedStages.push(...groupedStages[orderNum]);
+    });
+
+    return orderedStages;
+  };
+
+  const orderedStages = getOrderedStages();
 
   // Check if there are no active tasks
   const hasNoTasks = !dps.id || !dps.orders?.length || !stages.length;
-
+  console.log('check second stage' , stages[2])
   // Empty state component
   const EmptyTasksState = () => (
     <View
@@ -315,118 +364,162 @@ const MyTasksScreen = () => {
               Delivery Progress
             </FFText>
 
-            {stages.map((stage, index) => {
-              const isLast = index === stages.length - 1;
+{orderedStages.map((stage, index) => {
+              const isLast = index === orderedStages.length - 1;
               const stageColor = getStageColor(stage.status);
 
+              // Check if this is the start of a new order
+              const orderMatch = stage.state.match(/order_(\d+)/);
+              const currentOrderNumber = orderMatch ? parseInt(orderMatch[1]) : 0;
+              
+              const prevStage = index > 0 ? orderedStages[index - 1] : null;
+              const prevOrderMatch = prevStage?.state.match(/order_(\d+)/);
+              const prevOrderNumber = prevOrderMatch ? parseInt(prevOrderMatch[1]) : -1;
+              
+              const isNewOrder = currentOrderNumber !== prevOrderNumber;
+
               return (
-                <View
-                  key={stage.state}
-                  style={{ flexDirection: "row", alignItems: "flex-start" }}
-                >
-                  {/* Timeline Line */}
-                  <View style={{ alignItems: "center", marginRight: 16 }}>
-                    <View
-                      style={{
-                        width: 32,
-                        height: 32,
-                        borderRadius: 16,
-                        backgroundColor: stageColor,
-                        justifyContent: "center",
-                        alignItems: "center",
-                        borderWidth: 3,
-                        borderColor:
-                          stage.status === "in_progress" ? "#fff" : stageColor,
-                        shadowColor: stageColor,
-                        shadowOffset: { width: 0, height: 2 },
-                        shadowOpacity: stage.status === "in_progress" ? 0.3 : 0,
-                        shadowRadius: 4,
-                      }}
-                    >
-                      {stage.status === "completed" ? (
-                        <MaterialIcons name="check" size={18} color="white" />
-                      ) : stage.status === "in_progress" ? (
-                        <MaterialIcons
-                          name={getStageIcon(stage.state)}
-                          size={18}
-                          color="white"
-                        />
-                      ) : (
+                <React.Fragment key={stage.state}>
+                  {/* Order Separator */}
+                  {isNewOrder && (
+                    <View style={{ marginBottom: 20, marginTop: index > 0 ? 16 : 0 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <View style={{ flex: 1, height: 1, backgroundColor: '#E0E0E0' }} />
                         <View
                           style={{
-                            width: 8,
-                            height: 8,
-                            borderRadius: 4,
-                            backgroundColor: "white",
+                            backgroundColor: '#f8f9fa',
+                            paddingHorizontal: 16,
+                            paddingVertical: 8,
+                            borderRadius: 20,
+                            borderWidth: 1,
+                            borderColor: '#E0E0E0',
+                            marginHorizontal: 12,
+                          }}
+                        >
+                          <FFText
+                            fontWeight="600"
+                            style={{
+                              fontSize: 14,
+                              color: colors.primary,
+                              textAlign: 'center',
+                            }}
+                          >
+                            Order #{currentOrderNumber}
+                          </FFText>
+                        </View>
+                        <View style={{ flex: 1, height: 1, backgroundColor: '#E0E0E0' }} />
+                      </View>
+                    </View>
+                  )}
+
+                  {/* Stage Item */}
+                  <View
+                    style={{ flexDirection: "row", alignItems: "flex-start" }}
+                  >
+                    {/* Timeline Line */}
+                    <View style={{ alignItems: "center", marginRight: 16 }}>
+                      <View
+                        style={{
+                          width: 32,
+                          height: 32,
+                          borderRadius: 16,
+                          backgroundColor: stageColor,
+                          justifyContent: "center",
+                          alignItems: "center",
+                          borderWidth: 3,
+                          borderColor:
+                            stage.status === "in_progress" ? "#fff" : stageColor,
+                          shadowColor: stageColor,
+                          shadowOffset: { width: 0, height: 2 },
+                          shadowOpacity: stage.status === "in_progress" ? 0.3 : 0,
+                          shadowRadius: 4,
+                        }}
+                      >
+                        {stage.status === "completed" ? (
+                          <MaterialIcons name="check" size={18} color="white" />
+                        ) : stage.status === "in_progress" ? (
+                          <MaterialIcons
+                            name={getStageIcon(stage.state)}
+                            size={18}
+                            color="white"
+                          />
+                        ) : (
+                          <View
+                            style={{
+                              width: 8,
+                              height: 8,
+                              borderRadius: 4,
+                              backgroundColor: "white",
+                            }}
+                          />
+                        )}
+                      </View>
+
+                      {!isLast && (
+                        <View
+                          style={{
+                            width: 2,
+                            height: 40,
+                            backgroundColor:
+                              stage.status === "completed"
+                                ? "#4CAF50"
+                                : "#E0E0E0",
+                            marginTop: 4,
                           }}
                         />
                       )}
                     </View>
 
-                    {!isLast && (
-                      <View
+                    {/* Stage Content */}
+                    <View style={{ flex: 1, paddingBottom: isLast ? 0 : 24 }}>
+                      <FFText
+                        fontWeight="600"
                         style={{
-                          width: 2,
-                          height: 40,
-                          backgroundColor:
+                          fontSize: 16,
+                          color:
                             stage.status === "completed"
                               ? "#4CAF50"
-                              : "#E0E0E0",
-                          marginTop: 4,
-                        }}
-                      />
-                    )}
-                  </View>
-
-                  {/* Stage Content */}
-                  <View style={{ flex: 1, paddingBottom: isLast ? 0 : 24 }}>
-                    <FFText
-                      fontWeight="600"
-                      style={{
-                        fontSize: 16,
-                        color:
-                          stage.status === "completed"
-                            ? "#4CAF50"
-                            : stage.status === "in_progress"
-                            ? "#FF9800"
-                            : "#666",
-                        marginBottom: 4,
-                      }}
-                    >
-                      {getStageTitle(stage.state)}
-                    </FFText>
-
-                    {stage.status === "completed" && stage.duration > 0 && (
-                      <FFText style={{ fontSize: 12, color: "#999" }}>
-                        Completed in {Math.floor(stage.duration / 60)}m{" "}
-                        {stage.duration % 60}s
-                      </FFText>
-                    )}
-
-                    {stage.status === "in_progress" && (
-                      <View
-                        style={{
-                          backgroundColor: "#fff3e0",
-                          paddingHorizontal: 8,
-                          paddingVertical: 4,
-                          borderRadius: 12,
-                          alignSelf: "flex-start",
-                          marginTop: 4,
+                              : stage.status === "in_progress"
+                              ? "#FF9800"
+                              : "#666",
+                          marginBottom: 4,
                         }}
                       >
-                        <FFText
+                        {getStageTitle(stage.state)}
+                      </FFText>
+
+                      {stage.status === "completed" && stage.duration > 0 && (
+                        <FFText style={{ fontSize: 12, color: "#999" }}>
+                          Completed in {Math.floor(stage.duration / 60)}m{" "}
+                          {stage.duration % 60}s
+                        </FFText>
+                      )}
+
+                      {stage.status === "in_progress" && (
+                        <View
                           style={{
-                            fontSize: 12,
-                            color: "#f57c00",
-                            fontWeight: "500",
+                            backgroundColor: "#fff3e0",
+                            paddingHorizontal: 8,
+                            paddingVertical: 4,
+                            borderRadius: 12,
+                            alignSelf: "flex-start",
+                            marginTop: 4,
                           }}
                         >
-                          In Progress
-                        </FFText>
-                      </View>
-                    )}
+                          <FFText
+                            style={{
+                              fontSize: 12,
+                              color: "#f57c00",
+                              fontWeight: "500",
+                            }}
+                          >
+                            In Progress
+                          </FFText>
+                        </View>
+                      )}
+                    </View>
                   </View>
-                </View>
+                </React.Fragment>
               );
             })}
           </View>

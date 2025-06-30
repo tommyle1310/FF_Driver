@@ -2,21 +2,25 @@ import React from "react";
 import { View, StyleSheet, Dimensions, Text, ScrollView } from "react-native";
 import { useTheme } from "../hooks/useTheme";
 import FFButton from "./FFButton";
+import { colors, typography } from "../theme";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CHART_HEIGHT = 200; // Chiều cao cố định cho biểu đồ
 const BAR_WIDTH = 10; // Độ rộng của mỗi cột
 const BAR_SPACING = 20; // Khoảng cách giữa các cột
 const Y_AXIS_WIDTH = 40; // Chiều rộng của trục Y
+const ITEM_WIDTH = BAR_WIDTH + BAR_SPACING; // Tổng chiều rộng cho mỗi item (bar + spacing)
 
 interface FFBarChartProps {
   data: number[]; // Mảng dữ liệu
   labels?: string[]; // Nhãn cho trục x
+  unit?: string; // Đơn vị cho trục y
 }
 
 const FFBarChart: React.FC<FFBarChartProps> = ({
   data,
   labels = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"],
+  unit = "%",
 }) => {
   const { theme } = useTheme();
   const currentTheme = {
@@ -58,6 +62,12 @@ const FFBarChart: React.FC<FFBarChartProps> = ({
       <View style={styles.container}>
         {/* Trục Y (giá trị) */}
         <View style={styles.yAxis}>
+        <Text
+              style={[{position: 'absolute', top: -20, left: 10}, { color: colors.grey, fontSize: typography.fontSize.xs }]}
+              numberOfLines={1}
+            >
+              {unit} {/* Hiển thị 2 chữ số thập phân */}
+            </Text>
           {yAxisValues.map((value, index) => (
             <Text
               key={index}
@@ -66,7 +76,9 @@ const FFBarChart: React.FC<FFBarChartProps> = ({
             >
               {value.toFixed(2)} {/* Hiển thị 2 chữ số thập phân */}
             </Text>
+            
           ))}
+          
         </View>
 
         {/* Scrollable chart area */}
@@ -76,44 +88,39 @@ const FFBarChart: React.FC<FFBarChartProps> = ({
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.scrollContent}
           >
-            {/* Chart bars area */}
-            <View style={styles.chartContainer}>
-              {validData.map((value, index) => {
-                // Tính chiều cao cột dựa trên giá trị và tỷ lệ với CHART_HEIGHT
-                const barHeight = (value / maxValue) * CHART_HEIGHT; // Sử dụng full CHART_HEIGHT
-                return (
-                  <View key={index} style={styles.barWrapper}>
-                    <View
-                      style={[
-                        styles.bar,
-                        {
-                          height: barHeight < 1 ? 1 : barHeight, // Đảm bảo cột tối thiểu 1px để thấy được
-                          backgroundColor: currentTheme.barColor,
-                          width: BAR_WIDTH,
-                        },
-                      ]}
-                    />
+            <View style={{ alignItems: 'flex-end' }}>
+              {/* Chart bars area */}
+              <View style={styles.chartContainer}>
+                {validData.map((value, index) => {
+                  // Tính chiều cao cột dựa trên giá trị và tỷ lệ với CHART_HEIGHT
+                  const barHeight = (value / maxValue) * CHART_HEIGHT; // Sử dụng full CHART_HEIGHT
+                  return (
+                    <View key={index} style={styles.barWrapper}>
+                      <View
+                        style={[
+                          styles.bar,
+                          {
+                            height: barHeight < 1 ? 1 : barHeight, // Đảm bảo cột tối thiểu 1px để thấy được
+                            backgroundColor: currentTheme.barColor,
+                            width: BAR_WIDTH,
+                          },
+                        ]}
+                      />
+                    </View>
+                  );
+                })}
+              </View>
+              
+              {/* X-axis labels below the chart */}
+              <View style={[styles.labelsContainer, { marginTop: 8 }]}>
+                {validLabels.map((label, index) => (
+                  <View key={index} style={styles.labelWrapper}>
+                    <Text style={[styles.xLabel, { color: currentTheme.text }]}>
+                      {label}
+                    </Text>
                   </View>
-                );
-              })}
-            </View>
-          </ScrollView>
-          
-          {/* X-axis labels below the chart */}
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.scrollContent}
-            style={{ marginTop: 8 }}
-          >
-            <View style={styles.labelsContainer}>
-              {validLabels.map((label, index) => (
-                <View key={index} style={styles.labelWrapper}>
-                  <Text style={[styles.xLabel, { color: currentTheme.text }]}>
-                    {label}
-                  </Text>
-                </View>
-              ))}
+                ))}
+              </View>
             </View>
           </ScrollView>
         </View>
@@ -133,6 +140,7 @@ const styles = StyleSheet.create({
   yAxis: {
     justifyContent: "space-between",
     height: CHART_HEIGHT,
+    position: 'relative',
     width: Y_AXIS_WIDTH,
     marginRight: 10,
   },
@@ -146,26 +154,24 @@ const styles = StyleSheet.create({
   },
   chartContainer: {
     flexDirection: "row",
-    justifyContent: "space-between",
     height: CHART_HEIGHT,
     alignItems: "flex-end",
     paddingRight: 20,
   },
   barWrapper: {
     alignItems: "center",
-    marginHorizontal: BAR_SPACING / 2,
+    width: ITEM_WIDTH,
   },
   bar: {
     borderRadius: 4,
   },
   labelsContainer: {
     flexDirection: "row",
-    justifyContent: "space-between",
     paddingRight: 20,
   },
   labelWrapper: {
     alignItems: "center",
-    marginHorizontal: BAR_SPACING / 2,
+    width: ITEM_WIDTH,
   },
   xLabel: {
     fontSize: 12,

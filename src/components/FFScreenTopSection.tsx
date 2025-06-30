@@ -2,15 +2,18 @@ import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import React from "react";
 import IconIonicons from "react-native-vector-icons/Ionicons";
 import FFText from "./FFText";
+import FFAvatar from "./FFAvatar";
 
 type FFScreenTopSectionProps = {
   navigation: any; // Define the type for navigation
   title: string; // Define the type for title
   titlePosition?: "center" | "left"; // Add optional titlePosition prop
+  avatar?: string;
 };
 
 const FFScreenTopSection: React.FC<FFScreenTopSectionProps> = ({
   navigation,
+  avatar,
   title,
   titlePosition = "center", // Default value is 'center'
 }) => {
@@ -27,12 +30,14 @@ const FFScreenTopSection: React.FC<FFScreenTopSectionProps> = ({
       >
         <IconIonicons name="chevron-back" size={24} />
       </TouchableOpacity>
+      {titlePosition === "left" && avatar && <FFAvatar avatar={avatar} size={32} style={{position: 'absolute', left: 48, top: 16}} />}
+
       <FFText
         fontSize="lg"
         style={{
           ...(titlePosition === "center"
             ? styles.centerTitle
-            : styles.leftTitle),
+            : (avatar ? {marginLeft: 72} : styles.leftTitle)),
         }}
       >
         {title}
@@ -62,7 +67,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   leftTitle: {
-    marginLeft: 40, // Give space for the back button
+    marginLeft:36, // Give space for the back button
   },
 });
 

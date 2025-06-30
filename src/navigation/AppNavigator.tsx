@@ -107,6 +107,7 @@ export type SidebarStackParamList = {
     type?: "SUPPORT" | "ORDER" | "CHATBOT";
     orderId?: string;
     title?: string;
+    avatar?: string;
   };
   OrderHistoryDetails: {
     dpsId: string;

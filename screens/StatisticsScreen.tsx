@@ -94,7 +94,7 @@ const StatisticsScreen = () => {
       // Convert dates to epoch timestamps (seconds)
       const startDateEpoch = Math.floor(startDate.getTime() / 1000);
       const endDateEpoch = Math.floor(endDate.getTime() / 1000);
-      
+      console.log('check start date' , startDateEpoch, endDateEpoch)
       const res = await axiosInstance.get(
         `/driver-stats/${driverId}?startDate=${startDateEpoch}&endDate=${endDateEpoch}`
       );
@@ -449,7 +449,7 @@ const StatisticsScreen = () => {
        </ScrollView>
 
       {/* Chart */}
-      <FFBarChart data={chartData} labels={getChartLabels()} />
+      <FFBarChart data={chartData} labels={getChartLabels()} unit={activeTab === "hours" ? "hours" : activeTab === "orders" ? "orders" : activeTab === "completion" ? "%" : "s"} />
       <View style={{marginVertical: spacing.xxxl}}></View>
    </ScrollView>
 

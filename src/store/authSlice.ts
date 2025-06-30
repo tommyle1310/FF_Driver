@@ -143,16 +143,40 @@ export const saveVehicleDetailsToAsyncStorage = createAsyncThunk(
     brand: string;
     year: number;
   }) => {
-    await AsyncStorage.setItem("vehicle", JSON.stringify(data));
-    return data;
+    // Get existing vehicle data to preserve images
+    const existingVehicle = await AsyncStorage.getItem("vehicle");
+    const currentVehicleData = existingVehicle ? JSON.parse(existingVehicle) : {};
+    
+    // Merge new details with existing data, preserving images
+    const updatedVehicle = {
+      ...currentVehicleData,
+      ...data,
+      // Preserve existing images if they exist
+      images: currentVehicleData.images || []
+    };
+    
+    await AsyncStorage.setItem("vehicle", JSON.stringify(updatedVehicle));
+    return updatedVehicle;
   }
 );
 
 export const updateVehicle = createAsyncThunk(
   "auth/updateVehicle",
   async (vehicleDetails: Partial<Omit<Vehicle, "images">>) => {
-    await AsyncStorage.setItem("vehicle", JSON.stringify(vehicleDetails));
-    return vehicleDetails;
+    // Get existing vehicle data to preserve images
+    const existingVehicle = await AsyncStorage.getItem("vehicle");
+    const currentVehicleData = existingVehicle ? JSON.parse(existingVehicle) : {};
+    
+    // Merge new details with existing data, preserving images
+    const updatedVehicle = {
+      ...currentVehicleData,
+      ...vehicleDetails,
+      // Preserve existing images if they exist
+      images: currentVehicleData.images || []
+    };
+    
+    await AsyncStorage.setItem("vehicle", JSON.stringify(updatedVehicle));
+    return updatedVehicle;
   }
 );
 
@@ -232,6 +256,12 @@ const authSlice = createSlice({
       })
       .addCase(setAvatarInAsyncStorage.fulfilled, (state, action) => {
         state.avatar = action.payload;
+      })
+      .addCase(updateVehicle.fulfilled, (state, action) => {
+        state.vehicle = action.payload;
+      })
+      .addCase(saveVehicleDetailsToAsyncStorage.fulfilled, (state, action) => {
+        state.vehicle = action.payload;
       })
       .addCase(logout.fulfilled, () => initialState);
   },

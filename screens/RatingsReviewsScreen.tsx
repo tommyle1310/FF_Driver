@@ -170,13 +170,6 @@ const RatingsReviewsScreen = () => {
         {ratingsData && (
           <>
             <View style={styles.statsContainer}>
-              <View style={styles.statCard}>
-                <FFText style={styles.statValue}>
-                  {ratingsData.average_food_rating.toFixed(1)}
-                </FFText>
-                <FFText style={styles.statLabel}>Food Rating</FFText>
-                {renderRatingStars(Math.round(ratingsData.average_food_rating))}
-              </View>
 
               <View style={styles.statCard}>
                 <FFText style={styles.statValue}>
