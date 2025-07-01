@@ -139,29 +139,33 @@ const MainNavigator = () => {
     lat: 10.826411,
     lng: 106.617353,
   });
-  const [latestOrder, setLatestOrder] =
-    useState<Type_PushNotification_Order | null>(null);
+  const [latestOrder, setLatestOrder] = useState<Type_PushNotification_Order | null>(null);
   const [orders, setOrders] = useState<Type_PushNotification_Order[]>([]);
   const [isShowToast, setIsShowToast] = useState(false);
   const [loading, setLoading] = useState(false);
-
-  // Tip notification state
   const [latestTip, setLatestTip] = useState<TipReceivedData | null>(null);
   const [isShowTipToast, setIsShowTipToast] = useState(false);
-
-  const { expoPushToken } = usePushNotifications();
+  const [isPushTokenReady, setIsPushTokenReady] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const pushToken = expoPushToken as unknown as { data: string };
-
   const [reason, setReason] = useState("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [modalVisible, setModalVisible] = useState(false);
   const [modalMessage, setModalMessage] = useState({ title: "", subtitle: "" });
-  const [selectedCancelledOrderId, setSelectedCancelledOrderId] = useState<
-    string | null
-  >(null);
+  const [selectedCancelledOrderId, setSelectedCancelledOrderId] = useState<string | null>(null);
   const [isRejectModalVisible, setIsRejectModalVisible] = useState(false);
+
+  const { expoPushToken } = usePushNotifications();
+
+  useEffect(() => {
+    if (expoPushToken?.data) {
+      setIsPushTokenReady(true);
+      console.log("Push token ready:", expoPushToken.data);
+    } else {
+      setIsPushTokenReady(false);
+      console.log("Push token not ready:", expoPushToken);
+    }
+  }, [expoPushToken]);
 
   const showModal = useCallback((title: string, subtitle: string) => {
     setModalMessage({ title, subtitle });
@@ -173,9 +177,8 @@ const MainNavigator = () => {
   }, []);
 
   const handleSubmitReject = useCallback(async () => {
-    // Check if we have either selectedCancelledOrderId OR latestOrder.id
     const orderId = selectedCancelledOrderId || latestOrder?.id;
-    console.log("echck orderId", orderId);
+    console.log("check orderId", orderId);
 
     if (!orderId) {
       console.error("No order ID selected for cancellation");
@@ -199,10 +202,7 @@ const MainNavigator = () => {
 
     try {
       setLoading(true);
-      const response = await axiosInstance.post(
-        `/orders/${orderId}/cancel`,
-        requestBody
-      );
+      const response = await axiosInstance.post(`/orders/${orderId}/cancel`, requestBody);
       console.log("Reject order response:", response.data);
       if (response.data.EC === 0) {
         setIsRejectModalVisible(false);
@@ -217,28 +217,44 @@ const MainNavigator = () => {
     } finally {
       setLoading(false);
     }
-  }, [
-    driverId,
-    reason,
-    title,
-    description,
-    latestOrder,
-    selectedCancelledOrderId,
-    showModal,
-  ]);
+  }, [driverId, reason, title, description, latestOrder, selectedCancelledOrderId]);
 
-  const sendPushNotification = (order: Type_PushNotification_Order) => {
+  const sendPushNotification = useCallback((order: Type_PushNotification_Order) => {
+    console.log("check expoPushToken before sendpushnotification", { expoPushToken, data: expoPushToken?.data });
+
+    if (!expoPushToken?.data) {
+      console.warn("Cannot send push notification: expoPushToken is undefined or missing data");
+      return;
+    }
+
     console.log("Sending push notification:", {
       order,
-      expoPushToken: pushToken,
+      expoPushToken: expoPushToken.data,
     });
-    // Implement push notification logic
-  };
+
+    fetch("https://exp.host/--/api/v2/push/send", {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        to: expoPushToken.data,
+        sound: "default",
+        title: "New Order Received",
+        body: `Order #${order.id} - Distance: ${order.distance?.toFixed(1)} km, Earnings: $${order.driver_earn?.toFixed(2)}`,
+        data: { order },
+      }),
+    })
+      .then((response) => response.json())
+      .then((data) => console.log("Push notification sent:", data))
+      .catch((error) => console.error("Error sending push notification:", error));
+  }, [expoPushToken]);
 
   const { emitDriverAcceptOrder } = useSocket(
-    driverId || "",
+    isPushTokenReady && driverId ? driverId : "",
     setOrders,
-    sendPushNotification,
+    isPushTokenReady ? sendPushNotification : () => console.log("Push token not ready, skipping notification"),
     setLatestOrder,
     setIsShowToast,
     setLatestTip,
