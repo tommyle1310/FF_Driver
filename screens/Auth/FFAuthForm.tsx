@@ -11,6 +11,9 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import IconIonicons from "react-native-vector-icons/Ionicons";
+import FFAvatar from "@/src/components/FFAvatar";
+import { IMAGE_LINKS } from "@/src/assets/imageLinks";
+import { spacing } from "@/src/theme";
 
 type FFAuthFormProps = {
   isSignUp: boolean;
@@ -304,6 +307,18 @@ const FFAuthForm = ({
 
   const renderSignUpForm = () => (
     <View style={styles.container}>
+        <View
+        style={{
+          position: "absolute",
+          right: 0,
+          left: 0,
+          top: -40,
+
+          transform: [{ translateX: "40%" }],
+        }}
+      >
+        <FFAvatar avatar={IMAGE_LINKS.APP_LOGO} />
+      </View>
       <Text style={styles.headerText}>Sign Up</Text>
       <View style={styles.switchAuthContainer}>
         <Text style={styles.switchAuthText}>Already have an account?</Text>
@@ -332,6 +347,18 @@ const FFAuthForm = ({
 
   const renderLoginForm = () => (
     <View style={styles.container}>
+          <View
+        style={{
+          position: "absolute",
+          right: 0,
+          left: 0,
+          top: -40,
+
+          transform: [{ translateX: "40%" }],
+        }}
+      >
+        <FFAvatar avatar={IMAGE_LINKS.APP_LOGO} />
+      </View>
       <Text style={styles.headerText}>Login</Text>
       <View style={styles.switchAuthContainer}>
         <Text style={styles.switchAuthText}>Don't have an account?</Text>
@@ -365,6 +392,7 @@ const styles = StyleSheet.create({
   container: {
     backgroundColor: "white",
     padding: 16,
+    marginVertical: spacing.xxl,
     borderRadius: 16,
     width: "90%",
     shadowColor: "#b5b3a1",
@@ -372,6 +400,7 @@ const styles = StyleSheet.create({
     shadowRadius: 5,
     shadowOffset: { width: 0, height: 2 },
     gap: 16,
+    position: 'relative',
     alignSelf: "center",
   },
   headerText: {
