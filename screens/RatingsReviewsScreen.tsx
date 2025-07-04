@@ -21,6 +21,7 @@ import FFModal from "@/src/components/FFModal";
 import { MainStackParamList } from "@/src/navigation/AppNavigator";
 import { StackNavigationProp } from "@react-navigation/stack";
 import FFJBRowItem from "@/src/components/FFJBRowItems";
+import FFSkeleton from "@/src/components/FFSkeleton";
 
 type RatingsReviewsScreenNavigationProp = StackNavigationProp<
   MainStackParamList,
@@ -65,8 +66,10 @@ const RatingsReviewsScreen = () => {
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [refreshing, setRefreshing] = useState(false);
+const [loading, setLoading] = useState(true);
 
   const fetchRatingsData = async () => {
+    setLoading(true);
     try {
       const response = await axiosInstance.get(
         `/drivers/${driverId}/ratings-reviews`
@@ -81,6 +84,8 @@ const RatingsReviewsScreen = () => {
     } catch (error) {
       setErrorMessage("Error fetching ratings and reviews");
       setShowErrorModal(true);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -162,12 +167,55 @@ const RatingsReviewsScreen = () => {
     </View>
   );
 
+    const renderSkeletonStatCard = () => (
+    <View style={styles.statCard}>
+      <FFSkeleton width={40} height={30} style={{ marginBottom: spacing.xs }} />
+      <FFSkeleton width={80} height={16} style={{ marginBottom: spacing.xs }} />
+      <FFSkeleton width={100} height={14} />
+    </View>
+  );
+
+  const renderSkeletonReviewCard = () => (
+    <View style={styles.reviewCard}>
+      <View style={styles.reviewHeader}>
+        <View style={styles.reviewerInfo}>
+          <FFSkeleton width={40} height={40} style={{ borderRadius: 20 }} />
+          <View>
+            <FFSkeleton width={120} height={18} style={{ marginBottom: spacing.xs }} />
+            <FFSkeleton width={80} height={14} />
+          </View>
+        </View>
+        <FFSkeleton width={80} height={14} />
+      </View>
+      <View style={styles.reviewContent}>
+        <FFSkeleton width="100%" height={16} style={{ marginBottom: spacing.xs }} />
+        <FFSkeleton width="90%" height={16} style={{ marginBottom: spacing.xs }} />
+        <FFSkeleton width="80%" height={16} />
+      </View>
+    </View>
+  );
+
   return (
     <FFSafeAreaView>
       <FFScreenTopSection title="Ratings & Reviews" navigation={navigation} />
 
       <View style={styles.container}>
-        {ratingsData && (
+        { loading ?
+        (
+          <>
+            <View style={styles.statsContainer}>
+              {renderSkeletonStatCard()}
+              {renderSkeletonStatCard()}
+              {renderSkeletonStatCard()}
+            </View>
+            <View style={styles.reviewsList}>
+              {[1, 2, 3].map((item) => (
+                <View key={item}>{renderSkeletonReviewCard()}</View>
+              ))}
+            </View>
+          </>
+        ) : 
+        ratingsData && (
           <>
             <View style={styles.statsContainer}>
 
