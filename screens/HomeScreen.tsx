@@ -28,6 +28,7 @@ import {
   Stage,
 } from "@/src/store/currentDriverProgressStageSlice";
 import FloatingStage from "@/src/components/FloatingStage";
+import FloatingAnalytics from "@/src/components/FloatingAnalytics";
 import FFSeperator from "@/src/components/FFSeperator";
 import { useSocket } from "@/src/hooks/useSocket";
 import { useLocationSocket } from "@/src/hooks/useLocationSocket";
@@ -40,6 +41,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { debugLogger } from "@/src/utils/debugLogger";
 import DebugLogExporter from "@/src/components/DebugLogExporter";
 import { colors, typography } from "@/src/theme";
+import { fetchDailyAnalytics } from "@/src/store/dailyAnalyticsSlice";
 
 type HomeRouteProp = RouteProp<SidebarStackParamList, "Home">;
 type HomeSreenNavigationProp = StackNavigationProp<
@@ -135,6 +137,10 @@ const HomeScreen = () => {
       setLoading(false);
     };
     loadToken();
+  }, [dispatch]);
+
+  useEffect(() => {
+    dispatch(fetchDailyAnalytics());
   }, [dispatch]);
 
   const getOrderCount = useCallback(() => {
@@ -1414,6 +1420,7 @@ console.log('chsk stages', stages.length)
           )}
         </View>
       </FFView>
+      <FloatingAnalytics />
       <FloatingStage
         onNavigate={(res) => handleNavigateGoogleMap(res)}
         stage={currentActiveLocation || selectedDestination}

@@ -4,6 +4,7 @@ import authReducer from "./authSlice"; // Replace with the correct path to your 
 import availabilityReducer from "./availabilitySlice"; // Replace with the correct path to your auth slice
 import currentDriverProgressStage from "./currentDriverProgressStageSlice"; // Replace with the correct path to your auth slice
 import chatReducer from "./chatSlice";
+import dailyAnalyticsReducer from "./dailyAnalyticsSlice";
 
 const store = configureStore({
   reducer: {
@@ -11,6 +12,7 @@ const store = configureStore({
     availability: availabilityReducer,
     currentDriverProgressStage: currentDriverProgressStage,
     chat: chatReducer,
+    dailyAnalytics: dailyAnalyticsReducer,
   },
 });
 

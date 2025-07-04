@@ -8,6 +8,7 @@ import {
   updateStages,
   updateTotalTips,
 } from "../store/currentDriverProgressStageSlice";
+import { fetchDailyAnalytics } from "../store/dailyAnalyticsSlice";
 import { Type_PushNotification_Order } from "../types/pushNotification";
 import NetInfo from "@react-native-community/netinfo";
 import { debugLogger } from "../utils/debugLogger";
@@ -389,6 +390,8 @@ export const useSocket = (
         );
         if (stages.length === 0) {
           dispatch(clearDriverProgressStage());
+        dispatch(fetchDailyAnalytics());
+
         }
         isProcessingRef.current = false;
         processEventQueue();
@@ -1116,12 +1119,17 @@ export const useSocket = (
         // Single order or last order: clear everything
         console.log("Single/last order: clearing state");
         dispatch(clearDriverProgressStage());
+        dispatch(fetchDailyAnalytics());
+        // Fetch updated analytics after order completion
+        dispatch(fetchDailyAnalytics());
       }
     } else {
-      // Fallback: clear all if no orderId provided (for single-order case)
-      console.log("No orderId provided, clearing all state");
-      dispatch(clearDriverProgressStage());
-    }
+        // Fallback: clear all if no orderId provided (for single-order case)
+        console.log("No orderId provided, clearing all state");
+        dispatch(clearDriverProgressStage());
+        // Fetch updated analytics after order completion
+        dispatch(fetchDailyAnalytics());
+      }
 
     // Only set completed and clear tracking for single order or last order
     setIsOrderCompleted(true);

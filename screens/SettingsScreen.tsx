@@ -21,6 +21,7 @@ import {
   clearDriverProgressStage,
   clearState,
 } from "@/src/store/currentDriverProgressStageSlice";
+import { clearDailyAnalytics } from "@/src/store/dailyAnalyticsSlice";
 
 type LogoutSreenNavigationProp = StackNavigationProp<
   RootStackParamList,
@@ -95,6 +96,7 @@ const SettingsScreen = () => {
                     dispatch(logout());
                     dispatch(clearDriverProgressStage());
                     dispatch(clearState());
+                      dispatch(clearDailyAnalytics());
                     navigation.navigate("Auth");
                   }}
                   className="w-full"
