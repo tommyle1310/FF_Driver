@@ -1,6 +1,8 @@
 export const colors = {
     // Primary brand color
     primary: '#63c550',
+  primary_dark: "#10B981",
+
     
     // Status colors
     success: '#63c550',

@@ -47,6 +47,7 @@ import FFInputControl from "../components/FFInputControl";
 import FFModal from "../components/FFModal";
 import FFView from "../components/FFView";
 import RatingsReviewsScreen from "@/screens/RatingsReviewsScreen";
+import FFSplashScreen from "@/screens/SplashScreen";
 
 const SidebarStack = createStackNavigator<SidebarStackParamList>();
 const AuthStack = createStackNavigator<AuthStackParamList>();
@@ -629,7 +630,12 @@ const App = () => {
   );
   const dispatch = useDispatch();
   const [loading, setLoading] = useState(true);
+  const [showSplash, setShowSplash] = useState(true);
+  const handleSplashFinish = () => {
+    setShowSplash(false);
+  };
 
+ 
   useEffect(() => {
     const loadToken = async () => {
       await dispatch(loadTokenFromAsyncStorage()); // Load token from storage
@@ -637,6 +643,10 @@ const App = () => {
     };
     loadToken();
   }, [dispatch]);
+
+     if (showSplash) {
+    return <FFSplashScreen onFinish={handleSplashFinish} />;
+  }
 
   if (loading) {
     return null; // Or a loading spinner
