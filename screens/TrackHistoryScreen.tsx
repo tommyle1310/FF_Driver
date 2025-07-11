@@ -171,7 +171,7 @@ const TrackHistoryScreen = () => {
                   <IconFeather name="clock" />
                   <FFText fontSize="sm">
                     {formatMinutesToHoursAndMinutes(
-                      item?.actual_time_spent || 0
+                      Math.round((item?.actual_time_spent || 0) / 60)
                     )}
                   </FFText>
                 </View>

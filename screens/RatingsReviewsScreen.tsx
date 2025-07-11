@@ -238,7 +238,7 @@ const [loading, setLoading] = useState(true);
             </View>
 
             <FlatList
-              data={ratingsData.reviews}
+              data={ratingsData.reviews?.filter(item => item.reviewer_type === 'driver').filter(item => item.food_review || item.delivery_review)}
               renderItem={renderReviewCard}
               keyExtractor={(item) => item.id}
               contentContainerStyle={styles.reviewsList}
