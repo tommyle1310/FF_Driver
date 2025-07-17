@@ -13,19 +13,34 @@ import { LinearGradient } from "expo-linear-gradient";
 import IconIonicons from "react-native-vector-icons/Ionicons";
 import FFAvatar from "@/src/components/FFAvatar";
 import { IMAGE_LINKS } from "@/src/assets/imageLinks";
-import { spacing } from "@/src/theme";
+import { colors, spacing } from "@/src/theme";
+import FFText from "@/src/components/FFText";
+import FFInputControl from "@/src/components/FFInputControl";
 
 type FFAuthFormProps = {
   isSignUp: boolean;
   onSubmit: (basicInfo: any, vehicleInfo: any) => void;
   navigation?: any;
   error?: string;
+  formErrors?: {
+    general?: string;
+    email?: string;
+    password?: string;
+    firstName?: string;
+    lastName?: string;
+    contactEmail?: string;
+    contactPhone?: string;
+    license_plate?: string;
+    model?: string;
+    color?: string;
+  };
 };
 
 const FFAuthForm = ({
   isSignUp,
   onSubmit,
   navigation,
+  formErrors,
   error,
 }: FFAuthFormProps) => {
   // Basic Info State
@@ -56,11 +71,9 @@ const FFAuthForm = ({
   >([]);
 
   // Vehicle Info State
-  const [vehicle, setVehicle] = useState({
-    license_plate: "",
-    model: "",
-    color: "",
-  });
+  const [licensePlate, setLicensePlate] = useState("");
+  const [model, setModel] = useState("");
+  const [color, setColor] = useState("");
   const [activeTab, setActiveTab] = useState(0);
 
   const handleAddEmail = () => {
@@ -105,27 +118,31 @@ const FFAuthForm = ({
           contactEmail.length > 0
             ? contactEmail
             : [
-                {
-                  title: "Main Contact",
-                  email: email,
-                  is_default: true,
-                },
-              ],
+              {
+                title: newContactTitle || "Main Contact",
+                email: newContactEmail || email, // Use newContactEmail if available, otherwise fallback to main email
+                is_default: true,
+              },
+            ],
         contact_phone:
           contactPhone.length > 0
             ? contactPhone
             : [
-                {
-                  title: "Main Contact",
-                  number: "",
-                  is_default: true,
-                },
-              ],
+              {
+                title: newPhoneTitle || "Main Contact",
+                number: newContactPhone, // Use newContactPhone if available
+                is_default: true,
+              },
+            ],
       };
 
       // Vehicle info
       const vehicleInfo = {
-        vehicle,
+        vehicle: {
+          license_plate: licensePlate,
+          model: model,
+          color: color,
+        },
       };
 
       onSubmit(basicInfo, vehicleInfo);
@@ -140,14 +157,15 @@ const FFAuthForm = ({
     value: string,
     onChangeText: (text: string) => void,
     placeholder: string,
-    isSecure?: boolean
+    isSecure?: boolean,
+    fieldError?: string
   ) => (
     <View style={styles.inputContainer}>
       <Text style={styles.inputLabel}>{label}</Text>
       <View
         style={[
           styles.inputWrapper,
-          { borderColor: error ? "red" : "#d1d1d1" },
+          { borderColor: fieldError ? "red" : "#d1d1d1" },
         ]}
       >
         <TextInput
@@ -191,13 +209,13 @@ const FFAuthForm = ({
               "Contact Email",
               newContactEmail,
               setNewContactEmail,
-              "contact@example.com"
+              "contact@example.com",
+              false,
+              formErrors?.contactEmail
             )}
           </View>
-          <TouchableOpacity onPress={handleAddEmail} style={styles.addButton}>
-            <Text style={styles.addButtonText}>Add</Text>
-          </TouchableOpacity>
         </View>
+
         {contactEmail.map((contact, index) => (
           <View key={index} style={styles.contactItem}>
             <Text style={styles.contactItemTitle}>{contact.title}</Text>
@@ -223,12 +241,11 @@ const FFAuthForm = ({
               "Contact Phone",
               newContactPhone,
               setNewContactPhone,
-              "+1234567890"
+              "+1234567890",
+              false,
+              formErrors?.contactPhone
             )}
           </View>
-          <TouchableOpacity onPress={handleAddPhone} style={styles.addButton}>
-            <Text style={styles.addButtonText}>Add</Text>
-          </TouchableOpacity>
         </View>
         {contactPhone.map((contact, index) => (
           <View key={index} style={styles.contactItem}>
@@ -245,39 +262,61 @@ const FFAuthForm = ({
 
   const renderBasicInfoTab = () => (
     <View style={styles.tabContent}>
-      {renderInputField("Email", email, setEmail, "driver@example.com")}
-      {renderInputField("Password", password, setPassword, "******", true)}
-      {renderInputField(
-        "First Name",
-        firstName,
-        setFirstName,
-        "Enter first name"
-      )}
-      {renderInputField("Last Name", lastName, setLastName, "Enter last name")}
+      <FFInputControl
+        value={email}
+        setValue={setEmail}
+        label="Email"
+        error={formErrors?.email}
+
+      />
+      <FFInputControl
+        value={password}
+        setValue={setPassword}
+        label="Password"
+        error={formErrors?.password}
+        secureTextEntry
+      />
+      <FFInputControl
+        value={firstName}
+        setValue={setFirstName}
+        label="First Name"
+        error={formErrors?.firstName}
+
+      />
+      <FFInputControl
+        value={lastName}
+        setValue={setLastName}
+        label="Last Name"
+        error={formErrors?.lastName}
+
+      />
       {renderContactSection()}
     </View>
   );
 
   const renderVehicleInfoTab = () => (
     <View style={styles.tabContent}>
-      {renderInputField(
-        "License Plate",
-        vehicle.license_plate,
-        (text) => setVehicle({ ...vehicle, license_plate: text }),
-        "Enter license plate"
-      )}
-      {renderInputField(
-        "Model",
-        vehicle.model,
-        (text) => setVehicle({ ...vehicle, model: text }),
-        "Enter vehicle model"
-      )}
-      {renderInputField(
-        "Color",
-        vehicle.color,
-        (text) => setVehicle({ ...vehicle, color: text }),
-        "Enter vehicle color"
-      )}
+      <FFInputControl
+        label="License Plate"
+        value={licensePlate}
+        setValue={setLicensePlate}
+        placeholder="Enter vehicle license plate"
+        error={formErrors?.license_plate}
+      />
+      <FFInputControl
+        label="Model"
+        value={model}
+        setValue={setModel}
+        placeholder="Enter vehicle model"
+        error={formErrors?.model}
+      />
+      <FFInputControl
+        label="Color"
+        value={color}
+        setValue={setColor}
+        placeholder="Enter vehicle color"
+        error={formErrors?.color}
+      />
     </View>
   );
 
@@ -304,10 +343,10 @@ const FFAuthForm = ({
       </View>
     );
   };
-
+console.log('check err  generl', formErrors)
   const renderSignUpForm = () => (
     <View style={styles.container}>
-        <View
+      <View
         style={{
           position: "absolute",
           right: 0,
@@ -320,6 +359,12 @@ const FFAuthForm = ({
         <FFAvatar avatar={IMAGE_LINKS.APP_LOGO} />
       </View>
       <Text style={styles.headerText}>Sign Up</Text>
+      {formErrors?.general && (
+        <View style={{ width: '100%', justifyContent: 'center', paddingTop: spacing.sm, borderRadius: spacing.sm, backgroundColor: colors.ligth_error, alignItems: 'center' }}>
+          <FFText style={styles.generalErrorText}>{formErrors.general}</FFText>
+
+        </View>
+      )}
       <View style={styles.switchAuthContainer}>
         <Text style={styles.switchAuthText}>Already have an account?</Text>
         <TouchableOpacity onPress={() => navigation?.navigate("Login")}>
@@ -330,7 +375,7 @@ const FFAuthForm = ({
       {renderTabs()}
       {activeTab === 0 ? renderBasicInfoTab() : renderVehicleInfoTab()}
 
-      {error && <Text style={styles.errorText}>{error}</Text>}
+      {/* {error && <Text style={styles.errorText}>{error}</Text>} */}
 
       <Pressable onPress={handleSubmit}>
         <LinearGradient
@@ -344,10 +389,10 @@ const FFAuthForm = ({
       </Pressable>
     </View>
   );
-
+  console.log('ehckec err', formErrors)
   const renderLoginForm = () => (
     <View style={styles.container}>
-          <View
+      <View
         style={{
           position: "absolute",
           right: 0,
@@ -360,17 +405,33 @@ const FFAuthForm = ({
         <FFAvatar avatar={IMAGE_LINKS.APP_LOGO} />
       </View>
       <Text style={styles.headerText}>Login</Text>
+      {formErrors?.general && (
+        <View style={{ width: '100%', justifyContent: 'center', paddingTop: spacing.sm, borderRadius: spacing.sm, backgroundColor: colors.ligth_error, alignItems: 'center' }}>
+          <FFText style={styles.generalErrorText}>{formErrors.general}</FFText>
+        </View>
+      )}
       <View style={styles.switchAuthContainer}>
         <Text style={styles.switchAuthText}>Don't have an account?</Text>
         <TouchableOpacity onPress={() => navigation?.navigate("Signup")}>
           <Text style={styles.switchAuthLink}>Sign Up</Text>
         </TouchableOpacity>
       </View>
+      <FFInputControl
+        value={email}
+        setValue={setEmail}
+        label="Email"
+        error={formErrors?.email}
 
-      {renderInputField("Email", email, setEmail, "driver@example.com")}
-      {renderInputField("Password", password, setPassword, "******", true)}
+      />
+      <FFInputControl
+        value={password}
+        setValue={setPassword}
+        label="Password"
+        error={formErrors?.password}
+        secureTextEntry
+      />
 
-      {error && <Text style={styles.errorText}>{error}</Text>}
+      {/* {error && <Text style={styles.errorText}>{error}</Text>} */}
 
       <Pressable onPress={handleSubmit}>
         <LinearGradient
@@ -407,6 +468,12 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: "bold",
     textAlign: "center",
+  },
+  generalErrorText: {
+    color: "red",
+    textAlign: "center",
+    marginBottom: spacing.sm,
+    fontSize: 14,
   },
   switchAuthContainer: {
     flexDirection: "row",

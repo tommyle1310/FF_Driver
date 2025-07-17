@@ -177,12 +177,12 @@ const styles = StyleSheet.create({
   appName: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: colors.text,
+    color: colors.white,
     marginBottom: 8,
   },
   tagline: {
     fontSize: 16,
-    color: colors.lightGrey,
+    color: '#eee',
     marginBottom: 40,
   },
   loadingContainer: {

@@ -6,6 +6,15 @@ import { useSelector } from "@/src/store/types";
 import { RootState } from "@/src/store/store";
 import { colors, spacing } from "@/src/theme";
 
+const formatSecondsToMinutesAndSeconds = (seconds: number) => {
+  if (seconds < 0) {
+    return "0m 0s";
+  }
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = Math.round(seconds % 60);
+  return `${minutes}m ${remainingSeconds}s`;
+};
+
 const FloatingAnalytics: React.FC = () => {
   const {
     date,
@@ -174,7 +183,7 @@ const FloatingAnalytics: React.FC = () => {
             Avg. Time/Order
           </FFText>
           <FFText fontSize="sm" fontWeight="bold">
-            {Math.round(average_time_spent_on_each_order)} min
+            {formatSecondsToMinutesAndSeconds(average_time_spent_on_each_order)}
           </FFText>
         </View>
       )}

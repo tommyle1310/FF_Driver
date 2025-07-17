@@ -50,6 +50,7 @@ const FFSidebar = ({
   }, [visible]);
   const { available_for_work, avatar, contact_phone, first_name, last_name } =
     useSelector((state: RootState) => state.auth);
+    console.log('cehck avaialbel for D', available_for_work)
   // Set the initial position of the sidebar off-screen to the right
   const translateX = new Animated.Value(0); // Start in view
 
@@ -134,7 +135,7 @@ const FFSidebar = ({
             </View>
             <View style={{ width: "100%", alignItems: "center", gap: 20 }}>
               <FFToggle
-                initialChecked={available_for_work ?? false}
+                value={available_for_work ? true : false}
                 onChange={() => {
                   if (!loading) {
                     dispatch(toggleAvailability()); // Call the function properly via dispatch

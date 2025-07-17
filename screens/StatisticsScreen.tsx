@@ -15,6 +15,7 @@ import { RootState } from "@/src/store/store";
 import axiosInstance from "@/src/utils/axiosConfig";
 import { Picker } from "@react-native-picker/picker";
 import { spacing } from "@/src/theme";
+import FFSpinner from "@/src/components/FFSpinner";
 
 type TrackHistorySreenNavigationProp = StackNavigationProp<
   SidebarStackParamList,
@@ -225,8 +226,18 @@ const StatisticsScreen = () => {
     });
   };
 
+  if (isLoading) {
+    return (
+      <FFSafeAreaView
+        style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
+      >
+        <FFSpinner />
+      </FFSafeAreaView>
+    );
+  }
+
   return (
-    <FFSafeAreaView>
+    <FFSafeAreaView style={styles.container}>
       <LinearGradient
         colors={["#63c550", "#a3d98f"]}
         start={[0, 0]}

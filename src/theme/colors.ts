@@ -3,6 +3,7 @@ export const colors = {
     primary: '#63c550',
   primary_dark: "#10B981",
 
+  ligth_error: "#FFe1e1",
     
     // Status colors
     success: '#63c550',

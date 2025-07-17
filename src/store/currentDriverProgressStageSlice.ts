@@ -493,17 +493,9 @@ const currentDriverProgressStageSlice = createSlice({
       state.stages = uniqueStages;
       state.updated_at = Math.floor(Date.now() / 1000);
     },
-    clearState: () => ({
-      ...initialState,
-      transactions_processed: false, // Reset field
-      processed_tip_ids: [], // Reset tip tracking
-    }),
     updateTotalTips: (state, action) => {
-      // action.payload should be { tipAmount, orderId, tipTime } for deduplication
-      const { tipAmount, orderId, tipTime } = action.payload;
-      const tipId = `${orderId}_${tipTime}`;
+      const { tipId, tipAmount } = action.payload;
 
-      // Check if this tip has already been processed
       if (state.processed_tip_ids.includes(tipId)) {
         console.log("🚫 Duplicate tip detected, skipping:", tipId);
         return;
@@ -524,6 +516,9 @@ const currentDriverProgressStageSlice = createSlice({
       state.total_tips = newTotalTips;
       state.processed_tip_ids.push(tipId);
       state.updated_at = Math.floor(Date.now() / 1000);
+    },
+    clearState: (state) => {
+      return initialState;
     },
   },
   extraReducers: (builder) => {
@@ -548,28 +543,14 @@ const currentDriverProgressStageSlice = createSlice({
               created_at,
               updated_at,
               orders,
-              transactions_processed, // Thêm field
+              transactions_processed,
             } = action.payload;
-            // Filter duplicate stages
-            const uniqueStages = stages.reduce((acc: Stage[], stage: Stage) => {
-              if (
-                !acc.find(
-                  (s: Stage) =>
-                    s.state === stage.state &&
-                    s.status === stage.status &&
-                    s.timestamp === stage.timestamp
-                )
-              ) {
-                acc.push(stage);
-              }
-              return acc;
-            }, [] as Stage[]);
             state.id = id;
             state.driver_id = driver_id;
             state.total_earns = total_earns;
             state.current_state = current_state;
             state.previous_state = previous_state;
-            state.stages = uniqueStages;
+            state.stages = stages;
             state.next_state = next_state;
             state.estimated_time_remaining = estimated_time_remaining;
             state.actual_time_spent = actual_time_spent;
@@ -579,67 +560,21 @@ const currentDriverProgressStageSlice = createSlice({
             state.created_at = created_at;
             state.updated_at = updated_at;
             state.orders = orders;
-            state.transactions_processed = transactions_processed || false; // Cập nhật field
+            state.transactions_processed = transactions_processed || false;
           }
         }
       )
       .addCase(
         saveDriverProgressStageToAsyncStorage.fulfilled,
         (state, action) => {
-          const {
-            id,
-            total_earns,
-            driver_id,
-            current_state,
-            previous_state,
-            stages,
-            next_state,
-            estimated_time_remaining,
-            actual_time_spent,
-            total_distance_travelled,
-            total_tips,
-            events,
-            created_at,
-            updated_at,
-            orders,
-            transactions_processed, // Thêm field
-          } = action.payload;
-          // Filter duplicate stages
-          const uniqueStages = stages.reduce((acc: Stage[], stage: Stage) => {
-            if (
-              !acc.find(
-                (s: Stage) =>
-                  s.state === stage.state &&
-                  s.status === stage.status &&
-                  s.timestamp === stage.timestamp
-              )
-            ) {
-              acc.push(stage);
-            }
-            return acc;
-          }, [] as Stage[]);
-          state.id = id;
-          state.driver_id = driver_id;
-          state.total_earns = total_earns;
-          state.current_state = current_state;
-          state.previous_state = previous_state;
-          state.stages = uniqueStages;
-          state.next_state = next_state;
-          state.estimated_time_remaining = estimated_time_remaining;
-          state.actual_time_spent = actual_time_spent;
-          state.total_distance_travelled = total_distance_travelled;
-          state.total_tips = parseTotalTips(total_tips);
-          state.events = events;
-          state.created_at = created_at;
-          state.updated_at = updated_at;
-          state.orders = orders;
-          state.transactions_processed = transactions_processed || false; // Cập nhật field
+          if (action.payload) {
+            Object.assign(state, action.payload);
+          }
         }
       )
-      .addCase(clearDriverProgressStage.fulfilled, () => ({
-        ...initialState,
-        transactions_processed: false, // Reset field
-      }));
+      .addCase(clearDriverProgressStage.fulfilled, (state) => {
+        return initialState;
+      });
   },
 });
 

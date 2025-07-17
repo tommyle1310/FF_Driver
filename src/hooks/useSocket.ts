@@ -115,22 +115,22 @@ export const useSocket = (
     try {
       const isBlockActive = await AsyncStorage.getItem("POST_RATING_BLOCK_ACTIVE");
       const blockUntil = await AsyncStorage.getItem("POST_RATING_BLOCK_UNTIL");
-      
+
       if (isBlockActive === "true" && blockUntil) {
         const blockUntilTime = parseInt(blockUntil);
         const now = Date.now();
-        
+
         if (now < blockUntilTime) {
           // Block is still active, restore it
           const remainingTime = blockUntilTime - now;
           console.log("🚫 POST-RATING: Restoring persistent block for", remainingTime, "ms");
           postRatingBlockRef.current = true;
-          
+
           // Set timeout to unblock when time expires
           if (postRatingBlockTimeoutRef.current) {
             clearTimeout(postRatingBlockTimeoutRef.current);
           }
-          
+
           postRatingBlockTimeoutRef.current = setTimeout(() => {
             console.log("✅ POST-RATING: Unblocking driverStagesUpdated events (persistent)");
             postRatingBlockRef.current = false;
@@ -211,7 +211,7 @@ export const useSocket = (
       // These represent important stage transitions and should always be processed
       const isSingleOrderUpdate = id.startsWith("FF_ORDER_");
       const isDPSUpdate = id.startsWith("FF_DPS_");
-      
+
       // Only apply duplicate blocking to full DPS updates, not single order updates
       if (!isSingleOrderUpdate && lastUpdatedAt && lastUpdatedAt >= data.updated_at) {
         console.log("Skipping duplicate or older DPS event:", eventKey);
@@ -222,7 +222,7 @@ export const useSocket = (
 
       // Always update tracking for both types
       processedEventIds.current.set(data.id, data.updated_at);
-      
+
       console.log("Processing event:", {
         eventId: id,
         eventType: isSingleOrderUpdate ? "SINGLE_ORDER" : "FULL_DPS",
@@ -249,7 +249,7 @@ export const useSocket = (
       // Handle different event types
       const isSingleOrderUpdate = id.startsWith("FF_ORDER_");
       const isDPSUpdate = id.startsWith("FF_DPS_");
-      
+
       if (isSingleOrderUpdate) {
         // Single order status update - these don't have stages array
         // But they indicate an important status change that should trigger UI updates
@@ -258,22 +258,22 @@ export const useSocket = (
           orderStatus: data.status,
           trackingInfo: data.tracking_info,
         });
-        
+
         // 🔧 CRITICAL: Single order updates indicate stage progression
         // Force trigger a stage re-evaluation by updating the last update time
         // This will cause HomeScreen useEffect to re-run and find the new current stage
         lastUpdateTimeRef.current = Date.now();
-        
+
         // Also reset the stage count tracking to force useEffect to process
         lastStageCountRef.current = -1;
-        
+
         console.log("Triggered stage re-evaluation for order status change");
-        
+
         isProcessingRef.current = false;
         processEventQueue();
         return;
       }
-      
+
       // For DPS updates, continue with existing logic
       if (
         !data.stages ||
@@ -302,7 +302,7 @@ export const useSocket = (
       // AGGRESSIVE DUPLICATE DETECTION: Block if stage count is excessive or obviously duplicated
       const currentTime = Date.now();
       const timeSinceLastUpdate = currentTime - lastUpdateTimeRef.current;
-      
+
       // Extract unique order IDs from stages to see how many orders we're dealing with
       const orderIds = new Set<string>();
       data.stages.forEach((stage: any) => {
@@ -311,11 +311,11 @@ export const useSocket = (
           orderIds.add(match[1]);
         }
       });
-      
+
       const orderCount = orderIds.size;
       const expectedStagesPerOrder = 5; // driver_ready, waiting_for_pickup, restaurant_pickup, en_route_to_customer, delivery_complete
       const expectedTotalStages = orderCount * expectedStagesPerOrder;
-      
+
       console.log("Stage analysis:", {
         totalStages: data.stages.length,
         orderCount,
@@ -323,20 +323,20 @@ export const useSocket = (
         expectedTotalStages,
         orderIds: Array.from(orderIds)
       });
-      
+
       // If we get more than 20 stages total, something is wrong - but let's try to salvage it
       if (data.stages.length > 20) {
         console.log("WARNING: Too many stages detected, attempting to filter to latest order:", data.stages.length);
-        
+
         // Try to find the latest order (highest order number) and only keep those stages
         const latestOrderId = Math.max(...Array.from(orderIds).map(id => parseInt(id)));
         console.log("Latest order ID detected:", latestOrderId);
-        
+
         // Filter stages to only include the latest order
-        const latestOrderStages = data.stages.filter((stage: any) => 
+        const latestOrderStages = data.stages.filter((stage: any) =>
           stage.state.includes(`_order_${latestOrderId}`)
         );
-        
+
         if (latestOrderStages.length <= 10 && latestOrderStages.length > 0) {
           console.log("SALVAGING: Using only latest order stages:", latestOrderStages.length);
           data.stages = latestOrderStages; // Replace with filtered stages
@@ -390,7 +390,7 @@ export const useSocket = (
         );
         if (stages.length === 0) {
           dispatch(clearDriverProgressStage());
-        dispatch(fetchDailyAnalytics());
+          dispatch(fetchDailyAnalytics());
 
         }
         isProcessingRef.current = false;
@@ -403,16 +403,16 @@ export const useSocket = (
       const currentOrderCount = new Set(
         stages.map(stage => stage.state.split("_order_")[1]).filter(Boolean)
       ).size;
-      
+
       // Check if this is a completely new order or an update to existing order
       const serverOrderIds = Array.from(orderIds);
       const highestServerOrderId = Math.max(...serverOrderIds.map(id => parseInt(id)));
-      
+
       // Only normalize if server is sending clearly wrong order IDs
       // Don't normalize if we have legitimate multiple orders
-      const shouldNormalize = serverOrderIds.length === 1 && 
+      const shouldNormalize = serverOrderIds.length === 1 &&
         (currentOrderCount === 0 || highestServerOrderId > currentOrderCount + 5);
-      
+
       console.log("🔧 Order ID normalization decision:", {
         currentOrderCount,
         highestServerOrderId,
@@ -420,7 +420,7 @@ export const useSocket = (
         serverOrderCount: serverOrderIds.length,
         shouldNormalize,
       });
-      
+
       let normalizedStages;
       if (shouldNormalize) {
         // Only normalize when we have a single order with wrong ID
@@ -428,13 +428,13 @@ export const useSocket = (
         normalizedStages = data.stages.map((stage: any) => {
           const stageBase = stage.state.split("_order_")[0];
           const normalizedState = `${stageBase}_order_${nextOrderId}`;
-          
+
           return {
             ...stage,
             state: normalizedState
           };
         });
-        
+
         console.log("🔧 Normalized stages (single order):", {
           originalStageStates: data.stages.map((s: any) => s.state),
           normalizedStageStates: normalizedStages.map((s: any) => s.state),
@@ -442,12 +442,12 @@ export const useSocket = (
       } else {
         // Multiple orders or reasonable order IDs - preserve as is
         normalizedStages = data.stages;
-        
+
         console.log("🔧 Preserving original stages (multiple orders or reasonable IDs):", {
           originalStageStates: data.stages.map((s: any) => s.state),
         });
       }
-      
+
       // Use normalized stages for further processing
       data.stages = normalizedStages;
 
@@ -568,7 +568,7 @@ export const useSocket = (
           ordersCount: data.orders?.length || 0,
           orderIds: data.orders?.map((o: any) => o.id) || []
         });
-        
+
         dispatch(setDriverProgressStage(filteredResponse));
         dispatch(saveDriverProgressStageToAsyncStorage(filteredResponse));
         lastResponseRef.current = responseString;
@@ -589,7 +589,7 @@ export const useSocket = (
       return;
     }
 
-    
+
     SocketManager.initialize(driverId, accessToken, userId ?? "");
 
     // 🔧 POST-RATING BLOCKING: Check and restore persistent blocking state on socket init
@@ -668,7 +668,7 @@ export const useSocket = (
       if (setIsShowToast) setIsShowToast(true);
       sendPushNotification(buildDataToPushNotification);
       setIsOrderCompleted(false);
-      
+
       eventQueueRef.current = [];
       processedEventIds.current.clear();
       lastResponseRef.current = undefined;
@@ -753,7 +753,7 @@ export const useSocket = (
         setOrders((prevOrders) => [...prevOrders, response.order]);
         if (setIsShowToast) setIsShowToast(true);
         isInitialUpdateRef.current = true;
-        
+
         setIsOrderCompleted(false);
         processedOrderIds.current.delete(response.order.id);
       } else {
@@ -824,11 +824,11 @@ export const useSocket = (
         clearTimeout(responseTimeoutRef.current);
       }
       debouncedProcessEventQueueRef.current.cancel();
-      
+
       // Clear tracking refs
       lastStageCountRef.current = 0;
       lastUpdateTimeRef.current = 0;
-      
+
       // 🔧 POST-RATING BLOCKING: Cleanup post-rating timeout
       if (postRatingBlockTimeoutRef.current) {
         clearTimeout(postRatingBlockTimeoutRef.current);
@@ -946,7 +946,7 @@ export const useSocket = (
     // 🔧 CRITICAL: Immediately clear all queued events to prevent processing
     console.log("🚫 POST-RATING: Clearing event queue immediately, had", eventQueueRef.current.length, "events");
     eventQueueRef.current = [];
-    
+
     // Also reset processing state and cancel debounced processing
     isProcessingRef.current = false;
     debouncedProcessEventQueueRef.current.cancel();
@@ -963,7 +963,7 @@ export const useSocket = (
       console.log("✅ POST-RATING: Unblocking driverStagesUpdated events");
       postRatingBlockRef.current = false;
       postRatingBlockTimeoutRef.current = null;
-      
+
       // 🔧 CRITICAL: Clear persistent blocking state
       AsyncStorage.removeItem("POST_RATING_BLOCK_ACTIVE");
       AsyncStorage.removeItem("POST_RATING_BLOCK_UNTIL");
@@ -984,62 +984,62 @@ export const useSocket = (
       // 🔧 CRITICAL FIX: Don't filter stages locally for multi-order scenarios
       // Let the socket updates handle the full state management
       // This prevents race conditions and empty stages issues
-      
-             // 🔧 CRITICAL FIX: Proper order mapping for multi-order scenarios
-       // orderId is "1" or "2" from stage name like "delivery_complete_order_1"
-       // orders array contains actual order objects with UUID IDs
-       
-       const orderIndex = parseInt(orderId) - 1; // order_1 = index 0, order_2 = index 1
-       let actualCompletedOrderId = null;
-       
-       // Method 1: Try to find by stage details (most reliable)
-       const completedOrderStages = stages.filter(stage => 
-         stage.state.includes(`order_${orderId}`)
-       );
-       
-       for (const stage of completedOrderStages) {
-         if (stage.details?.customerDetails || stage.details?.restaurantDetails) {
-           const customerId = stage.details?.customerDetails?.id;
-           const restaurantId = stage.details?.restaurantDetails?.id;
-           
-           const foundOrder = orders.find(order => 
-             (customerId && order.customer_id === customerId) ||
-             (restaurantId && order.restaurant_id === restaurantId)
-           );
-           
-           if (foundOrder) {
-             actualCompletedOrderId = foundOrder.id;
-             console.log("🎯 Found order by stage details:", { orderId, foundOrderId: foundOrder.id });
-             break;
-           }
-         }
-       }
-       
-       // Method 2: Fallback to array index mapping
-       if (!actualCompletedOrderId && orderIndex >= 0 && orderIndex < orders.length) {
-         actualCompletedOrderId = orders[orderIndex].id;
-         console.log("🎯 Using index mapping:", { orderId, orderIndex, mappedOrderId: actualCompletedOrderId });
-       }
-       
-       // Method 3: Last resort - if we have only one order left, it must be the one
-       if (!actualCompletedOrderId && orders.length === 1) {
-         actualCompletedOrderId = orders[0].id;
-         console.log("🎯 Only one order left, using it:", actualCompletedOrderId);
-       }
-       
-       const remainingOrders = actualCompletedOrderId 
-         ? orders.filter(order => order.id !== actualCompletedOrderId)
-         : [];
-       
-       console.log("🔧 COMPLETE ORDER MAPPING:", {
-         stageOrderId: orderId,
-         orderIndex,
-         actualCompletedOrderId,
-         totalOrders: orders.length,
-         remainingOrders: remainingOrders.length,
-         allOrderIds: orders.map(o => o.id),
-         remainingOrderIds: remainingOrders.map(o => o.id)
-       });
+
+      // 🔧 CRITICAL FIX: Proper order mapping for multi-order scenarios
+      // orderId is "1" or "2" from stage name like "delivery_complete_order_1"
+      // orders array contains actual order objects with UUID IDs
+
+      const orderIndex = parseInt(orderId) - 1; // order_1 = index 0, order_2 = index 1
+      let actualCompletedOrderId = null;
+
+      // Method 1: Try to find by stage details (most reliable)
+      const completedOrderStages = stages.filter(stage =>
+        stage.state.includes(`order_${orderId}`)
+      );
+
+      for (const stage of completedOrderStages) {
+        if (stage.details?.customerDetails || stage.details?.restaurantDetails) {
+          const customerId = stage.details?.customerDetails?.id;
+          const restaurantId = stage.details?.restaurantDetails?.id;
+
+          const foundOrder = orders.find(order =>
+            (customerId && order.customer_id === customerId) ||
+            (restaurantId && order.restaurant_id === restaurantId)
+          );
+
+          if (foundOrder) {
+            actualCompletedOrderId = foundOrder.id;
+            console.log("🎯 Found order by stage details:", { orderId, foundOrderId: foundOrder.id });
+            break;
+          }
+        }
+      }
+
+      // Method 2: Fallback to array index mapping
+      if (!actualCompletedOrderId && orderIndex >= 0 && orderIndex < orders.length) {
+        actualCompletedOrderId = orders[orderIndex].id;
+        console.log("🎯 Using index mapping:", { orderId, orderIndex, mappedOrderId: actualCompletedOrderId });
+      }
+
+      // Method 3: Last resort - if we have only one order left, it must be the one
+      if (!actualCompletedOrderId && orders.length === 1) {
+        actualCompletedOrderId = orders[0].id;
+        console.log("🎯 Only one order left, using it:", actualCompletedOrderId);
+      }
+
+      const remainingOrders = actualCompletedOrderId
+        ? orders.filter(order => order.id !== actualCompletedOrderId)
+        : [];
+
+      console.log("🔧 COMPLETE ORDER MAPPING:", {
+        stageOrderId: orderId,
+        orderIndex,
+        actualCompletedOrderId,
+        totalOrders: orders.length,
+        remainingOrders: remainingOrders.length,
+        allOrderIds: orders.map(o => o.id),
+        remainingOrderIds: remainingOrders.map(o => o.id)
+      });
 
       console.log("Original orders count:", orders.length);
       console.log("Remaining orders count:", remainingOrders.length);
@@ -1051,24 +1051,24 @@ export const useSocket = (
         const remainingStages = stages.filter(
           (stage) => !stage.state.includes(`order_${orderId}`)
         );
-        
+
         console.log("🔧 MULTI-ORDER: Filtering completed order stages");
         console.log("Original stages count:", stages.length);
         console.log("Remaining stages count:", remainingStages.length);
         console.log("Remaining orders:", remainingOrders.map(o => o.id));
-        
-                 // 🔧 CRITICAL FIX: Reset all remaining order stages to pending status
+
+        // 🔧 CRITICAL FIX: Reset all remaining order stages to pending status
         // and set current_state to first driver_ready stage
         const resetRemainingStages = remainingStages.map(stage => ({
           ...stage,
           status: "pending" as Stage["status"]
         }));
-        
+
         // Find the first driver_ready stage for remaining orders
-        const firstDriverReadyStage = resetRemainingStages.find(s => 
+        const firstDriverReadyStage = resetRemainingStages.find(s =>
           s.state.startsWith("driver_ready_order_")
         );
-        
+
         console.log("🔧 MULTI-ORDER RESET:", {
           originalRemaining: remainingStages.length,
           resetRemaining: resetRemainingStages.length,
@@ -1078,29 +1078,29 @@ export const useSocket = (
 
         // Immediately update Redux with reset stages
         dispatch(setDriverProgressStage({
-           id,
-           driver_id: driverId,
-           stages: resetRemainingStages,
-           orders: remainingOrders,
-           // 🔧 CRITICAL: Set current_state to first driver_ready stage
-           current_state: firstDriverReadyStage?.state || null,
-           previous_state: null,
-           next_state: null,
-           estimated_time_remaining: null,
-           actual_time_spent: null,
-           total_distance_travelled: total_distance_travelled,
-           total_earns: total_earns,
-           total_tips: 0,
-           events: [],
-           created_at: Math.floor(Date.now() / 1000),
-           updated_at: Math.floor(Date.now() / 1000),
-           transactions_processed: false,
-           processed_tip_ids: []
-         }));
-         
-         // 🔧 CRITICAL: Block socket updates for longer to prevent override
-         blockSocketUpdatesTemporarily(10000); // Block for 10 seconds
-        
+          id,
+          driver_id: driverId,
+          stages: resetRemainingStages,
+          orders: remainingOrders,
+          // 🔧 CRITICAL: Set current_state to first driver_ready stage
+          current_state: firstDriverReadyStage?.state || null,
+          previous_state: null,
+          next_state: null,
+          estimated_time_remaining: null,
+          actual_time_spent: null,
+          total_distance_travelled: total_distance_travelled,
+          total_earns: total_earns,
+          total_tips: 0,
+          events: [],
+          created_at: Math.floor(Date.now() / 1000),
+          updated_at: Math.floor(Date.now() / 1000),
+          transactions_processed: false,
+          processed_tip_ids: []
+        }));
+
+        // 🔧 CRITICAL: Block socket updates for longer to prevent override
+        blockSocketUpdatesTemporarily(10000); // Block for 10 seconds
+
         console.log("✅ MULTI-ORDER: Updated Redux with remaining stages and orders");
         console.log("Multiple orders: not setting isOrderCompleted to true");
 
@@ -1124,12 +1124,12 @@ export const useSocket = (
         dispatch(fetchDailyAnalytics());
       }
     } else {
-        // Fallback: clear all if no orderId provided (for single-order case)
-        console.log("No orderId provided, clearing all state");
-        dispatch(clearDriverProgressStage());
-        // Fetch updated analytics after order completion
-        dispatch(fetchDailyAnalytics());
-      }
+      // Fallback: clear all if no orderId provided (for single-order case)
+      console.log("No orderId provided, clearing all state");
+      dispatch(clearDriverProgressStage());
+      // Fetch updated analytics after order completion
+      dispatch(fetchDailyAnalytics());
+    }
 
     // Only set completed and clear tracking for single order or last order
     setIsOrderCompleted(true);

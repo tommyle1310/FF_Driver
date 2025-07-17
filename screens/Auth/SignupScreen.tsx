@@ -43,11 +43,56 @@ const Signup = () => {
   >("ENTER_CODE");
   const [isOpenVerificationModal, setIsOpenVerificationModal] =
     useState<boolean>(false);
+      const [formErrors, setFormErrors] = useState<{
+        general?: string;
+        email?: string;
+        password?: string;
+        firstName?: string;
+        lastName?: string;
+        contactEmail?: string;
+        contactPhone?: string;
+        license_plate?: string;
+        model?: string;
+        color?: string;
+      }>({});
 
   const handleSignupSubmit = async (basicInfo: any, vehicleInfo: any) => {
     setLoading(true);
     setEmail(basicInfo.email);
+    const newErrors: any = {};
 
+    // Basic Info Validation
+    if (!basicInfo.first_name) newErrors.firstName = "First name is required.";
+    if (!basicInfo.last_name) newErrors.lastName = "Last name is required.";
+    if (!basicInfo.email) newErrors.email = "Email is required.";
+    if (!basicInfo.password) newErrors.password = "Password is required.";
+
+    // Contact Info Validation (assuming at least one of each is required if the array is empty)
+    if (!basicInfo.contact_email || basicInfo.contact_email.length === 0) {
+      newErrors.contactEmail = "At least one contact email is required.";
+    } else if (!basicInfo.contact_email[0].email) {
+      newErrors.contactEmail = "Contact email address cannot be empty.";
+    }
+
+    if (!basicInfo.contact_phone || basicInfo.contact_phone.length === 0) {
+      newErrors.contactPhone = "At least one contact phone is required.";
+    } else if (!basicInfo.contact_phone[0].number) {
+      newErrors.contactPhone = "Contact phone number cannot be empty.";
+    }
+    console.log('cehck hahahaha', basicInfo.contact_email, basicInfo.contact_phone)
+
+    // Vehicle Info Validation
+    if (!vehicleInfo.vehicle.license_plate) newErrors.license_plate = "License plate is required.";
+    if (!vehicleInfo.vehicle.model) newErrors.model = "Vehicle model is required.";
+    if (!vehicleInfo.vehicle.color) newErrors.color = "Vehicle color is required.";
+
+
+    if (Object.keys(newErrors).length > 0) {
+      setFormErrors(newErrors);
+      setLoading(false);
+      return; // Stop submission if client-side validation fails
+    }
+    setFormErrors({}); // Clear previous errors
     try {
       // Step 1: Register driver with basic info
       const registerResponse = await axiosInstance.post(
@@ -81,8 +126,25 @@ const Signup = () => {
         }
 
         setIsOpenVerificationModal(true);
+      } else if (registerResponse.data && registerResponse.data.EC === 3) {
+        // Invalid credentials
+        setFormErrors({ general:  "Invalid email or password" });
+      }
+      else if (registerResponse.data && registerResponse.data.EC === -3) {
+        // Invalid credentials
+        setFormErrors({ general:  "Driver with the same email already exists" });
+      } else if (registerResponse.data && registerResponse.data.EC === 1) {
+        // Missing required fields (server-side validation)
+        // Assuming EM might contain details about missing fields, or you map generic EC=1 to specific fields.
+        // For now, we'll just show a general message or infer from EM if possible.
+        setFormErrors({ general:  "Please fill in all required fields." });
+        // If EM gives specific field names, you could parse it:
+        // if (EM.includes("email")) newErrors.email = "Email is missing.";
+        // if (EM.includes("password")) newErrors.password = "Password is missing.";
+        // setFormErrors(newErrors);
       } else {
-        setError(registerResponse.data?.EM || "Registration failed");
+        // Other errors
+        setFormErrors({ general: "An unexpected error occurred. Please try again later." });
       }
     } catch (error) {
       setError("Network error. Please try again later.");
@@ -143,6 +205,7 @@ const Signup = () => {
             onSubmit={handleSignupSubmit}
             navigation={navigation}
             error={error}
+            formErrors={formErrors}
           />
         </ScrollView>
       </LinearGradient>

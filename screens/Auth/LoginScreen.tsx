@@ -27,8 +27,25 @@ const Login = () => {
   const dispatch = useDispatch();
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [formErrors, setFormErrors] = useState<{
+    general?: string;
+    email?: string;
+    password?: string;
+    firstName?: string;
+    lastName?: string;
+  }>({});
 
   const handleLoginSubmit = async (email: string, password: string) => {
+        // Simple client-side validation for missing fields
+    // This is a basic example; you might want more robust validation.
+    const newErrors: typeof formErrors = {};
+    if (!email) newErrors.email = "Email is required.";
+    if (!password) newErrors.password = "Password is required.";
+
+    if (Object.keys(newErrors).length > 0) {
+      setFormErrors(newErrors);
+      return; // Stop submission if client-side validation fails
+    }
     // Request body
     const requestBody = {
       email: email,
@@ -97,9 +114,21 @@ const Login = () => {
 
         // Navigate to home or another screen
         navigation.navigate("Main");
+      }  else if (EC === 3) {
+        // Invalid credentials
+        setFormErrors({ general:  "Invalid email or password" });
+      } else if (EC === 1) {
+        // Missing required fields (server-side validation)
+        // Assuming EM might contain details about missing fields, or you map generic EC=1 to specific fields.
+        // For now, we'll just show a general message or infer from EM if possible.
+        setFormErrors({ general:  "Please fill in all required fields." });
+        // If EM gives specific field names, you could parse it:
+        // if (EM.includes("email")) newErrors.email = "Email is missing.";
+        // if (EM.includes("password")) newErrors.password = "Password is missing.";
+        // setFormErrors(newErrors);
       } else {
-        // Handle error based on EC (optional)
-        setError(EM);
+        // Other errors
+        setFormErrors({ general: "An unexpected error occurred. Please try again later." });
       }
     } catch (error) {
       console.error("Login failed:", error);
@@ -134,6 +163,7 @@ const Login = () => {
           isSignUp={false}
           onSubmit={handleLoginSubmit}
           navigation={navigation}
+          formErrors={formErrors}
         />
       </LinearGradient>
     </FFSafeAreaView>

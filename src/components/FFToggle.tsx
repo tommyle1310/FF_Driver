@@ -5,31 +5,27 @@ import { useTheme } from "@/src/hooks/useTheme"; // Import the custom useTheme h
 
 interface FFToggleProps {
   label?: string;
-  initialChecked?: boolean;
+  value?: boolean;
   onChange?: (value: boolean) => void;
   isChangeTheme?: boolean;
 }
 
 const FFToggle: React.FC<FFToggleProps> = ({
   label,
-  initialChecked = false,
+  value = false,
   onChange,
   isChangeTheme = false,
 }) => {
-  const [isChecked, setIsChecked] = useState<boolean>(initialChecked);
-
   // Use the theme context to toggle the theme
   const { toggleTheme, theme } = useTheme();
 
-  const handleToggleChange = (value: boolean) => {
-    console.log("check change hteme", isChangeTheme);
+  const handleToggleChange = (newValue: boolean) => {
     if (isChangeTheme) {
       toggleTheme();
       return;
     }
-    setIsChecked(value);
     if (onChange) {
-      onChange(value); // Call any external onChange prop
+      onChange(newValue); // Call any external onChange prop
     }
   };
 
@@ -43,10 +39,10 @@ const FFToggle: React.FC<FFToggleProps> = ({
           marginTop: -20,
           marginBottom: -20,
         }}
-        value={isChangeTheme ? (theme === "light" ? false : true) : isChecked}
+        value={isChangeTheme ? theme === "dark" : value}
         onValueChange={handleToggleChange}
         trackColor={{ false: "gray", true: "#63c550" }}
-        thumbColor={isChecked ? "#fff" : "#f4f3f4"}
+        thumbColor={value ? "#fff" : "#f4f3f4"}
       />
     </View>
   );

@@ -41,6 +41,7 @@ interface ReviewerType {
 interface ReviewType {
   id: string;
   reviewer_type: "customer" | "driver";
+  recipient_type: "customer" | "driver";
   reviewer: ReviewerType;
   food_rating: number;
   delivery_rating: number;
@@ -238,7 +239,7 @@ const [loading, setLoading] = useState(true);
             </View>
 
             <FlatList
-              data={ratingsData.reviews?.filter(item => item.reviewer_type === 'driver').filter(item => item.food_review || item.delivery_review)}
+              data={ratingsData.reviews?.filter(item => !item.food_review)?.filter(item => item.delivery_review)}
               renderItem={renderReviewCard}
               keyExtractor={(item) => item.id}
               contentContainerStyle={styles.reviewsList}

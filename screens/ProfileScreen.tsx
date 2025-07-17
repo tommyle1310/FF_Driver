@@ -142,7 +142,7 @@ const ProfileScreen = () => {
     fetchReviews();
   }, [driverId]);
 
-  console.log("Check profile data", email, phone);
+  console.log("Check reviewsData?.reviews", reviewsData?.reviews?.[0].food_review);
 
   return (
     <FFSafeAreaView>
@@ -218,7 +218,7 @@ const ProfileScreen = () => {
               <FlatList
                 horizontal
                 className="py-2"
-                data={reviewsData?.reviews || []}
+                data={reviewsData?.reviews?.filter(item => !item?.food_review ) || []}
                 renderItem={({ item }) => (
                   <View
                     style={{ elevation: 3, maxWidth: 200 }}
