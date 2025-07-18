@@ -1,7 +1,12 @@
-import { View, Text, StyleSheet, TouchableOpacity, Modal, ScrollView, FlatList } from "react-native";
-import React, { useEffect, useState } from "react";
-import FFView from "@/src/components/FFView";
-import FFScreenTopSection from "@/src/components/FFScreenTopSection";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  Dimensions,
+} from "react-native";
+import React, { useEffect, useState, useMemo } from "react";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { SidebarStackParamList } from "@/src/navigation/AppNavigator";
 import { useNavigation } from "@react-navigation/native";
@@ -9,633 +14,457 @@ import FFSafeAreaView from "@/src/components/FFSafeAreaView";
 import { LinearGradient } from "expo-linear-gradient";
 import FFText from "@/src/components/FFText";
 import IconIonicons from "react-native-vector-icons/Ionicons";
-import FFBarChart from "@/src/components/FFBarChart";
 import { useSelector } from "@/src/store/types";
 import { RootState } from "@/src/store/store";
 import axiosInstance from "@/src/utils/axiosConfig";
-import { Picker } from "@react-native-picker/picker";
-import { spacing } from "@/src/theme";
 import FFSpinner from "@/src/components/FFSpinner";
+import { PieChart } from "react-native-chart-kit";
 
-type TrackHistorySreenNavigationProp = StackNavigationProp<
-  SidebarStackParamList,
-  "Statistics"
->;
+// Interfaces based on API response
+interface PerformanceMetrics {
+  acceptance_rate: number;
+  completion_rate: number;
+  avg_response_time: number;
+  cancellation_rate: number;
+  on_time_delivery_rate: number;
+}
 
-const months = [
-  "Jan",
-  "Feb",
-  "Mar",
-  "Apr",
-  "May",
-  "Jun",
-  "Jul",
-  "Aug",
-  "Sep",
-  "Oct",
-  "Nov",
-  "Dec",
-];
+interface FinancialBreakdown {
+  base_earnings: number;
+  tips_earnings: number;
+  bonus_earnings: number;
+  estimated_net_earnings: number;
+}
 
-const days = Array.from({ length: 31 }, (_, i) => i + 1);
+interface TimeInsights {
+  consistency_score: number;
+  most_productive_day: string;
+  least_productive_day: string;
+}
+
+interface DriverStats {
+  id: string;
+  total_online_hours: number;
+  total_orders: number;
+  total_earns: number;
+  total_distance: number;
+  performance_metrics: PerformanceMetrics;
+  financial_breakdown: FinancialBreakdown;
+  time_insights: TimeInsights;
+  // Add other fields as needed
+}
+
+type Period = "daily" | "weekly" | "monthly";
 
 const StatisticsScreen = () => {
-  const navigation = useNavigation<TrackHistorySreenNavigationProp>();
+  const navigation = useNavigation<StackNavigationProp<SidebarStackParamList>>();
   const { driverId } = useSelector((state: RootState) => state.auth);
 
   const [isLoading, setIsLoading] = useState(false);
-  const [startDate, setStartDate] = useState(() => {
-    const now = new Date();
-    const day = now.getDay();
-    const diff = now.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
-    const start = new Date(now.setDate(diff));
-    start.setHours(0, 0, 0, 0);
-    return start;
-  });
-  const [endDate, setEndDate] = useState(() => {
-    const now = new Date();
-    const day = now.getDay();
-    const diff = now.getDate() - day + (day === 0 ? 0 : 7); // Adjust when day is Sunday
-    const end = new Date(now.setDate(diff));
-    end.setHours(23, 59, 59, 999);
-    return end;
-  });
-  const [showStartPicker, setShowStartPicker] = useState(false);
-  const [showEndPicker, setShowEndPicker] = useState(false);
-  const [tempStartMonth, setTempStartMonth] = useState(startDate.getMonth());
-  const [tempStartDay, setTempStartDay] = useState(startDate.getDate());
-  const [tempEndMonth, setTempEndMonth] = useState(endDate.getMonth());
-  const [tempEndDay, setTempEndDay] = useState(endDate.getDate());
-
-  // State cho dữ liệu từ API
-  const [statsData, setStatsData] = useState({
-    total_online_hours: 0,
-    total_orders: 0,
-    avg_completion_rate: 0,
-    avg_response_time: 0,
-    avg_cancellation_rate: 0,
-    avg_on_time_delivery_rate: 0,
-    avg_consistency_score: 0,
-  });
-
-  // State cho tab và dữ liệu chart
-  const [activeTab, setActiveTab] = useState<"hours" | "orders" | "completion" | "response">(
-    "hours"
-  );
-  const [chartData, setChartData] = useState<number[]>([]);
-  const [statsRecords, setStatsRecords] = useState<any[]>([]);
+  const [stats, setStats] = useState<DriverStats | null>(null);
+  const [period, setPeriod] = useState<Period>("weekly");
 
   useEffect(() => {
     fetchDriverStats();
-  }, [driverId, startDate, endDate]);
+  }, [driverId, period]);
 
   const fetchDriverStats = async () => {
     setIsLoading(true);
     try {
-      // Convert dates to epoch timestamps (seconds)
-      const startDateEpoch = Math.floor(startDate.getTime() / 1000);
-      const endDateEpoch = Math.floor(endDate.getTime() / 1000);
-      console.log('check start date' , startDateEpoch, endDateEpoch)
+      const { startDate, endDate } = getEpochDateRange(period);
       const res = await axiosInstance.get(
-        `/driver-stats/${driverId}?startDate=${startDateEpoch}&endDate=${endDateEpoch}`
+        `/driver-stats/${driverId}?startDate=${startDate}&endDate=${endDate}`
       );
-      const { EC, EM, data } = res.data;
-      if (EC === 0) {
-        console.log("Driver stats data:", data);
-        setStatsRecords(data);
-
-        // Tính tổng và trung bình từ tất cả records
-        const totalStats = data.reduce(
-          (acc: any, record: any, index: number, array: any[]) => {
-            const perfMetrics = record.performance_metrics || {};
-            const timeInsights = record.time_insights || {};
-            
-            return {
-              total_online_hours: acc.total_online_hours + (record.total_online_hours || 0),
-              total_orders: acc.total_orders + (record.total_orders || 0),
-              // Calculate averages for performance metrics
-              avg_completion_rate: index === array.length - 1 
-                ? (acc.total_completion_rate + (perfMetrics.completion_rate || 0)) / array.length
-                : acc.total_completion_rate + (perfMetrics.completion_rate || 0),
-              avg_response_time: index === array.length - 1 
-                ? (acc.total_response_time + (perfMetrics.avg_response_time || 0)) / array.length
-                : acc.total_response_time + (perfMetrics.avg_response_time || 0),
-              avg_cancellation_rate: index === array.length - 1 
-                ? (acc.total_cancellation_rate + (perfMetrics.cancellation_rate || 0)) / array.length
-                : acc.total_cancellation_rate + (perfMetrics.cancellation_rate || 0),
-              avg_on_time_delivery_rate: index === array.length - 1 
-                ? (acc.total_on_time_delivery_rate + (perfMetrics.on_time_delivery_rate || 0)) / array.length
-                : acc.total_on_time_delivery_rate + (perfMetrics.on_time_delivery_rate || 0),
-              avg_consistency_score: index === array.length - 1 
-                ? (acc.total_consistency_score + (timeInsights.consistency_score || 0)) / array.length
-                : acc.total_consistency_score + (timeInsights.consistency_score || 0),
-              // Temp totals for averaging
-              total_completion_rate: acc.total_completion_rate + (perfMetrics.completion_rate || 0),
-              total_response_time: acc.total_response_time + (perfMetrics.avg_response_time || 0),
-              total_cancellation_rate: acc.total_cancellation_rate + (perfMetrics.cancellation_rate || 0),
-              total_on_time_delivery_rate: acc.total_on_time_delivery_rate + (perfMetrics.on_time_delivery_rate || 0),
-              total_consistency_score: acc.total_consistency_score + (timeInsights.consistency_score || 0),
-            };
-          },
-          { 
-            total_online_hours: 0, 
-            total_orders: 0, 
-            avg_completion_rate: 0,
-            avg_response_time: 0,
-            avg_cancellation_rate: 0,
-            avg_on_time_delivery_rate: 0,
-            avg_consistency_score: 0,
-            total_completion_rate: 0,
-            total_response_time: 0,
-            total_cancellation_rate: 0,
-            total_on_time_delivery_rate: 0,
-            total_consistency_score: 0,
-          }
-        );
-
-        setStatsData(totalStats);
-        updateChartData(data, activeTab);
+      const { EC, data } = res.data;
+      if (EC === 0 && data.length > 0) {
+        // Aggregate data from all records into one summary object
+        const aggregatedStats = aggregateStats(data);
+        setStats(aggregatedStats);
       } else {
-        console.error("Error from API:", EM);
+        setStats(null);
       }
-    } catch (err) {
-      console.error("Error fetching driver stats:", err);
+    } catch (error) {
+      console.error("Error fetching driver stats:", error);
+      setStats(null);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const updateChartData = (records: any[], tab: string) => {
-    let chartValues: number[];
-    if (tab === "hours") {
-      chartValues = records.map((record) => record.total_online_hours || 0);
-    } else if (tab === "orders") {
-      chartValues = records.map((record) => record.total_orders || 0);
-    } else if (tab === "completion") {
-      chartValues = records.map((record) => record.performance_metrics?.completion_rate || 0);
-    } else if (tab === "response") {
-      chartValues = records.map((record) => record.performance_metrics?.avg_response_time || 0);
-    } else {
-      chartValues = records.map((record) => record.total_online_hours || 0);
+  const aggregateStats = (data: any[]): DriverStats => {
+    const total = data.reduce(
+      (acc, record) => {
+        acc.total_online_hours += record.total_online_hours || 0;
+        acc.total_orders += record.total_orders || 0;
+        acc.total_earns += record.total_earns || 0;
+        acc.total_distance += record.total_distance || 0;
+
+        if (record.performance_metrics) {
+          acc.performance_metrics.acceptance_rate += record.performance_metrics.acceptance_rate || 0;
+          acc.performance_metrics.completion_rate += record.performance_metrics.completion_rate || 0;
+          acc.performance_metrics.avg_response_time += record.performance_metrics.avg_response_time || 0;
+          acc.performance_metrics.cancellation_rate += record.performance_metrics.cancellation_rate || 0;
+          acc.performance_metrics.on_time_delivery_rate += record.performance_metrics.on_time_delivery_rate || 0;
+        }
+
+        if (record.financial_breakdown) {
+          acc.financial_breakdown.base_earnings += record.financial_breakdown.base_earnings || 0;
+          acc.financial_breakdown.tips_earnings += record.financial_breakdown.tips_earnings || 0;
+          acc.financial_breakdown.bonus_earnings += record.financial_breakdown.bonus_earnings || 0;
+          acc.financial_breakdown.estimated_net_earnings += record.financial_breakdown.estimated_net_earnings || 0;
+        }
+
+        if (record.time_insights) {
+          acc.time_insights.consistency_score += record.time_insights.consistency_score || 0;
+        }
+
+        return acc;
+      },
+      {
+        total_online_hours: 0,
+        total_orders: 0,
+        total_earns: 0,
+        total_distance: 0,
+        performance_metrics: { acceptance_rate: 0, completion_rate: 0, avg_response_time: 0, cancellation_rate: 0, on_time_delivery_rate: 0 },
+        financial_breakdown: { base_earnings: 0, tips_earnings: 0, bonus_earnings: 0, estimated_net_earnings: 0 },
+        time_insights: { consistency_score: 0, most_productive_day: "", least_productive_day: "" },
+      }
+    );
+
+    const count = data.length;
+    if (count > 0) {
+        total.performance_metrics.acceptance_rate /= count;
+        total.performance_metrics.completion_rate /= count;
+        total.performance_metrics.avg_response_time /= count;
+        total.performance_metrics.cancellation_rate /= count;
+        total.performance_metrics.on_time_delivery_rate /= count;
+        total.time_insights.consistency_score /= count;
     }
 
-    // Không tạo dữ liệu giả nếu chỉ có 1 record, giữ nguyên 1 giá trị
-    console.log("check chart data", chartValues);
-    setChartData(chartValues);
+    // For productive days, we might need a more complex logic, here we just take the first one.
+    total.time_insights.most_productive_day = data[0]?.time_insights?.most_productive_day || 'N/A';
+    total.time_insights.least_productive_day = data[0]?.time_insights?.least_productive_day || 'N/A';
+
+
+    return { id: 'aggregated', ...total };
   };
 
-  const handleTabChange = (tab: "hours" | "orders" | "completion" | "response") => {
-    setActiveTab(tab);
-    updateChartData(statsRecords, tab);
-  };
+  const financialChartData = useMemo(() => {
+    if (!stats?.financial_breakdown) return [];
+    const { base_earnings, tips_earnings, bonus_earnings } = stats.financial_breakdown;
+    const total = base_earnings + tips_earnings + bonus_earnings;
+    if (total === 0) return [];
 
-  const onStartDateConfirm = () => {
-    const newDate = new Date(
-      startDate.getFullYear(),
-      tempStartMonth,
-      tempStartDay
-    );
-    setStartDate(newDate);
-    setShowStartPicker(false);
-  };
+    return [
+      { name: "Base", value: base_earnings, color: "#4CAF50", legendFontColor: "#7F7F7F", legendFontSize: 14 },
+      { name: "Tips", value: tips_earnings, color: "#FFC107", legendFontColor: "#7F7F7F", legendFontSize: 14 },
+      { name: "Bonus", value: bonus_earnings, color: "#2196F3", legendFontColor: "#7F7F7F", legendFontSize: 14 },
+    ];
+  }, [stats]);
 
-  const onEndDateConfirm = () => {
-    const newDate = new Date(endDate.getFullYear(), tempEndMonth, tempEndDay);
-    setEndDate(newDate);
-    setShowEndPicker(false);
-  };
+  const renderMetric = (label: string, value: string | number, unit: string = "") => (
+    <View style={styles.metricBox}>
+      <Text style={styles.metricValue}>{value} <Text style={styles.metricUnit}>{unit}</Text></Text>
+      <Text style={styles.metricLabel}>{label}</Text>
+    </View>
+  );
 
-  const formatDate = (date: Date): string => {
-    return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  };
-
-  const formatHours = (hours: number): string => {
-    const h = Math.floor(hours);
-    const m = Math.round((hours - h) * 60);
-    return `${h}h ${m}m`;
-  };
-
-  // Trong StatisticsScreen
-  const getChartLabels = () => {
-    return statsRecords.map((record) => {
-      const date = new Date(parseInt(record.period_start) * 1000);
-      return date.toLocaleDateString("en-VN", {
-        month: "numeric",
-        day: "numeric",
-      });
-    });
-  };
-
-  if (isLoading) {
-    return (
-      <FFSafeAreaView
-        style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
-      >
-        <FFSpinner />
-      </FFSafeAreaView>
-    );
-  }
+  const renderProgressBar = (label: string, value: number) => (
+    <View style={styles.progressContainer}>
+      <View style={{flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4}}>
+        <Text style={styles.progressLabel}>{label}</Text>
+        <Text style={styles.progressValue}>{value.toFixed(2)}%</Text>
+      </View>
+      <View style={styles.progressBarBackground}>
+        <View style={[styles.progressBarFill, { width: `${value}%` }]} />
+      </View>
+    </View>
+  );
 
   return (
     <FFSafeAreaView style={styles.container}>
-      <LinearGradient
-        colors={["#63c550", "#a3d98f"]}
-        start={[0, 0]}
-        end={[1, 0]}
-        style={styles.headerGradient}
-      >
-        <View
-          style={{
-            paddingHorizontal: 16,
-            paddingTop: 16,
-            alignItems: "center",
-            position: "relative",
-          }}
-        >
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
-            <IconIonicons name="chevron-back" color={"#fff"} size={24} />
-          </TouchableOpacity>
-        </View>
-        <View className="items-center justify-center gap-2">
-          <FFText style={styles.headerText}>Driver Statistics</FFText>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <TouchableOpacity onPress={() => setShowStartPicker(true)}>
-              <FFText fontSize="sm" fontWeight="500" style={{ color: "#fff" }}>
-                {formatDate(startDate)}
-              </FFText>
+      <FFSpinner isVisible={isLoading} />
+      <LinearGradient colors={["#63c550", "#3a9d23"]} style={styles.headerGradient}>
+        <View style={styles.headerTop}>
+            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+                <IconIonicons name="arrow-back" size={24} color="#fff" />
             </TouchableOpacity>
-            <FFText fontSize="sm" style={{ color: "#fff" }}>
-              -
-            </FFText>
-            <TouchableOpacity onPress={() => setShowEndPicker(true)}>
-              <FFText fontSize="sm" fontWeight="500" style={{ color: "#fff" }}>
-                {formatDate(endDate)}
-              </FFText>
-            </TouchableOpacity>
-          </View>
-          <FFText fontWeight="700" fontSize="lg" style={{ color: "#fff" }}>
-            {statsData.total_orders} Orders
-          </FFText>
+            <Text style={styles.headerTitle}>Statistics</Text>
+            <View style={{width: 24}}/>
         </View>
       </LinearGradient>
-      {/* Summary Cards */}
-      <View
-        style={{
-          marginTop: -32,
-          padding: 16,
-          width: "100%",
-          flexDirection: "row",
-          gap: 12,
-        }}
-      >
-        <View
-          style={{
-            elevation: 3,
-            padding: 16,
-            alignItems: "center",
-            borderRadius: 8,
-            backgroundColor: "#fff",
-            flex: 1,
-          }}
-        >
-          <FFText>Orders</FFText>
-          <FFText fontSize="lg" fontWeight="800" style={{ color: "#4d9c39" }}>
-            {statsData.total_orders}
-          </FFText>
-        </View>
-        <View
-          style={{
-            elevation: 3,
-            padding: 16,
-            alignItems: "center",
-            borderRadius: 8,
-            backgroundColor: "#fff",
-            flex: 1,
-          }}
-        >
-          <FFText>Online Hours</FFText>
-          <FFText fontSize="lg" fontWeight="800" style={{ color: "#4d9c39" }}>
-            {formatHours(statsData.total_online_hours)}
-          </FFText>
-        </View>
-      </View>
 
-   <ScrollView>
-       {/* Performance Metrics Cards */}
-       <View
-        style={{
-          padding: 16,
-          width: "100%",
-          flexDirection: "row",
-          gap: 12,
-          flexWrap: "wrap",
-        }}
-      >
-        <View
-          style={{
-            elevation: 3,
-            padding: 16,
-            alignItems: "center",
-            borderRadius: 8,
-            backgroundColor: "#fff",
-            flex: 1,
-            minWidth: "45%",
-          }}
-        >
-          <FFText>Completion Rate</FFText>
-          <FFText fontSize="lg" fontWeight="800" style={{ color: "#4d9c39" }}>
-            {statsData.avg_completion_rate.toFixed(1)}%
-          </FFText>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <View style={styles.periodSelector}>
+          {(["daily", "weekly", "monthly"] as Period[]).map((p) => (
+            <TouchableOpacity
+              key={p}
+              style={[styles.periodButton, period === p && styles.activePeriodButton]}
+              onPress={() => setPeriod(p)}
+            >
+              <Text style={[styles.periodButtonText, period === p && styles.activePeriodButtonText]}>
+                {p.charAt(0).toUpperCase() + p.slice(1)}
+              </Text>
+            </TouchableOpacity>
+          ))}
         </View>
-        <View
-          style={{
-            elevation: 3,
-            padding: 16,
-            alignItems: "center",
-            borderRadius: 8,
-            backgroundColor: "#fff",
-            flex: 1,
-            minWidth: "45%",
-          }}
-        >
-          <FFText>Avg Response</FFText>
-          <FFText fontSize="lg" fontWeight="800" style={{ color: "#4d9c39" }}>
-            {statsData.avg_response_time.toFixed(1)}s
-          </FFText>
-        </View>
-        <View
-          style={{
-            elevation: 3,
-            padding: 16,
-            alignItems: "center",
-            borderRadius: 8,
-            backgroundColor: "#fff",
-            flex: 1,
-            minWidth: "45%",
-          }}
-        >
-          <FFText>On-Time Rate</FFText>
-          <FFText fontSize="lg" fontWeight="800" style={{ color: "#4d9c39" }}>
-            {statsData.avg_on_time_delivery_rate.toFixed(1)}%
-          </FFText>
-        </View>
-        <View
-          style={{
-            elevation: 3,
-            padding: 16,
-            alignItems: "center",
-            borderRadius: 8,
-            backgroundColor: "#fff",
-            flex: 1,
-            minWidth: "45%",
-          }}
-        >
-          <FFText>Consistency</FFText>
-          <FFText fontSize="lg" fontWeight="800" style={{ color: "#4d9c39" }}>
-            {statsData.avg_consistency_score.toFixed(1)}
-          </FFText>
-        </View>
-      </View>
 
-             {/* Tabs */}
-       <ScrollView
-         horizontal
-         showsHorizontalScrollIndicator={false}
-         contentContainerStyle={{
-           paddingHorizontal: 16,
-           paddingVertical: 16,
-           gap: 12,
-         }}
-         style={{ marginVertical: 16 }}
-       >
-         <TouchableOpacity
-           style={[styles.tab, activeTab === "hours" && styles.activeTab]}
-           onPress={() => handleTabChange("hours")}
-         >
-           <FFText
-             style={
-               activeTab === "hours" ? styles.activeTabText : styles.tabText
-             }
-           >
-             Hours
-           </FFText>
-         </TouchableOpacity>
-         <TouchableOpacity
-           style={[styles.tab, activeTab === "orders" && styles.activeTab]}
-           onPress={() => handleTabChange("orders")}
-         >
-           <FFText
-             style={activeTab === "orders" ? styles.activeTabText : styles.tabText}
-           >
-             Orders
-           </FFText>
-         </TouchableOpacity>
-         <TouchableOpacity
-           style={[styles.tab, activeTab === "completion" && styles.activeTab]}
-           onPress={() => handleTabChange("completion")}
-         >
-           <FFText
-             style={
-               activeTab === "completion" ? styles.activeTabText : styles.tabText
-             }
-           >
-             Completion
-           </FFText>
-         </TouchableOpacity>
-         <TouchableOpacity
-           style={[styles.tab, activeTab === "response" && styles.activeTab]}
-           onPress={() => handleTabChange("response")}
-         >
-           <FFText
-             style={
-               activeTab === "response" ? styles.activeTabText : styles.tabText
-             }
-           >
-             Response
-           </FFText>
-         </TouchableOpacity>
-       </ScrollView>
-
-      {/* Chart */}
-      <FFBarChart data={chartData} labels={getChartLabels()} unit={activeTab === "hours" ? "hours" : activeTab === "orders" ? "orders" : activeTab === "completion" ? "%" : "s"} />
-      <View style={{marginVertical: spacing.xxxl}}></View>
-   </ScrollView>
-
-
-        {/* Start Date Picker Modal */}
-        <Modal visible={showStartPicker} transparent animationType="slide">
-        <View style={styles.modalContainer}>
-          <View style={styles.pickerContainer}>
-            <FFText style={styles.modalTitle}>Select Start Date</FFText>
-            <View style={styles.pickerRow}>
-              <Picker
-                selectedValue={tempStartMonth}
-                onValueChange={(itemValue) => setTempStartMonth(itemValue)}
-                style={styles.picker}
-              >
-                {months.map((month, index) => (
-                  <Picker.Item key={index} label={month} value={index} />
-                ))}
-              </Picker>
-              <Picker
-                selectedValue={tempStartDay}
-                onValueChange={(itemValue) => setTempStartDay(itemValue)}
-                style={styles.picker}
-              >
-                {days.map((day) => (
-                  <Picker.Item key={day} label={`${day}`} value={day} />
-                ))}
-              </Picker>
+        {!stats && !isLoading && (
+            <View style={styles.noDataContainer}>
+                <Text style={styles.noDataText}>No statistical data available for this period.</Text>
             </View>
-            <View style={styles.buttonRow}>
-              <TouchableOpacity
-                onPress={() => setShowStartPicker(false)}
-                style={styles.cancelButton}
-              >
-                <FFText>Cancel</FFText>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={onStartDateConfirm}
-                style={styles.confirmButton}
-              >
-                <FFText style={{ color: "#fff" }}>Confirm</FFText>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
+        )}
 
-      {/* End Date Picker Modal */}
-      <Modal visible={showEndPicker} transparent animationType="slide">
-        <View style={styles.modalContainer}>
-          <View style={styles.pickerContainer}>
-            <FFText style={styles.modalTitle}>Select End Date</FFText>
-            <View style={styles.pickerRow}>
-              <Picker
-                selectedValue={tempEndMonth}
-                onValueChange={(itemValue) => setTempEndMonth(itemValue)}
-                style={styles.picker}
-              >
-                {months.map((month, index) => (
-                  <Picker.Item key={index} label={month} value={index} />
-                ))}
-              </Picker>
-              <Picker
-                selectedValue={tempEndDay}
-                onValueChange={(itemValue) => setTempEndDay(itemValue)}
-                style={styles.picker}
-              >
-                {days.map((day) => (
-                  <Picker.Item key={day} label={`${day}`} value={day} />
-                ))}
-              </Picker>
+        {stats && (
+          <>
+            {/* Key Metrics */}
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>Key Metrics</Text>
+              <View style={styles.metricsGrid}>
+                {renderMetric("Net Earnings", `$${stats.financial_breakdown.estimated_net_earnings.toFixed(2)}`)}
+                {renderMetric("Total Orders", stats.total_orders)}
+                {renderMetric("Online Time", `${stats.total_online_hours.toFixed(1)}h`)}
+                {renderMetric("Total Distance", `${stats.total_distance.toFixed(1)}`, "km")}
+              </View>
             </View>
-            <View style={styles.buttonRow}>
-              <TouchableOpacity
-                onPress={() => setShowEndPicker(false)}
-                style={styles.cancelButton}
-              >
-                <FFText>Cancel</FFText>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={onEndDateConfirm}
-                style={styles.confirmButton}
-              >
-                <FFText style={{ color: "#fff" }}>Confirm</FFText>
-              </TouchableOpacity>
+
+            {/* Performance Metrics */}
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>Performance</Text>
+              {renderProgressBar("Acceptance Rate", stats.performance_metrics.acceptance_rate)}
+              {renderProgressBar("Completion Rate", stats.performance_metrics.completion_rate)}
+              {renderProgressBar("On-Time Delivery", stats.performance_metrics.on_time_delivery_rate)}
+              <View style={{marginTop: 12}}>
+                {renderMetric("Avg. Response Time", `${stats.performance_metrics.avg_response_time.toFixed(1)}s`)}
+                {renderMetric("Cancellation Rate", `${stats.performance_metrics.cancellation_rate.toFixed(2)}%`)}
+                {renderMetric("Consistency Score", `${stats.time_insights.consistency_score.toFixed(1)}`)}
+              </View>
             </View>
-          </View>
-        </View>
-      </Modal>
+
+            {/* Financial Breakdown */}
+            {financialChartData.length > 0 &&
+                <View style={styles.card}>
+                    <Text style={styles.cardTitle}>Financial Breakdown</Text>
+                    <PieChart
+                        data={financialChartData}
+                        width={Dimensions.get("window").width - 64} // from card padding
+                        height={220}
+                        chartConfig={{
+                            color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
+                        }}
+                        accessor={"value"}
+                        backgroundColor={"transparent"}
+                        paddingLeft={"15"}
+                        absolute
+                    />
+                </View>
+            }
+
+             {/* Time Insights */}
+             <View style={styles.card}>
+                <Text style={styles.cardTitle}>Time Insights</Text>
+                <View style={styles.timeInsightContainer}>
+                    <Text style={styles.timeInsightLabel}>Most Productive Day</Text>
+                    <Text style={styles.timeInsightValue}>{stats.time_insights.most_productive_day}</Text>
+                </View>
+                <View style={styles.timeInsightContainer}>
+                    <Text style={styles.timeInsightLabel}>Least Productive Day</Text>
+                    <Text style={styles.timeInsightValue}>{stats.time_insights.least_productive_day}</Text>
+                </View>
+            </View>
+          </>
+        )}
+      </ScrollView>
     </FFSafeAreaView>
   );
+};
+
+// Helper function to get epoch timestamps for the selected period
+const getEpochDateRange = (period: Period) => {
+  const now = new Date();
+  let startDate = new Date();
+  let endDate = new Date();
+
+  switch (period) {
+    case "daily":
+      startDate.setHours(0, 0, 0, 0);
+      endDate.setHours(23, 59, 59, 999);
+      break;
+    case "weekly":
+      const day = now.getDay();
+      const diff = now.getDate() - day + (day === 0 ? -6 : 1); // week starts on Monday
+      startDate = new Date(now.setDate(diff));
+      startDate.setHours(0, 0, 0, 0);
+      endDate = new Date(startDate);
+      endDate.setDate(startDate.getDate() + 6);
+      endDate.setHours(23, 59, 59, 999);
+      break;
+    case "monthly":
+      startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+      startDate.setHours(0, 0, 0, 0);
+      endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      endDate.setHours(23, 59, 59, 999);
+      break;
+  }
+
+  return {
+    startDate: Math.floor(startDate.getTime() / 1000),
+    endDate: Math.floor(endDate.getTime() / 1000),
+  };
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f9f9f9",
+    backgroundColor: "#F4F7FC",
   },
   headerGradient: {
-    paddingHorizontal: 12,
-    paddingVertical: 24,
-    borderBottomLeftRadius: 32,
-    borderBottomRightRadius: 32,
-    height: 160,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 5,
+    paddingTop: 40,
+    paddingBottom: 20,
+    paddingHorizontal: 16,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+  },
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
   },
   backButton: {
-    position: "absolute",
-    left: 16,
-    top: 16,
-    marginRight: 12,
+    padding: 8,
   },
-  headerText: {
+  headerTitle: {
     color: "#fff",
-    fontSize: 24,
+    fontSize: 22,
+    fontWeight: "bold",
   },
-  modalContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
+  scrollContent: {
+    padding: 16,
   },
-  pickerContainer: {
+  periodSelector: {
+    flexDirection: "row",
+    justifyContent: "space-around",
     backgroundColor: "#fff",
-    borderRadius: 10,
-    padding: 20,
-    width: "80%",
+    borderRadius: 25,
+    padding: 4,
+    marginBottom: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 3,
+  },
+  periodButton: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 20,
     alignItems: "center",
   },
-  modalTitle: {
+  activePeriodButton: {
+    backgroundColor: "#63c550",
+  },
+  periodButtonText: {
+    color: "#333",
+    fontWeight: "600",
+  },
+  activePeriodButtonText: {
+    color: "#fff",
+  },
+  card: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  cardTitle: {
     fontSize: 18,
     fontWeight: "bold",
-    marginBottom: 10,
+    marginBottom: 12,
+    color: "#333",
   },
-  pickerRow: {
+  metricsGrid: {
     flexDirection: "row",
+    flexWrap: "wrap",
     justifyContent: "space-between",
-    width: "100%",
   },
-  picker: {
-    width: "50%",
+  metricBox: {
+    width: "48%",
+    alignItems: "center",
+    paddingVertical: 16,
+    backgroundColor: '#F4F7FC',
+    borderRadius: 8,
+    marginBottom: 8,
   },
-  buttonRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    width: "100%",
-    marginTop: 20,
-  },
-  cancelButton: {
-    padding: 10,
-  },
-  confirmButton: {
-    padding: 10,
-    backgroundColor: "#63c550",
-    borderRadius: 5,
-  },
-  tab: {
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 20,
-  },
-  activeTab: {
-    backgroundColor: "#63c550",
-  },
-  tabText: {
-    color: "#000",
-  },
-  activeTabText: {
-    color: "#fff",
+  metricValue: {
+    fontSize: 20,
     fontWeight: "bold",
+    color: "#3a9d23",
   },
+   metricUnit: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: 'normal',
+  },
+  metricLabel: {
+    fontSize: 14,
+    color: "#666",
+    marginTop: 4,
+  },
+  progressContainer: {
+    marginBottom: 12,
+  },
+  progressLabel: {
+    fontSize: 14,
+    color: "#333",
+  },
+  progressValue: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: "#3a9d23",
+  },
+  progressBarBackground: {
+    height: 8,
+    backgroundColor: "#e0e0e0",
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  progressBarFill: {
+    height: "100%",
+    backgroundColor: "#63c550",
+    borderRadius: 4,
+  },
+  noDataContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 50,
+  },
+  noDataText: {
+      fontSize: 16,
+      color: '#666',
+  },
+  timeInsightContainer: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      paddingVertical: 8,
+      borderBottomWidth: 1,
+      borderBottomColor: '#F4F7FC',
+  },
+  timeInsightLabel: {
+      fontSize: 14,
+      color: '#333',
+  },
+  timeInsightValue: {
+      fontSize: 14,
+      fontWeight: 'bold',
+      color: '#3a9d23',
+  }
 });
 
 export default StatisticsScreen;
